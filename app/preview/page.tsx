@@ -17,9 +17,9 @@ const nav=[
 ] as const;
 
 const matters=[
-  ["0708421-19.2026.8.07.0001","HPLUS Administração","Contestação","Atenção"],
-  ["0001389-44.2026.5.10.0007","Grupo empresarial","Audiência designada","Em dia"],
-  ["1029844-71.2025.8.26.0100","Cliente corporativo","Aguardando decisão","Em dia"],
+  ["0708421-19.2026.8.07.0001","Alvorada Participações","Contestação","Atenção"],
+  ["0001389-44.2026.5.10.0007","Grupo Horizonte","Audiência designada","Em dia"],
+  ["1029844-71.2025.8.26.0100","Nexo Empreendimentos","Aguardando decisão","Em dia"],
 ];
 
 export default function PreviewPage(){
@@ -52,7 +52,7 @@ export default function PreviewPage(){
       <header className="preview-topbar">
         <div>
           <span>Workspace</span>
-          <strong>Bruno & Marina Advocacia — Demo</strong>
+          <strong>Escritório Modelo — Demo</strong>
         </div>
         <div className="preview-top-actions">
           <button><BellRing size={17}/></button>
