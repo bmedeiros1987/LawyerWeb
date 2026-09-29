@@ -67,6 +67,14 @@ enum CommunicationStatus {
   ARCHIVED
 }
 
+enum IntakeStatus {
+  NEW
+  REVIEWING
+  CONFIRMED
+  CONVERTED
+  DISMISSED
+}
+
 model User {
   id String @id @default(cuid())
   name String?
@@ -77,6 +85,7 @@ model User {
   sessions Session[]
   calendarConnection GoogleCalendarConnection?
   calendarEvents LegalCalendarEvent[]
+  gmailConnections GoogleGmailConnection[]
   memberships WorkspaceMember[]
   activityLogs ActivityLog[]
   timeEntries TimeEntry[]
@@ -136,6 +145,8 @@ model Workspace {
   timeEntries TimeEntry[]
   auditLogs AuditLog[]
   notifications UserNotification[]
+  gmailConnections GoogleGmailConnection[]
+  intakeDemands IntakeDemand[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -198,6 +209,7 @@ model Client {
   matters Matter[]
   documents LegalDocument[]
   contracts Contract[]
+  intakeDemands IntakeDemand[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([workspaceId,name])
@@ -230,6 +242,7 @@ model Matter {
   contracts Contract[]
   communications CourtCommunication[]
   access MatterAccess[]
+  intakeDemands IntakeDemand[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([workspaceId,status])
@@ -601,4 +614,55 @@ model LegalCalendarEvent {
   @@index([userId,startAt])
   @@index([userId,startDate])
   @@index([workspaceId])
+}
+
+model GoogleGmailConnection {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  googleEmail String
+  accessTokenEnc String? @db.Text
+  refreshTokenEnc String? @db.Text
+  expiresAt DateTime?
+  scope String? @db.Text
+  historyId String?
+  watchExpiresAt DateTime?
+  labelIds String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,userId])
+  @@index([googleEmail])
+  @@index([workspaceId,watchExpiresAt])
+}
+
+model IntakeDemand {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  matterId String?
+  matter Matter? @relation(fields:[matterId],references:[id],onDelete:SetNull)
+  clientId String?
+  client Client? @relation(fields:[clientId],references:[id],onDelete:SetNull)
+  source String
+  externalId String
+  threadId String?
+  title String
+  bodyPreview String? @db.Text
+  sender String?
+  recipients String[] @default([])
+  receivedAt DateTime @default(now())
+  status IntakeStatus @default(NEW)
+  requiresAction Boolean @default(true)
+  actionCandidate String? @db.Text
+  dueCandidate DateTime?
+  confidence Float?
+  evidence Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,source,externalId])
+  @@index([workspaceId,status,receivedAt])
+  @@index([matterId])
+  @@index([clientId])
 }
