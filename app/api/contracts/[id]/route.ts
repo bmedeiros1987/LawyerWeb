@@ -21,7 +21,6 @@ const patchInput=z.object({
   amount:z.number().nonnegative().max(1e15).nullable().optional(),
   currency:z.string().trim().min(3).max(3).optional(),
   responsibleUserId:z.string().nullable().optional(),
-  metadata:z.record(z.string(),z.unknown()).nullable().optional(),
 });
 
 async function findAccessible(id:string,workspaceId:string,userId:string) {
