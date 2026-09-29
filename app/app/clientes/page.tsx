@@ -23,7 +23,10 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
       {cpfCnpj:{contains:search.replace(/\D/g,"")}},
       {email:{contains:search,mode:"insensitive" as const}},
     ]}:{})},
-    include:{_count:{select:{matters:true,documents:true,contracts:true}}},
+    include:{
+      matters:{where:{OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},select:{id:true}},
+      _count:{select:{documents:true,contracts:true}},
+    },
     orderBy:{name:"asc"},take:250,
   });
 
@@ -34,7 +37,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
     <section className="client-grid">{clients.map((c)=><Link className="client-card" href={"/app/clientes/"+c.id} key={c.id}>
       <div className="client-avatar">{c.type==="INDIVIDUAL"?<UserRound size={20}/>:<Building2 size={20}/>}</div>
       <div><strong>{c.name}</strong><span>{c.type==="INDIVIDUAL"?"Pessoa física":"Pessoa jurídica"}{c.cpfCnpj?" · "+c.cpfCnpj:""}</span></div>
-      <div className="client-stats"><span><b>{c._count.matters}</b>processos</span><span><b>{c._count.contracts+c._count.documents}</b>docs/contratos</span></div>
+      <div className="client-stats"><span><b>{c.matters.length}</b>processos</span><span><b>{c._count.contracts+c._count.documents}</b>docs/contratos</span></div>
     </Link>)}</section>}
   </div>;
 }
