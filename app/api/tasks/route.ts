@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { P, requirePermission } from "@/lib/authz/permissions";
+import { P, canAccessMatter, requirePermission } from "@/lib/authz/permissions";
 import { requireActiveMembership } from "@/lib/workspace/context";
 
 const createInput = z.object({
@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
         workspaceId: member.workspaceId,
         AND: [
           visibility,
+          { OR: [{ matterId: null }, { matter: { secrecy: false } }, { matter: { access: { some: { memberId: member.id } } } }] },
           scopeFilter,
           ...(status ? [{ status: status as never }] : []),
           ...(q ? [{ OR: [
@@ -87,8 +88,8 @@ export async function POST(request: NextRequest) {
     await requirePermission(session.user.id, member.workspaceId, P.TASKS_EDIT);
 
     if (parsed.matterId) {
-      const matter = await prisma.matter.findFirst({ where: { id: parsed.matterId, workspaceId: member.workspaceId } });
-      if (!matter) return NextResponse.json({ error: "Processo/assunto inválido." }, { status: 400 });
+      const allowed = await canAccessMatter(session.user.id, member.workspaceId, parsed.matterId, P.MATTERS_VIEW);
+      if (!allowed) return NextResponse.json({ error: "Processo/assunto inválido ou sem acesso." }, { status: 400 });
     }
     await validateMember(member.workspaceId, parsed.assigneeUserId);
     await validateMember(member.workspaceId, parsed.reviewerUserId);
