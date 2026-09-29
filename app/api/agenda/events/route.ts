@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { pushVclEventToGoogle } from "@/lib/google/calendar";
+import { pushMBLZEventToGoogle } from "@/lib/google/calendar";
 
 const input = z.object({
   title: z.string().min(1).max(250),
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         ...normalizeDates(parsed),
       },
     });
-    await pushVclEventToGoogle(event.id);
+    await pushMBLZEventToGoogle(event.id);
     return NextResponse.json({ event }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
