@@ -31,15 +31,14 @@ export async function GET(request: NextRequest) {
     const matters = await prisma.matter.findMany({
       where: {
         workspaceId: member.workspaceId,
-        ...(q ? { OR: [
-          { number: { contains: q, mode: "insensitive" } },
-          { internalCode: { contains: q, mode: "insensitive" } },
-          { title: { contains: q, mode: "insensitive" } },
-          { client: { name: { contains: q, mode: "insensitive" } } },
-        ] } : {}),
-        OR: [
-          { secrecy: false },
-          { access: { some: { memberId: member.id } } },
+        AND: [
+          { OR: [{ secrecy: false }, { access: { some: { memberId: member.id } } }] },
+          ...(q ? [{ OR: [
+            { number: { contains: q, mode: "insensitive" as const } },
+            { internalCode: { contains: q, mode: "insensitive" as const } },
+            { title: { contains: q, mode: "insensitive" as const } },
+            { client: { name: { contains: q, mode: "insensitive" as const } } },
+          ] }] : []),
         ],
       },
       include: {
