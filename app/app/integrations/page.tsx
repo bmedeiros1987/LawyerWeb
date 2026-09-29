@@ -1,4 +1,5 @@
-import { CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
+import { BellRing, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
+import { PushOptIn } from "@/components/push-opt-in";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -48,6 +49,12 @@ export default async function Page() {
           : membership
             ? <a className="new-button" href={`/api/integrations/google-gmail/connect?workspaceId=${membership.workspaceId}`}><Mail size={15}/>Conectar</a>
             : <span className="status-pill quiet">Aguardando setup</span>}
+      </article>
+
+      <article className="integration-card">
+        <div className="integration-logo" style={{color:"#655cf6"}}><BellRing size={20}/></div>
+        <div><strong>Notificações do dispositivo</strong><span>Prazos críticos, escalonamentos e atualizações importantes no PWA.</span></div>
+        <PushOptIn/>
       </article>
 
       <article className="integration-card">
