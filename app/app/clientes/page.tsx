@@ -15,6 +15,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   if(!(await memberWithPermission(session.user.id,member.workspaceId,P.CLIENTS_VIEW))) {
     return <div className="empty-state"><LockKeyhole size={28}/><h2>Acesso restrito</h2><p>Seu perfil não possui permissão para consultar clientes.</p></div>;
   }
+  const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.CLIENTS_EDIT));
   const {q=""}=await searchParams; const search=q.trim();
   const clients=await prisma.client.findMany({
     where:{workspaceId:member.workspaceId,...(search?{OR:[
@@ -31,7 +32,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   });
 
   return <div className="page-stack">
-    <section className="page-header"><div><span className="eyebrow">Relacionamento</span><h1>Clientes</h1><p>Uma ficha única para histórico, processos, contratos, documentos e trabalho realizado.</p></div><QuickClientForm workspaceId={member.workspaceId}/></section>
+    <section className="page-header"><div><span className="eyebrow">Relacionamento</span><h1>Clientes</h1><p>Uma ficha única para histórico, processos, contratos, documentos e trabalho realizado.</p></div>{canEdit&&<QuickClientForm workspaceId={member.workspaceId}/>}</section>
     <form className="toolbar-card" action="/app/clientes" method="get"><div className="search-field"><Search size={17}/><input name="q" defaultValue={search} placeholder="Nome, CPF, CNPJ ou e-mail"/></div></form>
     {clients.length===0?<div className="empty-state"><Building2 size={28}/><h2>{search?"Nenhum cliente encontrado":"Nenhum cliente cadastrado"}</h2><p>Cadastre uma pessoa ou empresa uma única vez e reutilize esse vínculo em todos os assuntos.</p></div>:
     <section className="client-grid">{clients.map((c)=><Link className="client-card" href={"/app/clientes/"+c.id} key={c.id}>
