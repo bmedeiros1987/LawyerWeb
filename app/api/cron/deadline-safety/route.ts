@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { deadlineRisk } from "@/lib/deadlines/safety";
+import { sendPushToUser } from "@/lib/push/webpush";
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -46,6 +47,14 @@ export async function POST(request: NextRequest) {
           },
         });
         notifications += 1;
+        if (r.channel === "PUSH" || r.channel === "ESCALATION") {
+          await sendPushToUser(r.recipientUserId, {
+            title: r.stage >= 4 ? `Prazo exige ação: ${r.deadline.title}` : `Lembrete de prazo: ${r.deadline.title}`,
+            body: r.deadline.dueAt ? `Prazo legal: ${r.deadline.dueAt.toLocaleString("pt-BR")}` : "Abra o MBLZ para revisar.",
+            url: "/app/prazos",
+            tag: `deadline-${r.deadlineId}`,
+          });
+        }
       }
       if (r.channel === "ESCALATION") {
         const managers = await tx.workspaceMember.findMany({
@@ -67,6 +76,12 @@ export async function POST(request: NextRequest) {
             },
           });
           notifications += 1;
+          await sendPushToUser(m.userId, {
+            title: `Escalonamento de prazo: ${r.deadline.title}`,
+            body: "Prazo próximo do limite e requer acompanhamento da coordenação.",
+            url: "/app/prazos",
+            tag: `deadline-escalation-${r.deadlineId}`,
+          });
         }
       }
       await tx.deadlineReminder.update({ where: { id: r.id }, data: { status: "SENT", sentAt: now } });

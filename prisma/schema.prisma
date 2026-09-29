@@ -90,6 +90,7 @@ model User {
   activityLogs ActivityLog[]
   timeEntries TimeEntry[]
   notifications UserNotification[]
+  pushSubscriptions PushSubscription[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -665,4 +666,19 @@ model IntakeDemand {
   @@index([workspaceId,status,receivedAt])
   @@index([matterId])
   @@index([clientId])
+}
+
+
+model PushSubscription {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  endpoint String @unique @db.Text
+  p256dh String
+  auth String
+  userAgent String? @db.Text
+  platform String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId])
 }

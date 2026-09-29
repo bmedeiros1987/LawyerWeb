@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22 <23" },
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -28,7 +30,8 @@
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest",
-    "lucide-react": "latest"
+    "lucide-react": "latest",
+    "web-push": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
@@ -36,6 +39,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "prisma": "7.10.0",
-    "typescript": "latest"
+    "typescript": "latest",
+    "@types/web-push": "latest"
   }
 }
