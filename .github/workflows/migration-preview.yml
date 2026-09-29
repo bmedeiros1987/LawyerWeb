@@ -1,0 +1,32 @@
+name: Generate initial migration preview
+
+on:
+  push:
+    branches:
+      - chore/initial-migration
+
+permissions:
+  contents: read
+
+jobs:
+  migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mblz_preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Validate Prisma schema
+        run: npx prisma validate
+      - name: Generate SQL from empty PostgreSQL schema
+        run: npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script -o /tmp/migration.sql
+      - name: Emit migration SQL
+        shell: bash
+        run: |
+          echo "=====MBLZ_MIGRATION_SQL_BEGIN====="
+          cat /tmp/migration.sql
+          echo "=====MBLZ_MIGRATION_SQL_END====="
