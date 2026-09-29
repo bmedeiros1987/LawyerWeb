@@ -30,3 +30,10 @@ jobs:
           echo "=====MBLZ_MIGRATION_SQL_BEGIN====="
           cat /tmp/migration.sql
           echo "=====MBLZ_MIGRATION_SQL_END====="
+      - name: Upload migration SQL
+        uses: actions/upload-artifact@v4
+        with:
+          name: mblz-initial-migration
+          path: /tmp/migration.sql
+          if-no-files-found: error
+          retention-days: 3
