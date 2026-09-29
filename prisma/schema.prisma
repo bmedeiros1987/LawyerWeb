@@ -1,0 +1,549 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+datasource db { provider = "postgresql" }
+
+enum MemberStatus { INVITED ACTIVE SUSPENDED }
+enum DeadlineStatus { CANDIDATE PENDING_CONFIRMATION CONFIRMED IN_PROGRESS COMPLETED CANCELLED }
+enum DeadlineRisk { NORMAL ATTENTION HIGH CRITICAL }
+enum TaskStatus { OPEN IN_PROGRESS WAITING REVIEW DONE CANCELLED }
+enum DocumentStatus { DRAFT IN_REVIEW APPROVED SIGNING SIGNED ARCHIVED }
+enum ContractStatus { DRAFT NEGOTIATION REVIEW SIGNING ACTIVE EXPIRING EXPIRED TERMINATED ARCHIVED }
+enum CommunicationStatus { NEW READ TRIAGED TREATED ARCHIVED }
+
+model User {
+  id String @id @default(cuid())
+  name String?
+  email String? @unique
+  emailVerified DateTime?
+  image String?
+  accounts Account[]
+  sessions Session[]
+  calendarConnection GoogleCalendarConnection?
+  calendarEvents LegalCalendarEvent[]
+  memberships WorkspaceMember[]
+  activityLogs ActivityLog[]
+  timeEntries TimeEntry[]
+  notifications UserNotification[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Account {
+  id String @id @default(cuid())
+  userId String
+  type String
+  provider String
+  providerAccountId String
+  refresh_token String? @db.Text
+  access_token String? @db.Text
+  expires_at Int?
+  token_type String?
+  scope String?
+  id_token String? @db.Text
+  session_state String?
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@unique([provider,providerAccountId])
+}
+model Session {
+  id String @id @default(cuid())
+  sessionToken String @unique
+  userId String
+  expires DateTime
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+}
+model VerificationToken {
+  identifier String
+  token String @unique
+  expires DateTime
+  @@unique([identifier,token])
+}
+
+model Workspace {
+  id String @id @default(cuid())
+  name String
+  slug String @unique
+  timezone String @default("America/Sao_Paulo")
+  members WorkspaceMember[]
+  roles WorkspaceRole[]
+  clients Client[]
+  matters Matter[]
+  tasks LegalTask[]
+  deadlines Deadline[]
+  deadlinePolicies DeadlinePolicy[]
+  documents LegalDocument[]
+  templates DocumentTemplate[]
+  letterheads Letterhead[]
+  contracts Contract[]
+  communications CourtCommunication[]
+  signingIdentities SigningIdentity[]
+  activityLogs ActivityLog[]
+  timeEntries TimeEntry[]
+  auditLogs AuditLog[]
+  notifications UserNotification[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model WorkspaceRole {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  name String
+  key String?
+  level Int @default(50)
+  permissions Json
+  isSystem Boolean @default(false)
+  members WorkspaceMember[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,name])
+  @@index([workspaceId,level])
+}
+model WorkspaceMember {
+  id String @id @default(cuid())
+  workspaceId String
+  userId String
+  roleId String?
+  status MemberStatus @default(ACTIVE)
+  jobTitle String?
+  supervisorUserId String?
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  role WorkspaceRole? @relation(fields:[roleId],references:[id],onDelete:SetNull)
+  matterAccess MatterAccess[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,userId])
+  @@index([userId])
+  @@index([roleId])
+}
+model MatterAccess {
+  id String @id @default(cuid())
+  matterId String
+  memberId String
+  access String @default("EDIT")
+  matter Matter @relation(fields:[matterId],references:[id],onDelete:Cascade)
+  member WorkspaceMember @relation(fields:[memberId],references:[id],onDelete:Cascade)
+  @@unique([matterId,memberId])
+}
+
+model Client {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  type String @default("LEGAL_ENTITY")
+  name String
+  legalName String?
+  cpfCnpj String?
+  email String?
+  phone String?
+  status String @default("ACTIVE")
+  tags String[] @default([])
+  notes String? @db.Text
+  matters Matter[]
+  documents LegalDocument[]
+  contracts Contract[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,name])
+  @@index([workspaceId,cpfCnpj])
+}
+model Matter {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  clientId String?
+  client Client? @relation(fields:[clientId],references:[id],onDelete:SetNull)
+  number String?
+  internalCode String?
+  title String
+  type String @default("LITIGATION")
+  practiceArea String?
+  court String?
+  jurisdiction String?
+  courtUnit String?
+  status String @default("ACTIVE")
+  secrecy Boolean @default(false)
+  ownerUserId String?
+  responsibleUserId String?
+  phase String?
+  value Decimal? @db.Decimal(18,2)
+  tags String[] @default([])
+  tasks LegalTask[]
+  deadlines Deadline[]
+  documents LegalDocument[]
+  contracts Contract[]
+  communications CourtCommunication[]
+  access MatterAccess[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,status])
+  @@index([workspaceId,number])
+  @@index([clientId])
+}
+model LegalTask {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  matterId String?
+  matter Matter? @relation(fields:[matterId],references:[id],onDelete:SetNull)
+  title String
+  description String? @db.Text
+  status TaskStatus @default(OPEN)
+  priority String @default("NORMAL")
+  requesterUserId String?
+  assigneeUserId String?
+  reviewerUserId String?
+  startAt DateTime?
+  dueAt DateTime?
+  completedAt DateTime?
+  private Boolean @default(false)
+  estimatedMinutes Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,status])
+  @@index([assigneeUserId,dueAt])
+  @@index([matterId])
+}
+
+model DeadlinePolicy {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  name String
+  isDefault Boolean @default(false)
+  requireReviewer Boolean @default(true)
+  internalBufferHours Int @default(24)
+  reminderSchedule Json
+  escalationPolicy Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Deadline {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  matterId String?
+  matter Matter? @relation(fields:[matterId],references:[id],onDelete:SetNull)
+  communicationId String?
+  communication CourtCommunication? @relation(fields:[communicationId],references:[id],onDelete:SetNull)
+  title String
+  description String? @db.Text
+  status DeadlineStatus @default(CANDIDATE)
+  risk DeadlineRisk @default(NORMAL)
+  source String?
+  sourceReference String?
+  legalStartAt DateTime?
+  dueAt DateTime?
+  internalDueAt DateTime?
+  primaryResponsibleUserId String?
+  reviewerUserId String?
+  acknowledgedAt DateTime?
+  acknowledgedByUserId String?
+  confirmedAt DateTime?
+  confirmedByUserId String?
+  completedAt DateTime?
+  completedByUserId String?
+  ruleSummary String? @db.Text
+  computationTrace Json?
+  reminders DeadlineReminder[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,status,dueAt])
+  @@index([matterId])
+  @@index([primaryResponsibleUserId,dueAt])
+  @@index([communicationId])
+}
+model DeadlineReminder {
+  id String @id @default(cuid())
+  deadlineId String
+  deadline Deadline @relation(fields:[deadlineId],references:[id],onDelete:Cascade)
+  scheduledAt DateTime
+  channel String
+  stage Int @default(1)
+  status String @default("PENDING")
+  recipientUserId String?
+  sentAt DateTime?
+  acknowledgedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([scheduledAt,status])
+  @@index([deadlineId])
+}
+
+model CourtCommunication {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  matterId String?
+  matter Matter? @relation(fields:[matterId],references:[id],onDelete:SetNull)
+  source String
+  externalId String?
+  type String?
+  title String?
+  body String? @db.Text
+  receivedAt DateTime @default(now())
+  publishedAt DateTime?
+  availableAt DateTime?
+  officialUrl String?
+  contentHash String?
+  status CommunicationStatus @default(NEW)
+  requiresAction Boolean @default(false)
+  readAt DateTime?
+  readByUserId String?
+  treatedAt DateTime?
+  treatedByUserId String?
+  payload Json?
+  deadlines Deadline[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,source,externalId])
+  @@index([workspaceId,status,receivedAt])
+  @@index([matterId])
+}
+
+model LegalDocument {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  matterId String?
+  matter Matter? @relation(fields:[matterId],references:[id],onDelete:SetNull)
+  clientId String?
+  client Client? @relation(fields:[clientId],references:[id],onDelete:SetNull)
+  templateId String?
+  template DocumentTemplate? @relation(fields:[templateId],references:[id],onDelete:SetNull)
+  letterheadId String?
+  letterhead Letterhead? @relation(fields:[letterheadId],references:[id],onDelete:SetNull)
+  name String
+  kind String @default("OTHER")
+  status DocumentStatus @default(DRAFT)
+  currentVersion Int @default(1)
+  createdByUserId String?
+  versions DocumentVersion[]
+  contracts Contract[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,name])
+  @@index([matterId])
+  @@index([clientId])
+}
+model DocumentVersion {
+  id String @id @default(cuid())
+  documentId String
+  document LegalDocument @relation(fields:[documentId],references:[id],onDelete:Cascade)
+  version Int
+  mimeType String?
+  storageKey String?
+  originalName String?
+  sha256 String?
+  source String @default("UPLOAD")
+  notes String? @db.Text
+  createdByUserId String?
+  createdAt DateTime @default(now())
+  signatureEnvelopes SignatureEnvelope[]
+  @@unique([documentId,version])
+}
+model DocumentTemplate {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  name String
+  category String
+  description String?
+  storageKey String?
+  variables Json?
+  active Boolean @default(true)
+  documents LegalDocument[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,category])
+}
+model Letterhead {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  name String
+  storageKey String
+  mimeType String?
+  isDefault Boolean @default(false)
+  documents LegalDocument[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Contract {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  clientId String?
+  client Client? @relation(fields:[clientId],references:[id],onDelete:SetNull)
+  matterId String?
+  matter Matter? @relation(fields:[matterId],references:[id],onDelete:SetNull)
+  documentId String?
+  document LegalDocument? @relation(fields:[documentId],references:[id],onDelete:SetNull)
+  title String
+  contractType String
+  status ContractStatus @default(DRAFT)
+  counterparty String?
+  effectiveAt DateTime?
+  expiresAt DateTime?
+  noticeDays Int?
+  autoRenew Boolean @default(false)
+  amount Decimal? @db.Decimal(18,2)
+  currency String @default("BRL")
+  responsibleUserId String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,status,expiresAt])
+  @@index([clientId])
+}
+
+model SigningIdentity {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String?
+  provider String
+  kind String
+  displayName String
+  externalIdentityId String?
+  certificateSerial String?
+  certificateExpiresAt DateTime?
+  status String @default("ACTIVE")
+  metadata Json?
+  envelopes SignatureEnvelope[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([workspaceId,userId])
+}
+model SignatureEnvelope {
+  id String @id @default(cuid())
+  documentVersionId String
+  documentVersion DocumentVersion @relation(fields:[documentVersionId],references:[id],onDelete:Cascade)
+  signingIdentityId String?
+  signingIdentity SigningIdentity? @relation(fields:[signingIdentityId],references:[id],onDelete:SetNull)
+  provider String
+  providerEnvelopeId String?
+  status String @default("PENDING")
+  requestedAt DateTime @default(now())
+  signedAt DateTime?
+  evidence Json?
+  @@index([provider,providerEnvelopeId])
+}
+
+model TimeEntry {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  matterId String?
+  clientId String?
+  description String
+  source String @default("MANUAL")
+  startedAt DateTime
+  endedAt DateTime?
+  minutes Int?
+  billable Boolean @default(false)
+  hourlyRate Decimal? @db.Decimal(18,2)
+  createdAt DateTime @default(now())
+  @@index([workspaceId,userId,startedAt])
+  @@index([matterId])
+}
+model ActivityLog {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String?
+  user User? @relation(fields:[userId],references:[id],onDelete:SetNull)
+  type String
+  entityType String
+  entityId String?
+  summary String
+  source String @default("SYSTEM")
+  metadata Json?
+  occurredAt DateTime @default(now())
+  @@index([workspaceId,occurredAt])
+  @@index([userId,occurredAt])
+  @@index([entityType,entityId])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String?
+  action String
+  entityType String
+  entityId String?
+  metadata Json?
+  ipHash String?
+  createdAt DateTime @default(now())
+  @@index([workspaceId,createdAt])
+  @@index([entityType,entityId])
+}
+model UserNotification {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  type String
+  severity String @default("INFO")
+  title String
+  body String? @db.Text
+  entityType String?
+  entityId String?
+  readAt DateTime?
+  acknowledgedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,readAt,createdAt])
+}
+
+model GoogleCalendarConnection {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  googleEmail String?
+  accessTokenEnc String? @db.Text
+  refreshTokenEnc String? @db.Text
+  expiresAt DateTime?
+  scope String? @db.Text
+  calendarId String?
+  calendarName String? @default("Arcora")
+  syncToken String? @db.Text
+  watchChannelId String? @unique
+  watchResourceId String?
+  watchTokenHash String?
+  watchExpiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model LegalCalendarEvent {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  workspaceId String?
+  matterId String?
+  taskId String?
+  deadlineId String?
+  title String
+  description String? @db.Text
+  location String?
+  kind String @default("OTHER")
+  status String @default("CONFIRMED")
+  source String @default("ARCORA")
+  timeZone String @default("America/Sao_Paulo")
+  allDay Boolean @default(false)
+  startAt DateTime?
+  endAt DateTime?
+  startDate String?
+  endDate String?
+  googleEventId String?
+  googleCalendarId String?
+  googleUpdatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId,googleEventId])
+  @@index([userId,startAt])
+  @@index([userId,startDate])
+  @@index([workspaceId])
+}
