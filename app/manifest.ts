@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function manifest():MetadataRoute.Manifest{return {name:"Arcora Legal OS",short_name:"Arcora",description:"Operação jurídica, prazos, documentos e inteligência.",start_url:"/app",display:"standalone",background_color:"#f5f6f8",theme_color:"#11141d",lang:"pt-BR"}}
