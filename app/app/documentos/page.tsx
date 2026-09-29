@@ -1,2 +1,73 @@
-import {FileText,FolderOpen,MoreHorizontal,Plus,Search,Upload} from "lucide-react";const docs=["Parecer jurídico — revisão interna.docx","Contrato — versão 4.docx","Contestação — minuta.pdf","Ata societária — registrada.pdf"];
-export default function Page(){return <div className="page-stack"><section className="page-header"><div><span className="eyebrow">MBLZ Files</span><h1>Documentos</h1><p>Arquivos, versões, modelos, papel timbrado e documentos vinculados aos assuntos.</p></div><div><button className="filter-button"><Upload size={16}/>Importar</button> <button className="new-button"><Plus size={17}/>Novo documento</button></div></section><section className="toolbar-card"><div className="search-field"><Search size={17}/><input placeholder="Nome, conteúdo, processo, contrato ou cliente"/></div></section><section className="document-grid"><article className="folder-card"><FolderOpen size={21}/><strong>Modelos do escritório</strong><span>contratos, pareceres, notificações e peças</span></article><article className="folder-card"><FolderOpen size={21}/><strong>Papel timbrado</strong><span>múltiplas marcas e unidades</span></article><article className="folder-card"><FolderOpen size={21}/><strong>Assinados</strong><span>evidências e certificados vinculados</span></article></section><section className="table-card"><div className="table-head doc"><span>Documento</span><span>Modificado</span><span>Vínculo</span><span/></div>{docs.map((d,i)=><div className="table-row doc" key={d}><div className="matter-name"><span className="table-icon"><FileText size={16}/></span><strong>{d}</strong></div><span>{i<2?"Hoje":"Ontem"}</span><span>{i%2?"Cliente":"Processo"}</span><button className="row-action"><MoreHorizontal size={17}/></button></div>)}</section></div>}
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { FileText, FolderOpen, LockKeyhole, Search } from "lucide-react";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { P, memberWithPermission } from "@/lib/authz/permissions";
+import { getActiveMembership } from "@/lib/workspace/context";
+import { QuickLegalDocumentForm } from "@/components/legal-documents-quick-create";
+
+export const dynamic="force-dynamic";
+
+const kindNames:Record<string,string>={
+  CONTRACT:"Contrato",OPINION:"Parecer",POWER_OF_ATTORNEY:"Procuração",CERTIFICATE:"Certidão",
+  CORPORATE_ACT:"Ato societário",TRADEMARK_PATENT:"Marca / patente",PETITION:"Petição",
+  NOTICE:"Notificação",MINUTES:"Ata",OTHER:"Outro"
+};
+const statusNames:Record<string,string>={DRAFT:"Minuta",IN_REVIEW:"Em revisão",APPROVED:"Aprovado",SIGNING:"Assinatura",SIGNED:"Assinado",ARCHIVED:"Arquivado"};
+
+export default async function Page({searchParams}:{searchParams:Promise<{q?:string}>}) {
+  const session=await auth(); if(!session?.user?.id) redirect("/login");
+  const member=await getActiveMembership(session.user.id); if(!member) redirect("/app/setup");
+  if(!(await memberWithPermission(session.user.id,member.workspaceId,P.DOCUMENTS_VIEW))) {
+    return <div className="empty-state"><LockKeyhole size={28}/><h2>Acesso restrito</h2><p>Seu perfil não possui permissão para consultar documentos.</p></div>;
+  }
+  const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.DOCUMENTS_EDIT));
+  const {q=""}=await searchParams; const search=q.trim();
+  const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
+
+  const [documents,clients,matters,templateCount,letterheadCount,signedCount]=await Promise.all([
+    prisma.legalDocument.findMany({
+      where:{workspaceId:member.workspaceId,AND:[
+        visibility,
+        ...(search?[{OR:[
+          {name:{contains:search,mode:"insensitive" as const}},
+          {kind:{contains:search,mode:"insensitive" as const}},
+          {client:{name:{contains:search,mode:"insensitive" as const}}},
+          {matter:{number:{contains:search,mode:"insensitive" as const}}},
+          {matter:{title:{contains:search,mode:"insensitive" as const}}},
+        ]}]:[]),
+      ]},
+      include:{client:{select:{id:true,name:true}},matter:{select:{id:true,number:true,title:true}},_count:{select:{versions:true,contracts:true}}},
+      orderBy:{updatedAt:"desc"},take:300,
+    }),
+    prisma.client.findMany({where:{workspaceId:member.workspaceId,status:"ACTIVE"},select:{id:true,name:true},orderBy:{name:"asc"},take:300}),
+    prisma.matter.findMany({where:{workspaceId:member.workspaceId,OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},select:{id:true,number:true,title:true},orderBy:{updatedAt:"desc"},take:300}),
+    prisma.documentTemplate.count({where:{workspaceId:member.workspaceId,active:true}}),
+    prisma.letterhead.count({where:{workspaceId:member.workspaceId}}),
+    prisma.legalDocument.count({where:{workspaceId:member.workspaceId,status:"SIGNED",AND:[visibility]}}),
+  ]);
+
+  return <div className="page-stack">
+    <section className="page-header"><div><span className="eyebrow">MBLZ Files</span><h1>Documentos jurídicos</h1><p>Contratos, pareceres, procurações, certidões, atos societários, petições e seus vínculos.</p></div>
+      {canEdit&&<QuickLegalDocumentForm workspaceId={member.workspaceId} clients={clients} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))}/>}
+    </section>
+
+    <form className="toolbar-card" action="/app/documentos" method="get"><div className="search-field"><Search size={17}/><input name="q" defaultValue={search} placeholder="Nome, tipo, processo ou cliente"/></div></form>
+
+    <section className="document-grid">
+      <article className="folder-card"><FolderOpen size={21}/><strong>Modelos do escritório</strong><span>{templateCount} modelos ativos</span></article>
+      <article className="folder-card"><FolderOpen size={21}/><strong>Papel timbrado</strong><span>{letterheadCount} configurações</span></article>
+      <article className="folder-card"><FolderOpen size={21}/><strong>Assinados</strong><span>{signedCount} registros assinados</span></article>
+    </section>
+
+    {documents.length===0?<div className="empty-state"><FileText size={28}/><h2>{search?"Nenhum documento encontrado":"Nenhum documento jurídico cadastrado"}</h2><p>Crie o registro do documento agora; arquivo, versões e assinatura serão adicionados sobre o mesmo registro.</p></div>:
+    <section className="table-card"><div className="table-head legal-docs"><span>Documento</span><span>Tipo</span><span>Vínculo</span><span>Status</span><span/></div>{documents.map(d=><Link className="table-row legal-docs" href={"/app/documentos/"+d.id} key={d.id}>
+      <div className="matter-name"><span className="table-icon"><FileText size={16}/></span><div><strong>{d.name}</strong><small>versão {d.currentVersion} · atualizado {d.updatedAt.toLocaleDateString("pt-BR")}</small></div></div>
+      <span>{kindNames[d.kind]??d.kind}</span>
+      <span>{d.matter?(d.matter.number??d.matter.title):d.client?.name??"Sem vínculo"}</span>
+      <span className={"status-pill "+(d.status==="SIGNED"?"success":d.status==="IN_REVIEW"?"":"quiet")}>{statusNames[d.status]??d.status}</span>
+      <span>›</span>
+    </Link>)}</section>}
+  </div>;
+}

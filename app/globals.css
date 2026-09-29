@@ -109,3 +109,20 @@
 .inbox-state{display:grid;justify-items:end;gap:6px}.inbox-state>a{font-size:7px;color:#6369d3}
 .inbox-safety-note{display:flex;align-items:flex-start;gap:10px;background:#f8f8ff;color:#6269d0}.inbox-safety-note div{display:grid}.inbox-safety-note strong{font-size:9px;color:#303642}.inbox-safety-note span{margin-top:3px;font-size:8px;line-height:1.55;color:#7c8490}
 @media(max-width:760px){.table-head.deadlines,.table-row.deadlines{min-width:900px}.deadline-confirm-popover{position:fixed;left:12px;right:12px;top:80px;width:auto;max-height:calc(100vh - 100px);overflow:auto}.inbox-row{grid-template-columns:auto 1fr}.inbox-state{grid-column:2;justify-items:start}}
+
+
+.form-hint{margin:0;padding:8px 10px;border-radius:9px;background:#f6f7f9;color:#858d98;font-size:8px;line-height:1.55}
+.table-head.contracts,.table-row.contracts{grid-template-columns:1.45fr .95fr .85fr .62fr 18px}
+.table-head.legal-docs,.table-row.legal-docs{grid-template-columns:1.45fr .7fr 1fr .62fr 18px}
+.status-select{max-width:150px;height:31px;border:1px solid #e2e5ea;border-radius:9px;background:#fff;color:#303742;padding:0 8px;font-size:8px;font-weight:700;outline:0}
+.contract-alert{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border:1px solid rgba(216,70,91,.14);border-radius:14px;background:linear-gradient(90deg,rgba(216,70,91,.07),rgba(216,70,91,.025));color:#bf4455}
+.contract-alert div{display:grid}.contract-alert strong{font-size:9px;color:#5a2730}.contract-alert span{margin-top:3px;color:#875e65;font-size:8px;line-height:1.55}
+.contract-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(270px,.75fr);gap:13px}
+.compact-links a,.compact-links>div{min-height:57px}
+.history-subhead{margin-top:22px;padding-top:17px;border-top:1px solid var(--line)}
+.storage-placeholder{display:flex;align-items:flex-start;gap:11px;padding:18px;border:1px dashed #dcdfe6;border-radius:13px;background:#fafbfc;color:#6269d2}
+.storage-placeholder div{display:grid}.storage-placeholder strong{font-size:9px;color:#343b45}.storage-placeholder span{margin-top:4px;color:#818995;font-size:8px;line-height:1.6}
+.document-meta{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+.contract-hero .client-big-icon{background:linear-gradient(145deg,#17233a,#0d1524);color:#d7b46b}
+@media(max-width:900px){.contract-layout{grid-template-columns:1fr}}
+@media(max-width:760px){.table-head.contracts,.table-row.contracts,.table-head.legal-docs,.table-row.legal-docs{min-width:850px}.status-select{max-width:100%;width:100%}}
