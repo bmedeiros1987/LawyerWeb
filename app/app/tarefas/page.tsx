@@ -18,6 +18,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{scope?:
   if(!(await memberWithPermission(session.user.id,member.workspaceId,P.TASKS_VIEW))) {
     return <div className="empty-state"><LockKeyhole size={28}/><h2>Acesso restrito</h2><p>Seu perfil não possui permissão para consultar tarefas.</p></div>;
   }
+  const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.TASKS_EDIT));
   const {scope="mine"}=await searchParams;
   const scopeFilter=scope==="requested"?{requesterUserId:session.user.id}:scope==="assigned"?{assigneeUserId:session.user.id}:scope==="unassigned"?{assigneeUserId:null}:scope==="all"?{}:{OR:[{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{assigneeUserId:null}]};
   const [tasks,matters,members]=await Promise.all([
@@ -37,7 +38,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{scope?:
 
   return <div className="page-stack">
     <section className="page-header"><div><span className="eyebrow">Fila de trabalho</span><h1>Tarefas</h1><p>Solicitante, encarregado, revisão e prazo interno sem perder o vínculo com o processo.</p></div>
-      <QuickTaskForm workspaceId={member.workspaceId} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))} members={members.map(m=>({userId:m.userId,name:m.user.name??m.user.email??"Usuário"}))}/>
+      {canEdit&&<QuickTaskForm workspaceId={member.workspaceId} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))} members={members.map(m=>({userId:m.userId,name:m.user.name??m.user.email??"Usuário"}))}/>}
     </section>
     <section className="metric-grid three">
       <article className="metric-card priority"><div className="metric-icon"><Clock3 size={19}/></div><span>Vencidas</span><strong>{overdue}</strong><small>precisam de ação</small></article>
@@ -52,7 +53,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{scope?:
         <div className="matter-name"><span className="table-icon"><CircleDot size={15}/></span><div><strong>{t.title}</strong><small>{t.priority+(t.private?" · privada":"")}</small></div></div>
         <span>{t.matter?[t.matter.number,t.matter.title].filter(Boolean).join(" · "):"Sem processo"}</span>
         <span className={late?"text-danger":""}>{t.dueAt?t.dueAt.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"Sem prazo"}</span>
-        <span className={"status-pill "+(late?"danger":t.status==="REVIEW"?"":"quiet")}>{label(t.status)}</span><TaskActions id={t.id} workspaceId={member.workspaceId} status={t.status}/>
+        <span className={"status-pill "+(late?"danger":t.status==="REVIEW"?"":"quiet")}>{label(t.status)}</span>{canEdit?<TaskActions id={t.id} workspaceId={member.workspaceId} status={t.status}/>:<span/>}
       </div>
     })}</section>}
   </div>;
