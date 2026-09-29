@@ -576,7 +576,7 @@ model GoogleCalendarConnection {
   expiresAt DateTime?
   scope String? @db.Text
   calendarId String?
-  calendarName String? @default("Arcora")
+  calendarName String? @default("MBLZ")
   syncToken String? @db.Text
   watchChannelId String? @unique
   watchResourceId String?
@@ -598,7 +598,7 @@ model LegalCalendarEvent {
   location String?
   kind String @default("OTHER")
   status String @default("CONFIRMED")
-  source String @default("ARCORA")
+  source String @default("MBLZ")
   timeZone String @default("America/Sao_Paulo")
   allDay Boolean @default(false)
   startAt DateTime?

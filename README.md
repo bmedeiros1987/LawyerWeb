@@ -1,22 +1,22 @@
-# LawyerWeb · VCL Legal Operating System
+# LawyerWeb · MBLZ Legal Operating System
 
-Repositório temporário do **VCL**, uma plataforma jurídica cloud-first para escritórios e departamentos jurídicos.
+Repositório temporário do **MBLZ**, uma plataforma jurídica cloud-first para escritórios e departamentos jurídicos.
 
 > Nome do repositório: `LawyerWeb` (temporário)  
-> Nome do produto em desenvolvimento: **VCL — Legal Operating System**
+> Nome do produto em desenvolvimento: **MBLZ — Legal Operating System**
 
 ## Visão do produto
 
-O VCL não pretende reproduzir a navegação dos ERPs jurídicos tradicionais. A experiência é organizada por **atenção e contexto**:
+O MBLZ não pretende reproduzir a navegação dos ERPs jurídicos tradicionais. A experiência é organizada por **atenção e contexto**:
 
-- **VCL Pulse**: intimações, prazos, eventos e exceções que exigem decisão.
+- **MBLZ Pulse**: intimações, prazos, eventos e exceções que exigem decisão.
 - **Processos**: prontuário único com timeline de comunicações, tarefas, documentos e financeiro.
 - **Clientes**: visão 360º de relacionamento e trabalho jurídico.
 - **Agenda**: prazos, audiências, reuniões e tarefas, com Google Calendar.
 - **Documentos**: arquivos, modelos e versionamento.
 - **Financeiro**: honorários, despesas e resultado por cliente/processo.
-- **VCL Intelligence**: IA contextual dentro dos fluxos, com confirmação humana em operações sensíveis.
-- **VCL Push**: arquitetura para DJEN, DataJud, Domicílio Judicial Eletrônico e conectores permitidos de tribunais.
+- **MBLZ Intelligence**: IA contextual dentro dos fluxos, com confirmação humana em operações sensíveis.
+- **MBLZ Push**: arquitetura para DJEN, DataJud, Domicílio Judicial Eletrônico e conectores permitidos de tribunais.
 
 ## Stack inicial
 
@@ -43,7 +43,7 @@ email
 https://www.googleapis.com/auth/calendar.app.created
 ```
 
-O VCL cria uma agenda secundária própria. Tokens do Calendar são armazenados criptografados com AES-256-GCM.
+O MBLZ cria uma agenda secundária própria. Tokens do Calendar são armazenados criptografados com AES-256-GCM.
 
 ### Redirect URIs
 
