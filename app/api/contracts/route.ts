@@ -21,7 +21,6 @@ const input = z.object({
   amount: z.number().nonnegative().max(1e15).optional(),
   currency: z.string().trim().min(3).max(3).default("BRL"),
   responsibleUserId: z.string().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 async function validateReferences(workspaceId:string, userId:string, parsed:z.infer<typeof input>) {
@@ -104,7 +103,6 @@ export async function POST(request:NextRequest) {
         amount:parsed.amount,
         currency:parsed.currency.toUpperCase(),
         responsibleUserId:parsed.responsibleUserId||session.user.id,
-        metadata:parsed.metadata,
       }});
       await tx.activityLog.create({data:{
         workspaceId:member.workspaceId,userId:session.user.id,type:"CONTRACT_CREATED",
