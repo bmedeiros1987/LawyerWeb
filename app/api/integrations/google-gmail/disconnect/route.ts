@@ -7,8 +7,16 @@ import { createGoogleOAuthClient, gmailRedirectUri } from "@/lib/google/oauth";
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await request.json().catch(() => ({}));
-  const workspaceId = typeof body?.workspaceId === "string" ? body.workspaceId : null;
+  const contentType = request.headers.get("content-type") ?? "";
+  let workspaceId: string | null = null;
+  if (contentType.includes("application/json")) {
+    const body = await request.json().catch(() => ({}));
+    workspaceId = typeof body?.workspaceId === "string" ? body.workspaceId : null;
+  } else {
+    const form = await request.formData();
+    const raw = form.get("workspaceId");
+    workspaceId = typeof raw === "string" ? raw : null;
+  }
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
 
   const connection = await prisma.googleGmailConnection.findUnique({ where: { workspaceId_userId: { workspaceId, userId: session.user.id } } });
@@ -22,5 +30,5 @@ export async function POST(request: NextRequest) {
       data: { workspaceId, userId: session.user.id, type: "GMAIL_DISCONNECTED", entityType: "GoogleGmailConnection", entityId: connection.id, summary: "Gmail desconectado" },
     });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.redirect(new URL("/app/integrations?gmail=disconnected", request.url), 303);
 }
