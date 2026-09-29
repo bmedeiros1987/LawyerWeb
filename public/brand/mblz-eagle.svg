@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">MBLZ eagle and scales mark</title>
+<desc id="desc">A geometric eagle with open wings above balanced scales of justice.</desc>
+<defs>
+  <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#17253d"/><stop offset="1" stop-color="#08111f"/></linearGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f0d18a"/><stop offset=".45" stop-color="#c79a48"/><stop offset="1" stop-color="#8b632b"/></linearGradient>
+</defs>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M247 156C190 94 119 64 40 59c39 27 72 57 97 93-41-17-79-23-115-18 45 22 86 50 118 88-37-7-71-5-103 4 45 17 87 42 124 77 27-36 52-75 86-147Z" fill="url(#navy)" stroke="#c79a48" stroke-width="7"/>
+  <path d="M265 156c57-62 128-92 207-97-39 27-72 57-97 93 41-17 79-23 115-18-45 22-86 50-118 88 37-7 71-5 103 4-45 17-87 42-124 77-27-36-52-75-86-147Z" fill="url(#navy)" stroke="#c79a48" stroke-width="7"/>
+  <path d="M256 116c-40 0-71 32-71 73 0 31 18 54 42 67l-18 78 47-30 47 30-18-78c24-13 42-36 42-67 0-41-31-73-71-73Z" fill="url(#navy)" stroke="#c79a48" stroke-width="8"/>
+  <path d="M237 156c13-16 29-23 50-20-12 5-22 13-29 24l32 10-31 14c-3 11-3 23 1 34-18-8-29-24-29-43 0-7 2-13 6-19Z" fill="url(#gold)"/>
+  <circle cx="268" cy="153" r="5.5" fill="#08111f"/>
+  <path d="M256 282v112" stroke="url(#gold)" stroke-width="12"/>
+  <path d="M175 321h162" stroke="url(#gold)" stroke-width="12"/>
+  <path d="M188 321l-28 58M324 321l28 58" stroke="url(#gold)" stroke-width="5"/>
+  <path d="M145 378h30c0 21-8 33-15 33s-15-12-15-33Zm192 0h30c0 21-8 33-15 33s-15-12-15-33Z" fill="url(#gold)" stroke="#8b632b" stroke-width="3"/>
+  <path d="M230 410h52" stroke="url(#gold)" stroke-width="10"/>
+  <path d="M256 394l-22 41h44Z" fill="url(#gold)"/>
+  <path d="M139 150c39 20 72 47 100 83M373 150c-39 20-72 47-100 83" stroke="#6d7d98" stroke-width="5" opacity=".55"/>
+</g>
+</svg>
