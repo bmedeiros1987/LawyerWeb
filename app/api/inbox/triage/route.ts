@@ -37,6 +37,7 @@ export async function POST(request:NextRequest){
     const parsed=input.parse(await request.json());
     const member=await requireActiveMembership(session.user.id,parsed.workspaceId);
     await requirePermission(session.user.id,member.workspaceId,P.MATTERS_VIEW);
+    await requirePermission(session.user.id,member.workspaceId,P.INBOX_TRIAGE);
 
     const entityType=parsed.sourceType==="COURT"?"CourtCommunication":"IntakeDemand";
     const source=parsed.sourceType==="COURT"
