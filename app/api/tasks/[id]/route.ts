@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { P, requirePermission } from "@/lib/authz/permissions";
+import { P, canAccessMatter, requirePermission } from "@/lib/authz/permissions";
 import { requireActiveMembership } from "@/lib/workspace/context";
 
 const patchInput = z.object({
@@ -29,6 +29,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const { id } = await context.params;
     const existing = await prisma.legalTask.findFirst({ where: { id, workspaceId: member.workspaceId } });
     if (!existing) return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
+    if (existing.matterId && !(await canAccessMatter(session.user.id, member.workspaceId, existing.matterId, P.MATTERS_VIEW))) {
+      return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
+    }
 
     if (existing.private && ![existing.requesterUserId, existing.assigneeUserId, existing.reviewerUserId].includes(session.user.id)) {
       return NextResponse.json({ error: "Tarefa privada." }, { status: 403 });
