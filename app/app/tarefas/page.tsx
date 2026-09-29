@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { QuickTaskForm } from "@/components/legal-quick-create";
+import { TaskActions } from "@/components/task-actions";
 
 export const dynamic="force-dynamic";
 
@@ -51,7 +52,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{scope?:
         <div className="matter-name"><span className="table-icon"><CircleDot size={15}/></span><div><strong>{t.title}</strong><small>{t.priority+(t.private?" · privada":"")}</small></div></div>
         <span>{t.matter?[t.matter.number,t.matter.title].filter(Boolean).join(" · "):"Sem processo"}</span>
         <span className={late?"text-danger":""}>{t.dueAt?t.dueAt.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"Sem prazo"}</span>
-        <span className={"status-pill "+(late?"danger":t.status==="REVIEW"?"":"quiet")}>{label(t.status)}</span><span/>
+        <span className={"status-pill "+(late?"danger":t.status==="REVIEW"?"":"quiet")}>{label(t.status)}</span><TaskActions id={t.id} workspaceId={member.workspaceId} status={t.status}/>
       </div>
     })}</section>}
   </div>;
