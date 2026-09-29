@@ -90,8 +90,6 @@ model User {
   activityLogs ActivityLog[]
   timeEntries TimeEntry[]
   notifications UserNotification[]
-  gmailConnections GoogleGmailConnection[]
-  intakeDemands IntakeDemand[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -147,6 +145,8 @@ model Workspace {
   timeEntries TimeEntry[]
   auditLogs AuditLog[]
   notifications UserNotification[]
+  gmailConnections GoogleGmailConnection[]
+  intakeDemands IntakeDemand[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
