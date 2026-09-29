@@ -1,4 +1,4 @@
-# Arcora — princípios de produto
+# MBLZ — princípios de produto
 
 1. O sistema se adapta ao escritório; o escritório não se adapta ao sistema.
 2. Prazo é operação crítica: detecção, confirmação humana, responsável, revisor, prazo interno, alertas e escalonamento.
