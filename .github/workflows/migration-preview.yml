@@ -6,7 +6,7 @@ on:
       - chore/initial-migration
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   migration:
@@ -16,6 +16,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mblz_preview
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,16 +26,24 @@ jobs:
         run: npx prisma validate
       - name: Generate SQL from empty PostgreSQL schema
         run: npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script -o /tmp/migration.sql
-      - name: Emit migration SQL
+      - name: Verify deterministic migration
         shell: bash
         run: |
-          echo "=====MBLZ_MIGRATION_SQL_BEGIN====="
-          cat /tmp/migration.sql
-          echo "=====MBLZ_MIGRATION_SQL_END====="
-      - name: Upload migration SQL
-        uses: actions/upload-artifact@v4
-        with:
-          name: mblz-initial-migration
-          path: /tmp/migration.sql
-          if-no-files-found: error
-          retention-days: 3
+          test -s /tmp/migration.sql
+          sha256sum /tmp/migration.sql
+      - name: Commit generated migration
+        shell: bash
+        run: |
+          target="prisma/migrations/20260929210000_initial"
+          if [ -f "$target/migration.sql" ]; then
+            echo "Migration already committed; nothing to do."
+            exit 0
+          fi
+          mkdir -p "$target"
+          cp /tmp/migration.sql "$target/migration.sql"
+          printf 'provider = "postgresql"\n' > prisma/migrations/migration_lock.toml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prisma/migrations
+          git commit -m "db: add initial Prisma migration"
+          git push origin HEAD:chore/initial-migration
