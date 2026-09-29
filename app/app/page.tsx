@@ -16,9 +16,9 @@ export default async function Dashboard(){
   const now=new Date();
   const in60d=new Date(now.getTime()+60*24*60*60*1000);
 
-  const matterVisible={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:membership.id}}}}]} as const;
-  const taskVisible={OR:[{private:false},{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{reviewerUserId:session.user.id}]} as const;
-  const myTaskScope={OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null}]} as const;
+  const matterVisible={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:membership.id}}}} ]};
+  const taskVisible={OR:[{private:false},{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{reviewerUserId:session.user.id} ]};
+  const myTaskScope={OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null} ]};
 
   const [criticalDeadlines,newCommunications,openTasks,expiringContracts,deadlines,communications,tasks,contracts]=await Promise.all([
     prisma.deadline.count({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]},risk:{in:["CRITICAL","HIGH"]},AND:[matterVisible]}}),
