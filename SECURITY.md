@@ -1,4 +1,4 @@
-# VCL security baseline
+# MBLZ security baseline
 
 - OAuth Calendar tokens are encrypted at rest with AES-256-GCM.
 - `AUTH_GOOGLE_SECRET`, `AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY` and `CRON_SECRET` must remain server-side.
