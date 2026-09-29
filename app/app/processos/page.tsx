@@ -15,6 +15,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   if(!(await memberWithPermission(session.user.id,member.workspaceId,P.MATTERS_VIEW))) {
     return <div className="empty-state"><LockKeyhole size={28}/><h2>Acesso restrito</h2><p>Seu perfil não possui permissão para consultar processos.</p></div>;
   }
+  const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.MATTERS_EDIT));
   const {q=""}=await searchParams; const search=q.trim();
   const [matters,clients,members]=await Promise.all([
     prisma.matter.findMany({
@@ -41,7 +42,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
 
   return <div className="page-stack">
     <section className="page-header"><div><span className="eyebrow">Contencioso & assuntos</span><h1>Processos</h1><p>O prontuário jurídico centraliza movimentações, tarefas, prazos, documentos e comunicações.</p></div>
-      <QuickMatterForm workspaceId={member.workspaceId} clients={clients} members={members.map(m=>({userId:m.userId,name:m.user.name??m.user.email??"Usuário"}))}/>
+      {canEdit&&<QuickMatterForm workspaceId={member.workspaceId} clients={clients} members={members.map(m=>({userId:m.userId,name:m.user.name??m.user.email??"Usuário"}))}/>}
     </section>
 
     <form className="toolbar-card" action="/app/processos" method="get">
