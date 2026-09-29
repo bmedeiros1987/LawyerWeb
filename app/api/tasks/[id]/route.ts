@@ -41,12 +41,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
 
     const nextStatus = parsed.status;
+    const { workspaceId: _workspaceId, ...changes } = parsed;
     const task = await prisma.$transaction(async (tx) => {
       const updated = await tx.legalTask.update({
         where: { id },
         data: {
-          ...parsed,
-          workspaceId: undefined,
+          ...changes,
           completedAt: nextStatus === "DONE" ? new Date() : nextStatus && nextStatus !== "DONE" ? null : undefined,
         },
       });
