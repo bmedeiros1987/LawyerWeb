@@ -118,7 +118,7 @@ export async function ingestGmailMessage(connectionId: string, messageId: string
   });
 }
 
-export async function initialGmailSync(connectionId: string) {
+export async function initialGmailSync(connectionId: string, limit = 100) {
   const { connection, gmail } = await authorizedGmail(connectionId);
   let pageToken: string | undefined;
   let count = 0;
@@ -134,9 +134,9 @@ export async function initialGmailSync(connectionId: string) {
       if (!m.id) continue;
       await ingestGmailMessage(connectionId, m.id);
       count += 1;
-      if (count >= 250) break;
+      if (count >= limit) break;
     }
-    if (count >= 250) break;
+    if (count >= limit) break;
     pageToken = r.data.nextPageToken ?? undefined;
   } while (pageToken);
 
@@ -189,7 +189,7 @@ export async function startGmailWatch(connectionId: string) {
     userId: "me",
     requestBody: {
       topicName,
-      ...(connection.labelIds.length ? { labelIds: connection.labelIds, labelFilterBehavior: "INCLUDE" } : {}),
+      ...(connection.labelIds.length ? { labelIds: connection.labelIds, labelFilterBehavior: "include" } : {}),
     },
   });
   await prisma.googleGmailConnection.update({
