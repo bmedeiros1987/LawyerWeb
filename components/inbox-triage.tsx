@@ -5,7 +5,7 @@ import { useState } from "react";
 import { CheckCircle2, Clock3, ListTodo, MoreHorizontal, XCircle } from "lucide-react";
 
 export function InboxTriage({
-  workspaceId,sourceType,sourceId,status,defaultTitle,suggestedDue,
+  workspaceId,sourceType,sourceId,status,defaultTitle,suggestedDue,canCreateTask,canCreateDeadline,
 }:{
   workspaceId:string;
   sourceType:"COURT"|"DEMAND";
@@ -13,6 +13,8 @@ export function InboxTriage({
   status:string;
   defaultTitle:string;
   suggestedDue?:string|null;
+  canCreateTask:boolean;
+  canCreateDeadline:boolean;
 }) {
   const router=useRouter();const [busy,setBusy]=useState("");const [error,setError]=useState("");
 
@@ -46,8 +48,8 @@ export function InboxTriage({
       <label><span>Data sugerida</span><input name="dueAt" type="datetime-local" defaultValue={suggestedDue??""}/></label>
       <p>Para <strong>tarefa</strong>, a data vira prazo interno. Para <strong>prazo candidato</strong>, é apenas sugestão e ainda exigirá confirmação humana no Deadline Safety.</p>
       <div className="inbox-triage-actions">
-        <button type="button" disabled={Boolean(busy)} onClick={e=>act("CREATE_TASK",e.currentTarget.form??undefined)}><ListTodo size={14}/>{busy==="CREATE_TASK"?"Criando…":"Criar tarefa"}</button>
-        <button type="button" disabled={Boolean(busy)} onClick={e=>act("CREATE_DEADLINE",e.currentTarget.form??undefined)}><Clock3 size={14}/>{busy==="CREATE_DEADLINE"?"Criando…":"Prazo candidato"}</button>
+        {canCreateTask&&<button type="button" disabled={Boolean(busy)} onClick={e=>act("CREATE_TASK",e.currentTarget.form??undefined)}><ListTodo size={14}/>{busy==="CREATE_TASK"?"Criando…":"Criar tarefa"}</button>}
+        {canCreateDeadline&&<button type="button" disabled={Boolean(busy)} onClick={e=>act("CREATE_DEADLINE",e.currentTarget.form??undefined)}><Clock3 size={14}/>{busy==="CREATE_DEADLINE"?"Criando…":"Prazo candidato"}</button>}
         <button className="quiet" type="button" disabled={Boolean(busy)} onClick={()=>act("MARK_READ")}><CheckCircle2 size={14}/>Só marcar lido</button>
         <button className="danger" type="button" disabled={Boolean(busy)} onClick={()=>act("DISMISS")}><XCircle size={14}/>Descartar</button>
       </div>
