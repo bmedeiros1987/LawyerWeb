@@ -17,9 +17,9 @@ export default async function ClientPage({params}:{params:Promise<{id:string}>})
     where:{id,workspaceId:member.workspaceId},
     include:{
       matters:{where:{OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},orderBy:{updatedAt:"desc"},take:100},
-      documents:{orderBy:{updatedAt:"desc"},take:50},
-      contracts:{orderBy:{updatedAt:"desc"},take:50},
-      intakeDemands:{orderBy:{receivedAt:"desc"},take:50},
+      documents:{where:{OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]},orderBy:{updatedAt:"desc"},take:50},
+      contracts:{where:{OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]},orderBy:{updatedAt:"desc"},take:50},
+      intakeDemands:{where:{OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]},orderBy:{receivedAt:"desc"},take:50},
     },
   });
   if(!client) notFound();
