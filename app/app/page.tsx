@@ -16,15 +16,19 @@ export default async function Dashboard(){
   const now=new Date();
   const in60d=new Date(now.getTime()+60*24*60*60*1000);
 
+  const matterVisible={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:membership.id}}}}]} as const;
+  const taskVisible={OR:[{private:false},{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{reviewerUserId:session.user.id}]} as const;
+  const myTaskScope={OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null}]} as const;
+
   const [criticalDeadlines,newCommunications,openTasks,expiringContracts,deadlines,communications,tasks,contracts]=await Promise.all([
-    prisma.deadline.count({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]},risk:{in:["CRITICAL","HIGH"]}}}),
-    prisma.courtCommunication.count({where:{workspaceId:membership.workspaceId,status:"NEW"}}),
-    prisma.legalTask.count({where:{workspaceId:membership.workspaceId,status:{notIn:["DONE","CANCELLED"]},OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null}]}}),
-    prisma.contract.count({where:{workspaceId:membership.workspaceId,status:{in:["ACTIVE","EXPIRING","REVIEW","SIGNING"]},expiresAt:{gte:now,lte:in60d}}}),
-    prisma.deadline.findMany({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]}},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{risk:"desc"},{dueAt:"asc"}],take:4}),
-    prisma.courtCommunication.findMany({where:{workspaceId:membership.workspaceId,status:"NEW"},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{receivedAt:"desc"},take:4}),
-    prisma.legalTask.findMany({where:{workspaceId:membership.workspaceId,status:{notIn:["DONE","CANCELLED"]},OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null}]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:4}),
-    prisma.contract.findMany({where:{workspaceId:membership.workspaceId,status:{in:["REVIEW","SIGNING","EXPIRING"]}},include:{client:{select:{name:true}}},orderBy:[{expiresAt:"asc"},{updatedAt:"desc"}],take:4}),
+    prisma.deadline.count({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]},risk:{in:["CRITICAL","HIGH"]},AND:[matterVisible]}}),
+    prisma.courtCommunication.count({where:{workspaceId:membership.workspaceId,status:"NEW",AND:[matterVisible]}}),
+    prisma.legalTask.count({where:{workspaceId:membership.workspaceId,status:{notIn:["DONE","CANCELLED"]},AND:[matterVisible,taskVisible,myTaskScope]}}),
+    prisma.contract.count({where:{workspaceId:membership.workspaceId,status:{in:["ACTIVE","EXPIRING","REVIEW","SIGNING"]},expiresAt:{gte:now,lte:in60d},AND:[matterVisible]}}),
+    prisma.deadline.findMany({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]},AND:[matterVisible]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{risk:"desc"},{dueAt:"asc"}],take:4}),
+    prisma.courtCommunication.findMany({where:{workspaceId:membership.workspaceId,status:"NEW",AND:[matterVisible]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{receivedAt:"desc"},take:4}),
+    prisma.legalTask.findMany({where:{workspaceId:membership.workspaceId,status:{notIn:["DONE","CANCELLED"]},AND:[matterVisible,taskVisible,myTaskScope]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:4}),
+    prisma.contract.findMany({where:{workspaceId:membership.workspaceId,status:{in:["REVIEW","SIGNING","EXPIRING"]},AND:[matterVisible]},include:{client:{select:{name:true}}},orderBy:[{expiresAt:"asc"},{updatedAt:"desc"}],take:4}),
   ]);
 
   const pulse=[
