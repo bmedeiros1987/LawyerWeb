@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         where: { id },
         data: {
           ...changes,
-          completedAt: nextStatus === "DONE" ? new Date() : nextStatus && nextStatus !== "DONE" ? null : undefined,
+          completedAt: nextStatus ? (nextStatus === "DONE" ? new Date() : null) : undefined,
         },
       });
       await tx.activityLog.create({
