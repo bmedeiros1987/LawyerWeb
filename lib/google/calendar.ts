@@ -42,7 +42,7 @@ async function apply(userId:string,calendarId:string,item:calendar_v3.Schema$Eve
   if(!item.id)return;
   if(item.status==="cancelled"){await prisma.legalCalendarEvent.updateMany({where:{userId,googleEventId:item.id},data:{status:"CANCELLED",googleUpdatedAt:item.updated?new Date(item.updated):new Date()}});return}
   const mblzEventId=item.extendedProperties?.private?.mblzEventId;
-  const data={title:item.summary||"Evento sem título",description:item.description??null,location:item.location??null,status:"CONFIRMED",source:mblzEventId?"ARCORA":"GOOGLE",googleEventId:item.id,googleCalendarId:calendarId,googleUpdatedAt:item.updated?new Date(item.updated):new Date(),...dates(item)};
+  const data={title:item.summary||"Evento sem título",description:item.description??null,location:item.location??null,status:"CONFIRMED",source:mblzEventId?"MBLZ":"GOOGLE",googleEventId:item.id,googleCalendarId:calendarId,googleUpdatedAt:item.updated?new Date(item.updated):new Date(),...dates(item)};
   if(mblzEventId){const owned=await prisma.legalCalendarEvent.findFirst({where:{id:mblzEventId,userId}});if(owned){await prisma.legalCalendarEvent.update({where:{id:owned.id},data});return}}
   const existing=await prisma.legalCalendarEvent.findFirst({where:{userId,googleEventId:item.id}});
   if(existing)await prisma.legalCalendarEvent.update({where:{id:existing.id},data});else await prisma.legalCalendarEvent.create({data:{userId,...data}});

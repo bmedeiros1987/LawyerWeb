@@ -2,15 +2,70 @@ generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
 }
-datasource db { provider = "postgresql" }
 
-enum MemberStatus { INVITED ACTIVE SUSPENDED }
-enum DeadlineStatus { CANDIDATE PENDING_CONFIRMATION CONFIRMED IN_PROGRESS COMPLETED CANCELLED }
-enum DeadlineRisk { NORMAL ATTENTION HIGH CRITICAL }
-enum TaskStatus { OPEN IN_PROGRESS WAITING REVIEW DONE CANCELLED }
-enum DocumentStatus { DRAFT IN_REVIEW APPROVED SIGNING SIGNED ARCHIVED }
-enum ContractStatus { DRAFT NEGOTIATION REVIEW SIGNING ACTIVE EXPIRING EXPIRED TERMINATED ARCHIVED }
-enum CommunicationStatus { NEW READ TRIAGED TREATED ARCHIVED }
+datasource db {
+  provider = "postgresql"
+}
+
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum DeadlineStatus {
+  CANDIDATE
+  PENDING_CONFIRMATION
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DeadlineRisk {
+  NORMAL
+  ATTENTION
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+enum DocumentStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SIGNING
+  SIGNED
+  ARCHIVED
+}
+
+enum ContractStatus {
+  DRAFT
+  NEGOTIATION
+  REVIEW
+  SIGNING
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  TERMINATED
+  ARCHIVED
+}
+
+enum CommunicationStatus {
+  NEW
+  READ
+  TRIAGED
+  TREATED
+  ARCHIVED
+}
 
 model User {
   id String @id @default(cuid())
