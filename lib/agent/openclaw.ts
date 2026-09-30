@@ -31,14 +31,18 @@ async function gatewayFetch(url:string, token:string, init?:RequestInit){
   return response;
 }
 
-export async function probeOpenClaw(gatewayUrl:string, token:string, agentId="mblz"){
+export function openClawAgentTarget(agentId:string){
+  return `openclaw/${agentId}`;
+}
+
+export async function probeOpenClaw(gatewayUrl:string, token:string, agentId="default"){
   const base=normalizeGatewayUrl(gatewayUrl);
   const response=await gatewayFetch(`${base}/v1/models`,token,{method:"GET"});
   if(!response.ok) throw new Error(`OpenClaw respondeu HTTP ${response.status}.`);
   const payload=await response.json() as {data?:Array<{id?:string}>};
-  const ids=(payload.data??[]).map(item=>item.id).filter(Boolean);
-  const target=`openclaw/${agentId}`;
-  return {ok:true,baseUrl:base,agentAvailable:ids.includes(target)||ids.includes("openclaw/default"),models:ids.slice(0,20)};
+  const ids=(payload.data??[]).map(item=>item.id).filter((id):id is string=>typeof id==="string"&&Boolean(id));
+  const target=openClawAgentTarget(agentId);
+  return {ok:true,baseUrl:base,agentAvailable:ids.includes(target),target,models:ids.slice(0,20)};
 }
 
 const SAFETY_INSTRUCTIONS=`
@@ -68,7 +72,7 @@ export async function runOpenClawTurn(args:{
     method:"POST",
     headers:{"x-openclaw-message-channel":args.channel.toLowerCase()},
     body:JSON.stringify({
-      model:`openclaw/${args.connection.agentId}`,
+      model:openClawAgentTarget(args.connection.agentId),
       user:`mblz:${args.conversationId}`,
       messages:[
         {role:"system",content:`${SAFETY_INSTRUCTIONS}\n\nContexto MBLZ autorizado para este usuário:\n${args.context}`},

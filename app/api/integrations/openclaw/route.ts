@@ -11,7 +11,7 @@ const input=z.object({
   workspaceId:z.string().optional(),
   gatewayUrl:z.string().url(),
   gatewayToken:z.string().min(24).max(4096),
-  agentId:z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/).default("mblz"),
+  agentId:z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/).default("default"),
 });
 
 export async function GET(request:NextRequest){
@@ -27,7 +27,7 @@ export async function GET(request:NextRequest){
     }:null});
   }catch(error){
     const status=(error as Error&{status?:number}).status??400;
-    return NextResponse.json({error:error instanceof Error?error.message:"Invalid request"},{status});
+    return NextResponse.json({error:error instanceof Error?error.message:"Solicitação inválida"},{status});
   }
 }
 
