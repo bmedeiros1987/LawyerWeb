@@ -1,9 +1,9 @@
 {
   "id": "mblz",
   "name": "MBLZ Legal OS",
-  "description": "Read-only, identity-bound context bridge from OpenClaw channels to MBLZ Legal OS.",
+  "description": "Identity-bound MBLZ pairing and read-only legal context for OpenClaw channels.",
   "contracts": {
-    "tools": ["mblz_context"]
+    "tools": ["mblz_pair", "mblz_context"]
   },
   "activation": {
     "onStartup": true
