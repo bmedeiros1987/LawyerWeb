@@ -6,6 +6,7 @@ import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { OpenClawAgentSettings } from "@/components/openclaw-agent-settings";
 import { TelegramAgentSettings } from "@/components/telegram-agent-settings";
+import { WhatsAppAgentSettings } from "@/components/whatsapp-agent-settings";
 
 export const dynamic="force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function OpenClawPage(){
   if(!canUse) redirect("/app/integrations");
   const canManage=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.AGENT_MANAGE));
 
-  const [connection,preferences,gmail,telegram]=await Promise.all([
+  const [connection,preferences,gmail,telegram,whatsapp]=await Promise.all([
     prisma.openClawConnection.findUnique({where:{workspaceId:member.workspaceId}}),
     prisma.agentChannelPreference.findMany({where:{workspaceId:member.workspaceId,userId:session.user.id}}),
     prisma.googleGmailConnection.findUnique({where:{workspaceId_userId:{workspaceId:member.workspaceId,userId:session.user.id}}}),
@@ -26,12 +27,23 @@ export default async function OpenClawPage(){
       where:{workspaceId_channel_accountKey:{workspaceId:member.workspaceId,channel:"TELEGRAM",accountKey:"workspace-bot"}},
       select:{id:true,displayName:true,status:true,externalIdentity:true,connectedAt:true},
     }),
+    prisma.agentChannelConnection.findUnique({
+      where:{workspaceId_channel_accountKey:{workspaceId:member.workspaceId,channel:"WHATSAPP",accountKey:"workspace-cloud"}},
+      select:{id:true,displayName:true,status:true,externalIdentity:true,connectedAt:true},
+    }),
   ]);
-  const telegramIdentity=telegram?await prisma.agentExternalIdentity.findUnique({
-    where:{channelConnectionId_userId:{channelConnectionId:telegram.id,userId:session.user.id}},
-    select:{status:true,displayName:true,verifiedAt:true},
-  }):null;
+  const [telegramIdentity,whatsappIdentity]=await Promise.all([
+    telegram?prisma.agentExternalIdentity.findUnique({
+      where:{channelConnectionId_userId:{channelConnectionId:telegram.id,userId:session.user.id}},
+      select:{status:true,displayName:true,verifiedAt:true},
+    }):Promise.resolve(null),
+    whatsapp?prisma.agentExternalIdentity.findUnique({
+      where:{channelConnectionId_userId:{channelConnectionId:whatsapp.id,userId:session.user.id}},
+      select:{status:true,displayName:true,verifiedAt:true},
+    }):Promise.resolve(null),
+  ]);
   const telegramPreference=preferences.find(p=>p.channel==="TELEGRAM");
+  const whatsappPreference=preferences.find(p=>p.channel==="WHATSAPP");
 
   return <div className="page-stack">
     <section className="page-header">
@@ -69,6 +81,20 @@ export default async function OpenClawPage(){
         verifiedAt:telegramIdentity.verifiedAt?.toISOString()??null,
       }:null}
       enabled={Boolean(telegramPreference?.enabled)}
+    />
+
+    <WhatsAppAgentSettings
+      workspaceId={member.workspaceId}
+      canManage={canManage}
+      connection={whatsapp?{
+        id:whatsapp.id,displayName:whatsapp.displayName,status:whatsapp.status,
+        externalIdentity:whatsapp.externalIdentity,connectedAt:whatsapp.connectedAt?.toISOString()??null,
+      }:null}
+      identity={whatsappIdentity?{
+        status:whatsappIdentity.status,displayName:whatsappIdentity.displayName,
+        verifiedAt:whatsappIdentity.verifiedAt?.toISOString()??null,
+      }:null}
+      enabled={Boolean(whatsappPreference?.enabled)}
     />
   </div>;
 }

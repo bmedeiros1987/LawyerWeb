@@ -102,8 +102,8 @@ export function OpenClawAgentSettings({
         </div>
         <div className="agent-channel-row">
           <span className="agent-channel-icon"><MessageCircle size={18}/></span>
-          <div><strong>WhatsApp</strong><span>Produção via WhatsApp Business Cloud API, sem WhatsApp Web automatizado.</span></div>
-          <span className="status-pill quiet">Preparando</span>
+          <div><strong>WhatsApp</strong><span>WhatsApp Business Cloud API + pareamento individual. A configuração detalhada fica abaixo.</span></div>
+          <span className="status-pill success">Disponível</span>
         </div>
       </div>
     </section>

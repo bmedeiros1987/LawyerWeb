@@ -26,7 +26,9 @@ O OpenClaw não recebe o refresh token do Gmail do usuário.
 Produção: um bot do escritório por workspace. Token criptografado no MBLZ; webhook termina no MBLZ; usuário faz pareamento individual; chat.id é vinculado ao usuário; mensagem é normalizada e encaminhada ao Agent Hub; resposta retorna pelo Telegram Bot API.
 
 ### WhatsApp
-Produção: WhatsApp Business Platform / Cloud API. O webhook da Meta termina no MBLZ; wa_id é pareado com o usuário; access token permanece criptografado e server-side; respostas jurídicas ficam em modo de rascunho/aprovação por padrão.
+Produção: WhatsApp Business Platform / Cloud API. O webhook da Meta termina no MBLZ; o `wa_id` é pareado individualmente com o usuário; access token, App Secret e token de verificação permanecem criptografados e server-side.
+
+Nesta etapa, o WhatsApp é um **canal interno do próprio usuário do MBLZ**: o agente responde somente ao número pareado e reaplica membership, permissão e ACL a cada conversa. Isso não habilita envio autônomo para clientes ou terceiros. Mensageria externa futura continua sujeita a operação explícita, autorização e auditoria próprias.
 
 O plugin WhatsApp do OpenClaw baseado em sessão Web pode ser usado apenas em instalação privada/autogerida quando o operador conscientemente aceitar esse modelo; não é a arquitetura padrão do MBLZ.
 
@@ -72,14 +74,15 @@ Implementado:
 - contexto MBLZ limitado por ACL;
 - preferências opt-in por usuário/canal;
 - ActivityLog por turn do agente;
-- tela Agent Hub.
+- tela Agent Hub;
+- Telegram Bot API com bot por workspace, webhook no MBLZ e pareamento individual;
+- WhatsApp Business Cloud API com webhook assinado, pareamento individual e resposta restrita ao usuário pareado.
 
 Próximas PRs:
-1. Telegram Bot API + pareamento;
-2. Gmail -> rascunho do agente;
-3. WhatsApp Business Cloud API + pareamento;
-4. ferramentas de ação MBLZ com approvals;
-5. provisionamento automatizado de células OpenClaw por workspace.
+1. Gmail -> rascunho do agente;
+2. ferramentas de ação MBLZ com approvals e idempotência;
+3. provisionamento automatizado de células OpenClaw por workspace;
+4. homologação cross-user/cross-workspace dos canais antes de ampliar o rollout.
 
 ## Referências técnicas
 
