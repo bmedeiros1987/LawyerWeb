@@ -25,15 +25,25 @@ export function AgentChannelPanel({ initial, gmailConnected }:{ initial:AgentCha
     else setNote("E-mail habilitado para o MBLZ Agent.");
   }
 
+  async function disconnect(channel:"EMAIL"|"WHATSAPP"|"TELEGRAM"){
+    setBusy("disconnect-"+channel);setNote("");
+    const response=await fetch("/api/agent/channels/disconnect",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({channel})});
+    const data=await response.json().catch(()=>({}));
+    setBusy("");
+    if(!response.ok){setNote(data?.error??"Não foi possível desconectar o canal.");return}
+    setChannels(current=>current.map(c=>c.channel===channel?{...c,status:"DISCONNECTED"}:c));
+    setNote("Canal revogado no MBLZ. O contexto jurídico deixa de ser fornecido imediatamente.");
+  }
+
   function status(channel:string){
     return channels.find(c=>c.channel===channel);
   }
 
   const email=status("EMAIL"), telegram=status("TELEGRAM"), whatsapp=status("WHATSAPP");
   return <div className="agent-channels">
-    <article className="agent-channel-row"><span className="agent-channel-icon"><Mail size={18}/></span><div><strong>E-mail</strong><span>{email?.status==="CONNECTED"?(email.maskedAddress??"Gmail conectado"):gmailConnected?"Gmail conectado; habilite o agente quando quiser.":"Conecte o Gmail primeiro."}</span></div>{email?.status==="CONNECTED"?<b className="status-pill success">Ativo</b>:<button disabled={!gmailConnected||busy==="EMAIL"} onClick={()=>prepare("EMAIL")}>Habilitar</button>}</article>
-    <article className="agent-channel-row"><span className="agent-channel-icon"><Send size={18}/></span><div><strong>Telegram</strong><span>{telegram?.status==="PENDING"?"Aguardando token/pareamento":telegram?.status==="CONNECTED"?"Conectado":"Opcional · bot dedicado por usuário ou equipe"}</span></div><button disabled={busy==="TELEGRAM"||telegram?.status==="CONNECTED"} onClick={()=>prepare("TELEGRAM")}>{telegram?.status==="PENDING"?"Retomar":"Preparar"}</button></article>
-    <article className="agent-channel-row"><span className="agent-channel-icon"><MessageCircle size={18}/></span><div><strong>WhatsApp</strong><span>{whatsapp?.status==="PENDING"?"Aguardando QR":whatsapp?.status==="CONNECTED"?"Conectado":"Opcional · recomendamos número dedicado ao agente"}</span></div><button disabled={busy==="WHATSAPP"||whatsapp?.status==="CONNECTED"} onClick={()=>prepare("WHATSAPP")}>{whatsapp?.status==="PENDING"?"Retomar":"Preparar"}</button></article>
+    <article className="agent-channel-row"><span className="agent-channel-icon"><Mail size={18}/></span><div><strong>E-mail</strong><span>{email?.status==="CONNECTED"?(email.maskedAddress??"Gmail conectado"):gmailConnected?"Gmail conectado; habilite o agente quando quiser.":"Conecte o Gmail primeiro."}</span></div>{email?.status==="CONNECTED"?<button className="channel-disconnect" disabled={busy==="disconnect-EMAIL"} onClick={()=>disconnect("EMAIL")}>Desconectar</button>:<button disabled={!gmailConnected||busy==="EMAIL"} onClick={()=>prepare("EMAIL")}>Habilitar</button>}</article>
+    <article className="agent-channel-row"><span className="agent-channel-icon"><Send size={18}/></span><div><strong>Telegram</strong><span>{telegram?.status==="PENDING"?"Aguardando token/pareamento":telegram?.status==="CONNECTED"?"Conectado":"Opcional · bot dedicado por usuário ou equipe"}</span></div>{telegram?.status==="CONNECTED"?<button className="channel-disconnect" disabled={busy==="disconnect-TELEGRAM"} onClick={()=>disconnect("TELEGRAM")}>Desconectar</button>:<button disabled={busy==="TELEGRAM"} onClick={()=>prepare("TELEGRAM")}>{telegram?.status==="PENDING"?"Retomar":"Preparar"}</button>}</article>
+    <article className="agent-channel-row"><span className="agent-channel-icon"><MessageCircle size={18}/></span><div><strong>WhatsApp</strong><span>{whatsapp?.status==="PENDING"?"Aguardando QR":whatsapp?.status==="CONNECTED"?"Conectado":"Opcional · recomendamos número dedicado ao agente"}</span></div>{whatsapp?.status==="CONNECTED"?<button className="channel-disconnect" disabled={busy==="disconnect-WHATSAPP"} onClick={()=>disconnect("WHATSAPP")}>Desconectar</button>:<button disabled={busy==="WHATSAPP"} onClick={()=>prepare("WHATSAPP")}>{whatsapp?.status==="PENDING"?"Retomar":"Preparar"}</button>}</article>
     {note&&<p className="agent-channel-note">{note}</p>}
   </div>;
 }
