@@ -36,12 +36,18 @@
   },
 
   session: {
-    dmScope: "per-channel-peer"
+    dmScope: "per-account-channel-peer"
+  },
+
+  channels: {
+    defaults: {
+      groupPolicy: "disabled"
+    }
   },
 
   tools: {
     profile: "minimal",
-    allow: ["session_status", "mblz_context"],
+    allow: ["session_status", "mblz_pair", "mblz_context"],
     deny: [
       "group:runtime",
       "group:fs",
@@ -70,7 +76,7 @@
         default: true,
         name: "MBLZ Agent",
         workspace: "${OPENCLAW_WORKSPACE_DIR}",
-        model: "${OPENCLAW_MODEL:-openai/gpt-5.6-sol}",
+        model: "${OPENCLAW_MODEL}",
         identity: {
           name: "MBLZ Agent",
           theme: "jurídico objetivo, discreto e orientado a risco",
