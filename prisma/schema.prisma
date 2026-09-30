@@ -91,6 +91,9 @@ model User {
   timeEntries TimeEntry[]
   notifications UserNotification[]
   pushSubscriptions PushSubscription[]
+  agentChannelConnections AgentChannelConnection[]
+  agentConversations AgentConversation[]
+  agentChannelPreferences AgentChannelPreference[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -149,6 +152,10 @@ model Workspace {
   notifications UserNotification[]
   gmailConnections GoogleGmailConnection[]
   intakeDemands IntakeDemand[]
+  openClawConnection OpenClawConnection?
+  agentChannelConnections AgentChannelConnection[]
+  agentConversations AgentConversation[]
+  agentChannelPreferences AgentChannelPreference[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -754,4 +761,83 @@ model PushSubscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([userId])
+}
+
+
+model OpenClawConnection {
+  id String @id @default(cuid())
+  workspaceId String @unique
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  gatewayUrl String
+  gatewayTokenEnc String @db.Text
+  agentId String @default("mblz")
+  status String @default("CONNECTED")
+  version String?
+  lastHealthAt DateTime?
+  lastError String? @db.Text
+  createdByUserId String?
+  conversations AgentConversation[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AgentChannelConnection {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String?
+  user User? @relation(fields:[userId],references:[id],onDelete:Cascade)
+  channel String
+  accountKey String
+  displayName String?
+  status String @default("DISCONNECTED")
+  secretEnc String? @db.Text
+  webhookSecretEnc String? @db.Text
+  externalIdentity String?
+  config Json?
+  connectedAt DateTime?
+  revokedAt DateTime?
+  conversations AgentConversation[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,channel,accountKey])
+  @@index([workspaceId,channel,status])
+  @@index([userId,channel])
+}
+
+model AgentChannelPreference {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  channel String
+  enabled Boolean @default(false)
+  mode String @default("DRAFT")
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,userId,channel])
+  @@index([userId,enabled])
+}
+
+model AgentConversation {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  openClawConnectionId String
+  openClawConnection OpenClawConnection @relation(fields:[openClawConnectionId],references:[id],onDelete:Cascade)
+  channelConnectionId String?
+  channelConnection AgentChannelConnection? @relation(fields:[channelConnectionId],references:[id],onDelete:SetNull)
+  channel String
+  externalThreadId String
+  sessionKey String @unique
+  status String @default("ACTIVE")
+  lastMessageAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,userId,channel,externalThreadId])
+  @@index([workspaceId,lastMessageAt])
 }
