@@ -11,10 +11,8 @@ export default definePluginEntry({
       description: "Read the current authorized user's MBLZ legal context. Use this before answering about deadlines, tasks, matters or contracts. This tool is read-only.",
       parameters: Type.Object({}),
       async execute(_id, _params, ctx) {
-        const config = api.config ?? {};
-        const pluginConfig = config.plugins?.entries?.mblz?.config ?? {};
-        const apiUrl = String(pluginConfig.apiUrl ?? "").replace(/\/$/, "");
-        const serviceToken = String(pluginConfig.serviceToken ?? "");
+        const apiUrl = String(process.env.MBLZ_INTERNAL_API_URL ?? "").replace(/\/$/, "");
+        const serviceToken = String(process.env.MBLZ_AGENT_SERVICE_TOKEN ?? "");
         const anyCtx = ctx ?? {};
         const delivery = anyCtx.deliveryContext ?? {};
         const channel = String(anyCtx.nativeChannelId ?? delivery.channel ?? "").toUpperCase();
