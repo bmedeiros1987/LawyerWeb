@@ -46,7 +46,7 @@ jobs:
       - name: Apply current baseline migrations
         run: npx prisma migrate deploy
       - name: Generate additive process-register SQL
-        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema prisma/schema.prisma --script -o /tmp/process-register.sql
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o /tmp/process-register.sql
       - name: Validate and commit migration
         shell: bash
         run: |
