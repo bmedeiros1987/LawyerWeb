@@ -132,6 +132,7 @@ model Workspace {
   members WorkspaceMember[]
   roles WorkspaceRole[]
   clients Client[]
+  people Person[]
   matters Matter[]
   tasks LegalTask[]
   deadlines Deadline[]
@@ -211,6 +212,7 @@ model Client {
   documents LegalDocument[]
   contracts Contract[]
   intakeDemands IntakeDemand[]
+  person Person?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([workspaceId,name])
@@ -244,6 +246,9 @@ model Matter {
   communications CourtCommunication[]
   access MatterAccess[]
   intakeDemands IntakeDemand[]
+  parties MatterParty[]
+  phases MatterPhase[]
+  movements MatterMovement[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([workspaceId,status])
@@ -363,11 +368,79 @@ model CourtCommunication {
   treatedByUserId String?
   payload Json?
   deadlines Deadline[]
+  movement MatterMovement?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([workspaceId,source,externalId])
   @@index([workspaceId,status,receivedAt])
   @@index([matterId])
+}
+
+model Person {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  // Existing clients are referenced, never copied into a second contact record.
+  clientId String? @unique
+  client Client? @relation(fields:[clientId],references:[id],onDelete:Restrict)
+  name String?
+  kind String @default("INDIVIDUAL")
+  parties MatterParty[]
+  createdAt DateTime @default(now())
+  @@index([workspaceId,name])
+}
+
+model MatterParty {
+  id String @id @default(cuid())
+  matterId String
+  matter Matter @relation(fields:[matterId],references:[id],onDelete:Cascade)
+  personId String
+  person Person @relation(fields:[personId],references:[id],onDelete:Restrict)
+  role String
+  side String @default("OTHER")
+  createdByUserId String
+  createdAt DateTime @default(now())
+  @@unique([matterId,personId,role])
+}
+
+model MatterPhase {
+  id String @id @default(cuid())
+  matterId String
+  matter Matter @relation(fields:[matterId],references:[id],onDelete:Cascade)
+  name String
+  kind String
+  number String?
+  court String?
+  startedAt DateTime
+  notes String? @db.Text
+  requestId String
+  contentHash String
+  movements MatterMovement[]
+  createdByUserId String
+  createdAt DateTime @default(now())
+  @@index([matterId,startedAt])
+  @@unique([matterId,requestId])
+}
+
+model MatterMovement {
+  id String @id @default(cuid())
+  matterId String
+  matter Matter @relation(fields:[matterId],references:[id],onDelete:Cascade)
+  phaseId String?
+  phase MatterPhase? @relation(fields:[phaseId],references:[id],onDelete:Restrict)
+  communicationId String? @unique
+  communication CourtCommunication? @relation(fields:[communicationId],references:[id],onDelete:Restrict)
+  title String
+  description String? @db.Text
+  occurredAt DateTime
+  source String
+  externalId String
+  sourceUrl String?
+  contentHash String
+  createdByUserId String
+  createdAt DateTime @default(now())
+  @@unique([matterId,source,externalId])
+  @@index([matterId,occurredAt])
 }
 
 model LegalDocument {
