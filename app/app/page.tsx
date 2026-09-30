@@ -1,12 +1,16 @@
-import { contractScope, deadlineScope, inboxScope, taskScope } from "@/lib/authz/visibility";
+import { contractScope, deadlineScope, documentScope, inboxScope, matterScope, taskScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, CalendarClock, CheckCircle2, CircleAlert, Clock3, FileText, Gavel, Sparkles } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, Clock3, FileText, Gavel, Sparkles } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getActiveMembership } from "@/lib/workspace/context";
 
 export const dynamic="force-dynamic";
+
+function timeLabel(date:Date){
+  return date.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
 
 export default async function Dashboard(){
   const session=await auth();
@@ -15,60 +19,70 @@ export default async function Dashboard(){
   if(!membership) redirect("/app/setup");
 
   const now=new Date();
+  const dayStart=new Date(now); dayStart.setHours(0,0,0,0);
+  const dayEnd=new Date(dayStart); dayEnd.setDate(dayEnd.getDate()+1);
   const in60d=new Date(now.getTime()+60*24*60*60*1000);
+  const myTaskScope={OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null}]};
 
-  const matterVisible={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:membership.id}}}} ]};
-  const taskVisible={OR:[{private:false},{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{reviewerUserId:session.user.id} ]};
-  const myTaskScope={OR:[{assigneeUserId:session.user.id},{requesterUserId:session.user.id},{assigneeUserId:null} ]};
-
-  const [criticalDeadlines,newCommunications,openTasks,expiringContracts,deadlines,communications,tasks,contracts]=await Promise.all([
-    prisma.deadline.count({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]},risk:{in:["CRITICAL","HIGH"]},AND:[deadlineScope(membership)]}}),
-    prisma.courtCommunication.count({where:{workspaceId:membership.workspaceId,status:"NEW",AND:[inboxScope(membership)]}}),
-    prisma.legalTask.count({where:{workspaceId:membership.workspaceId,status:{notIn:["DONE","CANCELLED"]},AND:[taskScope(membership),myTaskScope]}}),
-    prisma.contract.count({where:{workspaceId:membership.workspaceId,status:{in:["ACTIVE","EXPIRING","REVIEW","SIGNING"]},expiresAt:{gte:now,lte:in60d},AND:[contractScope(membership)]}}),
-    prisma.deadline.findMany({where:{workspaceId:membership.workspaceId,status:{in:["CONFIRMED","IN_PROGRESS"]},AND:[deadlineScope(membership)]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{risk:"desc"},{dueAt:"asc"}],take:4}),
-    prisma.courtCommunication.findMany({where:{workspaceId:membership.workspaceId,status:"NEW",AND:[inboxScope(membership)]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{receivedAt:"desc"},take:4}),
-    prisma.legalTask.findMany({where:{workspaceId:membership.workspaceId,status:{notIn:["DONE","CANCELLED"]},AND:[taskScope(membership),myTaskScope]},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:4}),
-    prisma.contract.findMany({where:{workspaceId:membership.workspaceId,status:{in:["REVIEW","SIGNING","EXPIRING"]},AND:[contractScope(membership)]},include:{client:{select:{name:true}}},orderBy:[{expiresAt:"asc"},{updatedAt:"desc"}],take:4}),
+  const [deadlines,communications,tasks,contracts,todayDeadlines,todayTasks,todayEvents,recentDocuments,recentMatters]=await Promise.all([
+    prisma.deadline.findMany({where:{...deadlineScope(membership),status:{in:["CONFIRMED","IN_PROGRESS"]},risk:{in:["CRITICAL","HIGH"]}},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:[{risk:"desc"},{dueAt:"asc"}],take:3}),
+    prisma.courtCommunication.findMany({where:{...inboxScope(membership),status:"NEW"},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{receivedAt:"desc"},take:3}),
+    prisma.legalTask.findMany({where:{...taskScope(membership),status:{notIn:["DONE","CANCELLED"]},AND:[myTaskScope],dueAt:{not:null}},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{dueAt:"asc"},take:3}),
+    prisma.contract.findMany({where:{...contractScope(membership),status:{in:["ACTIVE","EXPIRING","REVIEW","SIGNING"]},expiresAt:{gte:now,lte:in60d}},include:{client:{select:{name:true}}},orderBy:{expiresAt:"asc"},take:3}),
+    prisma.deadline.findMany({where:{...deadlineScope(membership),status:{in:["CONFIRMED","IN_PROGRESS"]},dueAt:{gte:dayStart,lt:dayEnd}},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{dueAt:"asc"},take:6}),
+    prisma.legalTask.findMany({where:{...taskScope(membership),status:{notIn:["DONE","CANCELLED"]},AND:[myTaskScope],dueAt:{gte:dayStart,lt:dayEnd}},include:{matter:{select:{id:true,number:true,title:true}}},orderBy:{dueAt:"asc"},take:6}),
+    prisma.legalCalendarEvent.findMany({where:{userId:session.user.id,status:{not:"CANCELLED"},OR:[{startAt:{gte:dayStart,lt:dayEnd}},{startDate:dayStart.toISOString().slice(0,10)}]},orderBy:[{startAt:"asc"},{startDate:"asc"}],take:6}),
+    prisma.legalDocument.findMany({where:{...documentScope(membership)},include:{client:{select:{name:true}},matter:{select:{id:true,number:true,title:true}}},orderBy:{updatedAt:"desc"},take:4}),
+    prisma.matter.findMany({where:{...matterScope(membership)},include:{client:{select:{name:true}}},orderBy:{updatedAt:"desc"},take:4}),
   ]);
 
   const pulse=[
-    ...deadlines.map(d=>({kind:"deadline",at:d.dueAt??d.createdAt,title:d.title,detail:(d.matter?.number??d.matter?.title??"Sem processo")+(d.dueAt?" · "+d.dueAt.toLocaleDateString("pt-BR"):""),tone:d.risk==="CRITICAL"||d.risk==="HIGH"?"danger":"",label:d.risk==="CRITICAL"?"Crítico":d.risk==="HIGH"?"Alto":"Prazo",href:"/app/prazos"})),
-    ...communications.map(c=>({kind:"communication",at:c.receivedAt,title:c.title??"Nova comunicação",detail:c.source+(c.matter?" · "+(c.matter.number??c.matter.title):""),tone:"",label:"Triar",href:"/app/inbox"})),
-    ...tasks.map(t=>({kind:"task",at:t.dueAt??t.createdAt,title:t.title,detail:(t.matter?.number??t.matter?.title??"Sem processo")+(t.dueAt?" · "+t.dueAt.toLocaleDateString("pt-BR"):""),tone:t.dueAt&&t.dueAt<now?"danger":"quiet",label:t.dueAt&&t.dueAt<now?"Vencida":"Tarefa",href:"/app/tarefas"})),
-    ...contracts.map(c=>({kind:"contract",at:c.expiresAt??c.updatedAt,title:c.title,detail:(c.client?.name??c.counterparty??"Contrato")+(c.expiresAt?" · vence "+c.expiresAt.toLocaleDateString("pt-BR"):""),tone:"quiet",label:c.status==="REVIEW"?"Revisar":c.status==="SIGNING"?"Assinar":"Contrato",href:"/app/contratos"})),
+    ...deadlines.map(d=>({rank:d.risk==="CRITICAL"?0:1,at:d.dueAt??d.createdAt,title:d.title,detail:(d.matter?.number??d.matter?.title??"Prazo confirmado"),tone:"danger",label:d.risk==="CRITICAL"?"Crítico":"Alto",href:"/app/prazos",icon:"deadline"})),
+    ...communications.map(c=>({rank:2,at:c.receivedAt,title:c.title??"Nova comunicação",detail:c.source+(c.matter?" · "+(c.matter.number??c.matter.title):""),tone:"",label:"Triar",href:"/app/inbox",icon:"communication"})),
+    ...tasks.map(t=>({rank:t.dueAt&&t.dueAt<now?1:3,at:t.dueAt??t.createdAt,title:t.title,detail:t.matter?.number??t.matter?.title??"Tarefa",tone:t.dueAt&&t.dueAt<now?"danger":"quiet",label:t.dueAt&&t.dueAt<now?"Vencida":"Tarefa",href:"/app/tarefas",icon:"task"})),
+    ...contracts.map(c=>({rank:4,at:c.expiresAt??c.updatedAt,title:c.title,detail:(c.client?.name??c.counterparty??"Contrato")+(c.expiresAt?" · vence "+c.expiresAt.toLocaleDateString("pt-BR"):""),tone:"quiet",label:"Contrato",href:"/app/contratos",icon:"contract"})),
+  ].sort((a,b)=>a.rank-b.rank||a.at.getTime()-b.at.getTime()).slice(0,3);
+
+  const today=[
+    ...todayDeadlines.map(d=>({at:d.dueAt!,title:d.title,detail:d.matter?.number??d.matter?.title??"Prazo",href:"/app/prazos",kind:"Prazo"})),
+    ...todayTasks.map(t=>({at:t.dueAt!,title:t.title,detail:t.matter?.number??t.matter?.title??"Tarefa",href:"/app/tarefas",kind:"Tarefa"})),
+    ...todayEvents.filter(e=>e.startAt).map(e=>({at:e.startAt!,title:e.title,detail:e.location??e.kind,href:"/app/agenda",kind:e.kind==="HEARING"?"Audiência":"Agenda"})),
   ].sort((a,b)=>a.at.getTime()-b.at.getTime()).slice(0,6);
 
-  return <div className="page-stack">
-    <section className="welcome-row"><div><span className="eyebrow">Hoje</span><h1>O que precisa da sua atenção.</h1><p>O MBLZ coloca exceções e riscos antes do restante.</p></div><Link href="/app/inteligencia" className="ask-mblz"><Sparkles size={17}/>Perguntar ao MBLZ</Link></section>
+  const changes=[
+    ...communications.map(c=>({at:c.receivedAt,title:c.title??"Nova comunicação",detail:c.source,href:"/app/inbox",icon:"communication"})),
+    ...recentDocuments.map(d=>({at:d.updatedAt,title:d.name,detail:(d.client?.name??d.matter?.number??d.matter?.title??"Documento")+" · "+d.status,href:"/app/documentos/"+d.id,icon:"document"})),
+  ].sort((a,b)=>b.at.getTime()-a.at.getTime()).slice(0,5);
 
-    <section className="metric-grid">
-      <article className={"metric-card "+(criticalDeadlines?"priority":"")}><div className="metric-icon"><CircleAlert size={19}/></div><span>Prazos de alto risco</span><strong>{criticalDeadlines}</strong><small>{criticalDeadlines?"exigem acompanhamento":"nenhum crítico agora"}</small></article>
-      <article className="metric-card"><div className="metric-icon"><Gavel size={19}/></div><span>Novas comunicações</span><strong>{newCommunications}</strong><small>aguardando triagem</small></article>
-      <article className="metric-card"><div className="metric-icon"><CheckCircle2 size={19}/></div><span>Minha fila</span><strong>{openTasks}</strong><small>tarefas abertas</small></article>
-      <article className="metric-card"><div className="metric-icon"><CalendarClock size={19}/></div><span>Contratos próximos</span><strong>{expiringContracts}</strong><small>vencem em até 60 dias</small></article>
+  return <div className="page-stack home-minimal">
+    <section className="welcome-row home-welcome"><div><span className="eyebrow">Hoje</span><h1>O que precisa da sua atenção.</h1><p>Sem painel de vaidade. Só o que muda sua próxima ação.</p></div><Link href="/app/inteligencia" className="ask-mblz"><Sparkles size={17}/>Perguntar ao MBLZ</Link></section>
+
+    <section className="home-pulse">
+      <div className="home-section-head"><div><span className="eyebrow">MBLZ Pulse</span><h2>Prioridades agora</h2></div><Link href="/app/inbox">Ver Caixa Jurídica <ArrowUpRight size={14}/></Link></div>
+      {pulse.length===0?<div className="home-calm"><CheckCircle2 size={18}/><div><strong>Nenhuma exceção importante.</strong><span>O Pulse fica silencioso quando não há nada que exija decisão.</span></div></div>:<div className="home-pulse-grid">{pulse.map((item,index)=>{
+        const Icon=item.icon==="deadline"?Clock3:item.icon==="communication"?Gavel:item.icon==="contract"?FileText:CheckCircle2;
+        return <Link href={item.href} className={"home-pulse-item "+(item.tone==="danger"?"critical":"")} key={item.icon+index}><span className="home-pulse-icon"><Icon size={17}/></span><div><strong>{item.title}</strong><span>{item.detail}</span></div><b className={"status-pill "+item.tone}>{item.label}</b></Link>
+      })}</div>}
     </section>
 
-    <section className="dashboard-grid">
-      <article className="panel panel-wide">
-        <div className="panel-heading"><div><span className="eyebrow">MBLZ Pulse</span><h2>Prioridades agora</h2></div><Link className="ghost-button" href="/app/inbox">Caixa Jurídica <ArrowUpRight size={15}/></Link></div>
-        {pulse.length===0?<div className="mini-empty">Nenhuma exceção importante detectada. O Pulse permanece silencioso quando não há ação necessária.</div>:<div className="pulse-list">{pulse.map((item,index)=>{
-          const Icon=item.kind==="deadline"?Clock3:item.kind==="communication"?Gavel:item.kind==="contract"?FileText:CheckCircle2;
-          return <Link href={item.href} className={"pulse-row "+(item.tone==="danger"?"critical":"")} key={item.kind+index}>
-            <div className="pulse-symbol"><Icon size={18}/></div>
-            <div className="pulse-copy"><strong>{item.title}</strong><span>{item.detail}</span></div>
-            <span className={"status-pill "+item.tone}>{item.label}</span>
-          </Link>
-        })}</div>}
+    <section className="home-two-column">
+      <article className="panel home-today">
+        <div className="home-section-head"><div><span className="eyebrow">Hoje</span><h2>Sua linha do dia</h2></div><Link href="/app/agenda">Agenda <ArrowUpRight size={14}/></Link></div>
+        {today.length===0?<div className="mini-empty">Nenhum prazo, tarefa ou compromisso com horário hoje.</div>:<div className="home-timeline">{today.map((item,index)=><Link href={item.href} key={item.kind+index}><time>{timeLabel(item.at)}</time><span className="home-time-dot"/><div><strong>{item.title}</strong><span>{item.kind} · {item.detail}</span></div></Link>)}</div>}
       </article>
 
-      <aside className="panel intelligence-card">
-        <div className="mblz-ai-orb"><Sparkles size={22}/></div>
-        <span className="eyebrow">Intelligence</span>
-        <h2>Briefing jurídico, pronto.</h2>
-        <p>Resumos, prioridades e próximos passos a partir do contexto autorizado do escritório, com validação humana.</p>
-        <Link href="/app/inteligencia" className="primary-link">Abrir Intelligence</Link>
-      </aside>
+      <article className="panel home-changes">
+        <div className="home-section-head"><div><span className="eyebrow">O que mudou</span><h2>Atualizações recentes</h2></div></div>
+        {changes.length===0?<div className="mini-empty">Nada novo desde sua última atividade.</div>:<div className="simple-list">{changes.map((item,index)=>{
+          const Icon=item.icon==="communication"?Gavel:FileText;
+          return <Link href={item.href} key={item.icon+index}><span className="table-icon"><Icon size={15}/></span><div><strong>{item.title}</strong><small>{item.detail}</small></div><span>{item.at.toLocaleDateString("pt-BR")}</span></Link>
+        })}</div>}
+      </article>
+    </section>
+
+    <section className="panel home-recent">
+      <div className="home-section-head"><div><span className="eyebrow">Contexto recente</span><h2>Processos que você abriu por último</h2></div><Link href="/app/processos">Todos <ArrowUpRight size={14}/></Link></div>
+      {recentMatters.length===0?<div className="mini-empty">Nenhum processo cadastrado ainda.</div>:<div className="home-matter-list">{recentMatters.map(m=><Link href={"/app/processos/"+m.id} key={m.id}><span className="table-icon"><BriefcaseBusiness size={15}/></span><div><strong>{m.number??m.internalCode??m.title}</strong><small>{m.client?.name??m.title}{m.phase?" · "+m.phase:""}</small></div><ArrowUpRight size={14}/></Link>)}</div>}
     </section>
   </div>;
 }
