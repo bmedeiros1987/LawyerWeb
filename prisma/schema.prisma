@@ -92,6 +92,7 @@ model User {
   notifications UserNotification[]
   pushSubscriptions PushSubscription[]
   agentChannelConnections AgentChannelConnection[]
+  agentExternalIdentities AgentExternalIdentity[]
   agentConversations AgentConversation[]
   agentChannelPreferences AgentChannelPreference[]
   createdAt DateTime @default(now())
@@ -154,6 +155,7 @@ model Workspace {
   intakeDemands IntakeDemand[]
   openClawConnection OpenClawConnection?
   agentChannelConnections AgentChannelConnection[]
+  agentExternalIdentities AgentExternalIdentity[]
   agentConversations AgentConversation[]
   agentChannelPreferences AgentChannelPreference[]
   createdAt DateTime @default(now())
@@ -777,6 +779,8 @@ model OpenClawConnection {
   lastError String? @db.Text
   createdByUserId String?
   conversations AgentConversation[]
+  identities AgentExternalIdentity[]
+  events AgentChannelEvent[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -840,4 +844,48 @@ model AgentConversation {
   updatedAt DateTime @updatedAt
   @@unique([workspaceId,userId,channel,externalThreadId])
   @@index([workspaceId,lastMessageAt])
+}
+
+
+model AgentExternalIdentity {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  channelConnectionId String
+  channelConnection AgentChannelConnection @relation(fields:[channelConnectionId],references:[id],onDelete:Cascade)
+  channel String
+  externalUserId String?
+  externalChatId String?
+  displayName String?
+  status String @default("PENDING")
+  pairingCodeHash String?
+  pairingExpiresAt DateTime?
+  verifiedAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([channelConnectionId,userId])
+  @@unique([channelConnectionId,externalUserId])
+  @@index([channelConnectionId,externalChatId])
+  @@index([pairingCodeHash,pairingExpiresAt])
+}
+
+model AgentChannelEvent {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  channelConnectionId String
+  channelConnection AgentChannelConnection @relation(fields:[channelConnectionId],references:[id],onDelete:Cascade)
+  userId String?
+  channel String
+  externalEventId String
+  status String @default("RECEIVED")
+  receivedAt DateTime @default(now())
+  processedAt DateTime?
+  error String? @db.Text
+  metadata Json?
+  @@unique([channelConnectionId,externalEventId])
+  @@index([workspaceId,channel,receivedAt])
 }
