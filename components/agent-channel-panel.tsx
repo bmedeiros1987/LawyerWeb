@@ -20,8 +20,9 @@ export function AgentChannelPanel({ initial, gmailConnected }:{ initial:AgentCha
     if(!response.ok){setNote(data?.error??"Não foi possível preparar o canal.");return}
     const next=data.connection as AgentChannelSummary;
     setChannels(current=>[...current.filter(c=>c.channel!==channel),next]);
-    if(data.setup==="BOT_TOKEN_REQUIRED")setNote("Telegram preparado. O próximo passo será informar o token do bot ao Gateway OpenClaw em uma tela protegida.");
-    else if(data.setup==="QR_PAIRING_REQUIRED")setNote("WhatsApp preparado. O próximo passo será escanear o QR do Gateway OpenClaw.");
+    const pairCode=typeof data.pairingCode==="string"?data.pairingCode:"";
+    if(data.setup==="BOT_TOKEN_REQUIRED")setNote(`Telegram preparado. Configure o bot no Gateway usando a conta ${data.accountId}. Depois do pairing nativo, envie ao bot: "Vincular MBLZ ${pairCode}". O código expira em 15 minutos.`);
+    else if(data.setup==="QR_PAIRING_REQUIRED")setNote(`WhatsApp preparado. Vincule a conta ${data.accountId} por QR no Gateway. Depois do pairing nativo, envie: "Vincular MBLZ ${pairCode}". O código expira em 15 minutos.`);
     else setNote("E-mail habilitado para o MBLZ Agent.");
   }
 
