@@ -46,6 +46,11 @@ export async function POST(request:NextRequest){
     await requirePermission(session.user.id,member.workspaceId,P.AGENT_MANAGE);
 
     const bot=await inspectTelegramBot(parsed.botToken);
+    const previous=await prisma.agentChannelConnection.findUnique({
+      where:{workspaceId_channel_accountKey:{workspaceId:member.workspaceId,channel:"TELEGRAM",accountKey:"workspace-bot"}},
+      select:{id:true,externalIdentity:true},
+    });
+    const botChanged=Boolean(previous?.externalIdentity&&previous.externalIdentity!==bot.username);
     const webhookSecret=newTelegramWebhookSecret();
     const connection=await prisma.agentChannelConnection.upsert({
       where:{workspaceId_channel_accountKey:{workspaceId:member.workspaceId,channel:"TELEGRAM",accountKey:"workspace-bot"}},
@@ -77,14 +82,25 @@ export async function POST(request:NextRequest){
     }
 
     const now=new Date();
-    await prisma.$transaction([
+    const operations=[
       prisma.agentChannelConnection.update({where:{id:connection.id},data:{status:"CONNECTED",connectedAt:now}}),
+      ...(botChanged?[
+        prisma.agentExternalIdentity.updateMany({
+          where:{channelConnectionId:connection.id,status:{not:"REVOKED"}},
+          data:{status:"REVOKED",revokedAt:now,externalUserId:null,externalChatId:null,pairingCodeHash:null,pairingExpiresAt:null},
+        }),
+        prisma.agentChannelPreference.updateMany({
+          where:{workspaceId:member.workspaceId,channel:"TELEGRAM"},
+          data:{enabled:false},
+        }),
+      ]:[]),
       prisma.auditLog.create({data:{
         workspaceId:member.workspaceId,userId:session.user.id,action:"TELEGRAM_BOT_CONNECTED",
         entityType:"AgentChannelConnection",entityId:connection.id,
-        metadata:{username:bot.username,botId:bot.id},
+        metadata:{username:bot.username,botId:bot.id,botChanged},
       }}),
-    ]);
+    ];
+    await prisma.$transaction(operations);
 
     return NextResponse.json({connection:{id:connection.id,displayName:"@"+bot.username,status:"CONNECTED",externalIdentity:bot.username,connectedAt:now}});
   }catch(error){
