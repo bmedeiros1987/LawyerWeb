@@ -67,12 +67,17 @@
   agents: {
     defaults: {
       workspace: "${OPENCLAW_WORKSPACE_DIR}",
+      skipBootstrap: true,
+      model: {
+        primary: "${OPENCLAW_MODEL}"
+      },
       heartbeat: {
         every: "0m"
       }
     },
-    entries: {
-      mblz: {
+    list: [
+      {
+        id: "mblz",
         default: true,
         name: "MBLZ Agent",
         workspace: "${OPENCLAW_WORKSPACE_DIR}",
@@ -84,7 +89,7 @@
         },
         tools: {
           profile: "minimal",
-          allow: ["session_status", "mblz_context"],
+          allow: ["session_status", "mblz_pair", "mblz_context"],
           deny: [
             "group:runtime",
             "group:fs",
@@ -101,7 +106,7 @@
           }
         }
       }
-    }
+    ]
   },
 
   hooks: {
