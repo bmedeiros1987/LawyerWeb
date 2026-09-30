@@ -10,12 +10,14 @@ Referência funcional: Manual Lawyer Desktop 9.0, seções 6.2.1 e 6.2.2 (págin
 
 ## Ativação
 
-`PROCESS_REGISTER_ENABLED` fica desativado por padrão. Sem ele, a ficha e a rota não consultam as tabelas novas. Não ativar antes de validar a migração em staging.
+`PROCESS_REGISTER_ENABLED` fica desativado por padrão. Sem ele, a ficha e a rota não consultam as tabelas novas.
 
-1. Resolver a instalação inicial do banco da PR #8. Se o banco já tiver tabelas, conferir o schema e o baseline antes de registrar/aplicar qualquer migração; não executar a migração inicial às cegas.
-2. O SQL de `prisma/pending/process-register.sql` foi gerado pelo Prisma como diferença aditiva do schema anterior. Após confirmar o baseline real, incorporá-lo à sequência de migrações e testá-lo em uma cópia de staging, com backup e restauração validados.
-3. Executar os testes de PostgreSQL, revisar isolamento/ACL e então habilitar a variável em staging.
-4. Validar cadastro de partes, fases e andamentos na ficha. Produção permanece uma etapa posterior.
+1. O PostgreSQL de staging já possui a migração inicial versionada e rastreada pelo Prisma.
+2. A migração aditiva desta funcionalidade deve ser gerada a partir desse baseline e versionada em `prisma/migrations/20260930165000_process_register`.
+3. A PR precisa passar schema, TypeScript, testes de PostgreSQL, regressões de sigilo e build.
+4. Após merge, o Render aplica migrations pendentes com `prisma migrate deploy` antes de iniciar o Next.js.
+5. Somente depois de o deploy ficar verde e o healthcheck retornar `schema: ready`, habilitar `PROCESS_REGISTER_ENABLED=true` em staging.
+6. Validar cadastro de partes, fases e andamentos na ficha. Produção permanece uma etapa posterior.
 
 ## Limites desta etapa
 
