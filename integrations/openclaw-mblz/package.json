@@ -1,0 +1,21 @@
+{
+  "name": "@mblz/openclaw-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only OpenClaw adapter for MBLZ Legal OS.",
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "dependencies": {
+    "typebox": "1.3.33"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node test.mjs"
+  }
+}
