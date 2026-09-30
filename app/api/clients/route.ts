@@ -1,3 +1,4 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         matters: { where: { OR: [{ secrecy: false }, { access: { some: { memberId: member.id } } }] }, select: { id: true } },
-        _count: { select: { documents: true, contracts: true } },
+        _count: { select: { documents: {where:documentScope(member)}, contracts: {where:contractScope(member)} } },
       },
       orderBy: { name: "asc" },
       take: 200,

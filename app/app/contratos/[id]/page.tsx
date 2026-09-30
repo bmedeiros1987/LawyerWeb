@@ -1,3 +1,4 @@
+import { contractScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BriefcaseBusiness, CalendarClock, FileText, Landmark, ScrollText, ShieldCheck, UserRound } from "lucide-react";
@@ -21,7 +22,7 @@ export default async function ContractPage({params}:{params:Promise<{id:string}>
   const member=await getActiveMembership(session.user.id); if(!member)redirect("/app/setup");
   if(!(await memberWithPermission(session.user.id,member.workspaceId,P.CONTRACTS_VIEW)))notFound();
   const {id}=await params;
-  const base=await prisma.contract.findFirst({where:{id,workspaceId:member.workspaceId}});
+  const base=await prisma.contract.findFirst({where:{id,AND:[contractScope(member)]}});
   if(!base)notFound();
   if(base.matterId&&!(await canAccessMatter(session.user.id,member.workspaceId,base.matterId,P.MATTERS_VIEW)))notFound();
   const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.CONTRACTS_EDIT));

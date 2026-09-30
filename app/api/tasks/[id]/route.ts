@@ -40,6 +40,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     for (const userId of [parsed.assigneeUserId, parsed.reviewerUserId]) {
       if (!userId) continue;
       const target = await prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: member.workspaceId, userId } } });
+      await requirePermission(userId,member.workspaceId,P.TASKS_VIEW);
+      if(existing.matterId&&!(await canAccessMatter(userId,member.workspaceId,existing.matterId,P.MATTERS_VIEW)))throw new Error("Encarregado/revisor sem acesso ao processo.");
       if (!target || target.status !== "ACTIVE") return NextResponse.json({ error: "Usuário indicado não pertence ao workspace." }, { status: 400 });
     }
 

@@ -1,3 +1,4 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BriefcaseBusiness, FileCheck2, FileText, PenTool, ScrollText, UserRound } from "lucide-react";
@@ -20,7 +21,7 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
   const member=await getActiveMembership(session.user.id);if(!member)redirect("/app/setup");
   if(!(await memberWithPermission(session.user.id,member.workspaceId,P.DOCUMENTS_VIEW)))notFound();
   const {id}=await params;
-  const base=await prisma.legalDocument.findFirst({where:{id,workspaceId:member.workspaceId}});
+  const base=await prisma.legalDocument.findFirst({where:{id,AND:[documentScope(member)]}});
   if(!base)notFound();
   if(base.matterId&&!(await canAccessMatter(session.user.id,member.workspaceId,base.matterId,P.MATTERS_VIEW)))notFound();
   const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.DOCUMENTS_EDIT));
@@ -29,7 +30,7 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
     prisma.legalDocument.findUnique({where:{id},include:{
       client:true,matter:true,template:true,letterhead:true,
       versions:{orderBy:{version:"desc"},include:{signatureEnvelopes:{orderBy:{requestedAt:"desc"}}}},
-      contracts:{orderBy:{updatedAt:"desc"}},
+      contracts:{where:contractScope(member),orderBy:{updatedAt:"desc"}},
     }}),
     prisma.activityLog.findMany({where:{workspaceId:member.workspaceId,entityType:"LegalDocument",entityId:id},orderBy:{occurredAt:"desc"},take:100}),
   ]);
@@ -55,7 +56,7 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
     <section className="contract-layout">
       <article className="panel panel-wide">
         <div className="panel-heading"><div><span className="eyebrow">Versões</span><h2>Histórico documental</h2></div></div>
-        {document.versions.length===0?<div className="storage-placeholder"><FileText size={24}/><div><strong>Registro jurídico criado; arquivo ainda não anexado.</strong><span>O upload será liberado quando o storage criptografado estiver configurado. Não vou guardar documentos sensíveis em disco efêmero ou diretamente no banco só para “funcionar”.</span></div></div>:
+        {document.versions.length===0?<div className="storage-placeholder"><FileText size={24}/><div><strong>Registro jurídico criado; arquivo ainda não anexado.</strong><span>O upload será liberado quando o storage criptografado estiver configurado. Os arquivos terão acesso restrito e histórico de versões.</span></div></div>:
         <div className="simple-list">{document.versions.map(v=><div key={v.id}><span className="table-icon"><FileText size={15}/></span><div><strong>Versão {v.version}{v.originalName?" · "+v.originalName:""}</strong><small>{v.mimeType??"arquivo"} · {v.createdAt.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</small></div><span>{v.sha256?"hash ✓":""}</span></div>)}</div>}
 
         <div className="panel-heading history-subhead"><div><span className="eyebrow">Auditoria</span><h2>Atividade</h2></div></div>

@@ -1,3 +1,4 @@
+import { matterScope, taskScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, CircleDot, Clock3, LockKeyhole, UserRoundCheck } from "lucide-react";
@@ -24,14 +25,14 @@ export default async function Page({searchParams}:{searchParams:Promise<{scope?:
   const [tasks,matters,members]=await Promise.all([
     prisma.legalTask.findMany({
       where:{workspaceId:member.workspaceId,AND:[
-        {OR:[{private:false},{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{reviewerUserId:session.user.id}]},
+        taskScope(member),
         scopeFilter,
         {status:{notIn:["DONE","CANCELLED"]}},
       ]},
       include:{matter:{select:{id:true,number:true,title:true}}},
       orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:250,
     }),
-    prisma.matter.findMany({where:{workspaceId:member.workspaceId,OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},select:{id:true,number:true,title:true},orderBy:{updatedAt:"desc"},take:300}),
+    prisma.matter.findMany({where:matterScope(member),select:{id:true,number:true,title:true},orderBy:{updatedAt:"desc"},take:300}),
     prisma.workspaceMember.findMany({where:{workspaceId:member.workspaceId,status:"ACTIVE"},include:{user:{select:{name:true,email:true}}},orderBy:{createdAt:"asc"}}),
   ]);
   const now=new Date(); const overdue=tasks.filter(t=>t.dueAt&&t.dueAt<now).length; const review=tasks.filter(t=>t.status==="REVIEW").length;

@@ -1,3 +1,4 @@
+import { taskScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
       where: {
         workspaceId: member.workspaceId,
         AND: [
-          visibility,
+          taskScope(member),
           { OR: [{ matterId: null }, { matter: { secrecy: false } }, { matter: { access: { some: { memberId: member.id } } } }] },
           scopeFilter,
           ...(status ? [{ status: status as never }] : []),
@@ -93,6 +94,11 @@ export async function POST(request: NextRequest) {
     }
     await validateMember(member.workspaceId, parsed.assigneeUserId);
     await validateMember(member.workspaceId, parsed.reviewerUserId);
+    for(const userId of [parsed.assigneeUserId||session.user.id,parsed.reviewerUserId]){
+      if(!userId)continue;
+      await requirePermission(userId,member.workspaceId,P.TASKS_VIEW);
+      if(parsed.matterId&&!(await canAccessMatter(userId,member.workspaceId,parsed.matterId,P.MATTERS_VIEW)))throw new Error("Encarregado/revisor sem acesso ao processo.");
+    }
     if (parsed.dueAt && parsed.startAt && parsed.dueAt < parsed.startAt) {
       return NextResponse.json({ error: "A data final deve ser posterior ao início." }, { status: 400 });
     }

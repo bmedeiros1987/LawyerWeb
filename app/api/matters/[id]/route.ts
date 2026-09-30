@@ -1,3 +1,4 @@
+import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -19,11 +20,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       where: { id, workspaceId: member.workspaceId },
       include: {
         client: true,
-        tasks: { orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }], take: 50 },
-        deadlines: { orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }], take: 50 },
-        communications: { orderBy: { receivedAt: "desc" }, take: 50 },
-        documents: { orderBy: { updatedAt: "desc" }, take: 50 },
-        contracts: { orderBy: { updatedAt: "desc" }, take: 50 },
+        tasks: { where: taskScope(member), orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }], take: 50 },
+        deadlines: { where: deadlineScope(member), orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }], take: 50 },
+        communications: { where: inboxScope(member), orderBy: { receivedAt: "desc" }, take: 50 },
+        documents: { where: documentScope(member), orderBy: { updatedAt: "desc" }, take: 50 },
+        contracts: { where: contractScope(member), orderBy: { updatedAt: "desc" }, take: 50 },
       },
     });
     if (!matter) return NextResponse.json({ error: "Not found" }, { status: 404 });

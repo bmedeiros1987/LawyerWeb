@@ -1,3 +1,4 @@
+import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, Clock3, FileText, Landmark, LockKeyhole, ScrollText } from "lucide-react";
@@ -22,11 +23,11 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
     where:{id,workspaceId:member.workspaceId},
     include:{
       client:true,
-      tasks:{orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:80},
-      deadlines:{orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:80},
-      communications:{orderBy:{receivedAt:"desc"},take:80},
-      documents:{orderBy:{updatedAt:"desc"},take:80},
-      contracts:{orderBy:{updatedAt:"desc"},take:80},
+      tasks: { where: taskScope(member), orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:80},
+      deadlines: { where: deadlineScope(member), orderBy:[{dueAt:"asc"},{createdAt:"desc"}],take:80},
+      communications: { where: inboxScope(member), orderBy:{receivedAt:"desc"},take:80},
+      documents: { where: documentScope(member), orderBy:{updatedAt:"desc"},take:80},
+      contracts: { where: contractScope(member), orderBy:{updatedAt:"desc"},take:80},
     },
   });
   if(!matter) notFound();
