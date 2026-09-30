@@ -29,7 +29,7 @@ it("binds token to user, workspace and explicit read scopes", () => {
   expect(() => verifyMblzAgentToken(token, "deadlines:read", now + 1_000)).toThrow("Agent scope denied");
 });
 
-it("rejects tampering and expiration", () => {
+it("rejects signature tampering and expiration", () => {
   const now = Date.UTC(2026, 8, 30, 12, 0, 0);
   const { token } = createMblzAgentToken({
     userId: "user-a",
@@ -38,8 +38,10 @@ it("rejects tampering and expiration", () => {
     ttlSeconds: 120,
   }, now);
 
-  const tampered = token.replace("user", "other");
-  expect(() => verifyMblzAgentToken(tampered, "deadlines:read", now + 1_000)).toThrow();
+  const last = token.at(-1) || "A";
+  const tampered = token.slice(0, -1) + (last === "A" ? "B" : "A");
+  expect(tampered).not.toBe(token);
+  expect(() => verifyMblzAgentToken(tampered, "deadlines:read", now + 1_000)).toThrow("Invalid agent token");
   expect(() => verifyMblzAgentToken(token, "deadlines:read", now + 121_000)).toThrow("Expired agent token");
 });
 
