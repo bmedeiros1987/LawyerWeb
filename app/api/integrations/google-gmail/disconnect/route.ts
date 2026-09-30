@@ -25,9 +25,20 @@ export async function POST(request: NextRequest) {
     if (token) {
       try { await createGoogleOAuthClient(gmailRedirectUri()).revokeToken(token); } catch {}
     }
-    await prisma.googleGmailConnection.delete({ where: { id: connection.id } });
-    await prisma.activityLog.create({
-      data: { workspaceId, userId: session.user.id, type: "GMAIL_DISCONNECTED", entityType: "GoogleGmailConnection", entityId: connection.id, summary: "Gmail desconectado" },
+    await prisma.$transaction([
+      prisma.googleGmailConnection.delete({ where: { id: connection.id } }),
+      prisma.agentChannelPreference.updateMany({
+        where: { workspaceId, userId: session.user.id, channel: "EMAIL" },
+        data: { enabled: false },
+      }),
+      prisma.activityLog.create({
+        data: { workspaceId, userId: session.user.id, type: "GMAIL_DISCONNECTED", entityType: "GoogleGmailConnection", entityId: connection.id, summary: "Gmail desconectado" },
+      }),
+    ]);
+  } else {
+    await prisma.agentChannelPreference.updateMany({
+      where: { workspaceId, userId: session.user.id, channel: "EMAIL" },
+      data: { enabled: false },
     });
   }
   return NextResponse.redirect(new URL("/app/integrations?gmail=disconnected", request.url), 303);

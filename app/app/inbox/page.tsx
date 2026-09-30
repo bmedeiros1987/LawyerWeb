@@ -24,7 +24,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   const {q=""}=await searchParams; const search=q.trim();
   const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
 
-  const [communications,demands]=await Promise.all([
+  const [communications,demands,emailAgentPreference]=await Promise.all([
     prisma.courtCommunication.findMany({
       where:{workspaceId:member.workspaceId,AND:[
         visibility,
@@ -53,6 +53,10 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
       ]},
       include:{matter:{select:{id:true,number:true,title:true}},client:{select:{id:true,name:true}}},
       orderBy:{receivedAt:"desc"},take:150,
+    }),
+    prisma.agentChannelPreference.findUnique({
+      where:{workspaceId_userId_channel:{workspaceId:member.workspaceId,userId:session.user.id,channel:"EMAIL"}},
+      select:{enabled:true},
     }),
   ]);
 
@@ -89,7 +93,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
             {row.preview&&<p>{row.preview}</p>}
           </div>
           <div className="inbox-state">
-            {canTriage?<InboxTriage workspaceId={member.workspaceId} sourceType={row.sourceType} sourceId={row.sourceId} status={row.status} defaultTitle={row.title} suggestedDue={row.suggestedDue} canCreateTask={canCreateTask} canCreateDeadline={canCreateDeadline}/>:<span className={"status-pill "+(row.requiresAction?"danger":"quiet")}>{row.requiresAction?"Revisar":statusLabel(row.status)}</span>}
+            {canTriage?<InboxTriage workspaceId={member.workspaceId} sourceType={row.sourceType} sourceId={row.sourceId} status={row.status} defaultTitle={row.title} suggestedDue={row.suggestedDue} canCreateTask={canCreateTask} canCreateDeadline={canCreateDeadline} canGenerateAgentDraft={Boolean(emailAgentPreference?.enabled)&&row.kind==="GMAIL"}/>:<span className={"status-pill "+(row.requiresAction?"danger":"quiet")}>{row.requiresAction?"Revisar":statusLabel(row.status)}</span>}
             {row.matter&&<Link href={"/app/processos/"+row.matter.id}>Abrir processo</Link>}
           </div>
         </div>
