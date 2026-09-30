@@ -7,7 +7,14 @@ import { buildAgentContext } from "@/lib/openclaw/context";
 const input = z.object({
   channel: z.enum(["WHATSAPP", "TELEGRAM"]),
   accountId: z.string().min(3).max(160),
+  senderId: z.string().min(1).max(512),
 });
+
+function senderHash(channel: string, senderId: string) {
+  const salt = process.env.OPENCLAW_SESSION_SALT;
+  if (!salt) throw new Error("OPENCLAW_SESSION_SALT is not configured");
+  return crypto.createHmac("sha256", salt).update(`${channel}:${senderId}`).digest("hex");
+}
 
 function authorized(request: NextRequest) {
   const expected = process.env.MBLZ_AGENT_SERVICE_TOKEN;
@@ -26,7 +33,7 @@ export async function POST(request: NextRequest) {
       where: {
         channel: parsed.channel,
         accountId: parsed.accountId,
-        status: { in: ["PENDING", "CONNECTED"] },
+        status: "CONNECTED",
       },
       include: {
         agentProfile: true,
@@ -35,6 +42,13 @@ export async function POST(request: NextRequest) {
     });
     if (!connection || !connection.agentProfile.enabled) {
       return NextResponse.json({ error: "Channel is not authorized in MBLZ" }, { status: 404 });
+    }
+    const hash = senderHash(parsed.channel, parsed.senderId);
+    const expectedHash = connection.externalIdentityHash ?? "";
+    const a = Buffer.from(expectedHash);
+    const b = Buffer.from(hash);
+    if (!expectedHash || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return NextResponse.json({ error: "Sender is not bound to this MBLZ channel" }, { status: 403 });
     }
 
     const member = await prisma.workspaceMember.findUnique({
@@ -46,7 +60,7 @@ export async function POST(request: NextRequest) {
     const context = await buildAgentContext(member);
     await prisma.agentChannelConnection.update({
       where: { id: connection.id },
-      data: { status: "CONNECTED", lastHealthAt: new Date(), lastError: null },
+      data: { lastHealthAt: new Date(), lastError: null },
     });
 
     return NextResponse.json({
