@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 it("keeps OpenClaw tenant identity outside model-controlled parameters", () => {
-  const source = readFileSync(resolve("integrations/openclaw-mblz/index.ts"), "utf8");
+  const source = readFileSync(resolve("integrations/openclaw-mblz/index.mjs"), "utf8");
   const manifest = JSON.parse(readFileSync(resolve("integrations/openclaw-mblz/openclaw.plugin.json"), "utf8"));
 
   expect([...manifest.contracts.tools].sort()).toEqual(["mblz_upcoming_deadlines", "mblz_workspace_summary"]);
