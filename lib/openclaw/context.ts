@@ -5,6 +5,11 @@ export async function buildAgentContext(viewer: Viewer) {
   const now = new Date();
   const horizon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+  const emailAgentEnabled = Boolean(await prisma.agentChannelConnection.findFirst({
+    where: { workspaceId: viewer.workspaceId, userId: viewer.userId, channel: "EMAIL", status: "CONNECTED" },
+    select: { id: true },
+  }));
+
   const [deadlines, tasks, matters, contracts, demands, communications] = await Promise.all([
     prisma.deadline.findMany({
       where: {
@@ -43,7 +48,11 @@ export async function buildAgentContext(viewer: Viewer) {
       take: 5,
     }),
     prisma.intakeDemand.findMany({
-      where: { ...inboxScope(viewer), status: { in: ["NEW", "REVIEWING"] } },
+      where: {
+        ...inboxScope(viewer),
+        status: { in: ["NEW", "REVIEWING"] },
+        ...(emailAgentEnabled ? {} : { source: { not: "GMAIL" } }),
+      },
       select: { id: true, source: true, title: true, bodyPreview: true, actionCandidate: true, dueCandidate: true, receivedAt: true },
       orderBy: { receivedAt: "desc" },
       take: 5,
