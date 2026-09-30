@@ -1,9 +1,9 @@
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install -g openclaw@latest
+  && npm install -g openclaw@2026.9.6
 
 WORKDIR /opt/mblz
 COPY plugin-mblz ./plugin-mblz
