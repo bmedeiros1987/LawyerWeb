@@ -32,6 +32,7 @@ jobs:
             -e MBLZ_INTERNAL_API_URL=http://127.0.0.1:9 \
             -e MBLZ_AGENT_SERVICE_TOKEN=ci-service-token-012345678901234567890123456789 \
             -e OPENCLAW_MODEL=openai/gpt-5.6-sol \
+            -e OPENAI_API_KEY=sk-ci-placeholder-not-real \
             mblz-openclaw-test
       - name: Wait for startup health
         shell: bash
