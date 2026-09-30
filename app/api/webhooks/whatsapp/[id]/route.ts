@@ -95,7 +95,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (!messages.length) return NextResponse.json({ ok: true });
 
   for (const message of messages) {
-    if (message.phoneNumberId && message.phoneNumberId !== config.phoneNumberId) continue;
+    if (message.phoneNumberId !== config.phoneNumberId) continue;
 
     let event;
     try {
@@ -140,10 +140,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         });
 
         if (!identity) {
-          await sendWhatsAppMessage(connection, message.waId, "Esse pareamento expirou ou já foi utilizado. Gere um novo link dentro do MBLZ.");
           await prisma.agentChannelEvent.update({
             where: { id: event.id },
-            data: { status: "PROCESSED", processedAt: new Date() },
+            data: { status: "REJECTED", processedAt: new Date(), error: "invalid or expired pairing" },
           });
           continue;
         }
@@ -157,7 +156,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           },
         });
         if (other) {
-          await sendWhatsAppMessage(connection, message.waId, "Este WhatsApp já está vinculado a outro usuário deste workspace. Remova o vínculo anterior pelo MBLZ.");
           await prisma.agentChannelEvent.update({
             where: { id: event.id },
             data: { status: "REJECTED", processedAt: new Date(), error: "external identity already paired" },
@@ -231,7 +229,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         },
       });
       if (!identity) {
-        await sendWhatsAppMessage(connection, message.waId, "Este WhatsApp ainda não está vinculado ao MBLZ. Gere seu link de pareamento em Integrações → MBLZ Agent.");
         await prisma.agentChannelEvent.update({
           where: { id: event.id },
           data: { status: "REJECTED", processedAt: new Date(), error: "unpaired identity" },
