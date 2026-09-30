@@ -18,9 +18,9 @@ Dentro do workspace, cada conversa é associada a um usuário; o contexto entreg
 O chat dentro do MBLZ chama o OpenClaw server-to-server.
 
 ### E-mail
-Reutiliza a conexão Gmail já existente no MBLZ. O fluxo pretendido é: Gmail API/PubSub recebe a mensagem; MBLZ cria/atualiza a entrada na Caixa Jurídica; se o usuário ativou o Agent Hub, o conteúdo autorizado pode ser enviado ao agente; o agente produz rascunho; envio permanece sujeito a ação humana explícita.
+Reutiliza a conexão Gmail já existente no MBLZ. Gmail API/PubSub recebe a mensagem e o MBLZ cria/atualiza a entrada na Caixa Jurídica. Quando o usuário ativa o canal E-mail do Agent Hub, ele pode pedir explicitamente um rascunho dentro da própria triagem; o texto retorna ao MBLZ para revisão e cópia manual. Nesta etapa o agente **não cria rascunho no Gmail e não envia e-mail**.
 
-O OpenClaw não recebe o refresh token do Gmail do usuário.
+O conteúdo recebido é delimitado como não confiável antes de chegar ao agente, para reduzir risco de prompt injection. O OpenClaw não recebe o refresh token do Gmail do usuário. Ao desconectar o Gmail, o opt-in do canal E-mail é desativado.
 
 ### Telegram
 Produção: um bot do escritório por workspace. Token criptografado no MBLZ; webhook termina no MBLZ; usuário faz pareamento individual; chat.id é vinculado ao usuário; mensagem é normalizada e encaminhada ao Agent Hub; resposta retorna pelo Telegram Bot API.
@@ -78,13 +78,14 @@ Implementado:
 - ActivityLog por turn do agente;
 - tela Agent Hub;
 - Telegram Bot API com bot por workspace, webhook no MBLZ e pareamento individual;
-- WhatsApp Business Cloud API com webhook assinado, pareamento individual e resposta restrita ao usuário pareado.
+- WhatsApp Business Cloud API com webhook assinado, pareamento individual e resposta restrita ao usuário pareado;
+- Gmail -> rascunho interno do agente, sob ação humana explícita, sem envio automático.
 
 Próximas PRs:
-1. Gmail -> rascunho do agente;
-2. ferramentas de ação MBLZ com approvals e idempotência;
-3. provisionamento automatizado de células OpenClaw por workspace;
-4. homologação cross-user/cross-workspace dos canais antes de ampliar o rollout.
+1. ferramentas de ação MBLZ com approvals e idempotência;
+2. provisionamento automatizado de células OpenClaw por workspace;
+3. homologação cross-user/cross-workspace dos canais antes de ampliar o rollout;
+4. avaliar Gmail Compose somente se houver necessidade operacional e consentimento adicional.
 
 ## Referências técnicas
 
