@@ -74,6 +74,9 @@ export async function POST(request: NextRequest) {
     }
 
     const id = accountId(profile.id, parsed.channel);
+    const pairingCode = crypto.randomBytes(6).toString("hex").toUpperCase();
+    const pairCodeHash = crypto.createHash("sha256").update(pairingCode).digest("hex");
+    const pairExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const connection = await prisma.agentChannelConnection.upsert({
       where: {
         workspaceId_userId_channel_accountId: {
@@ -98,11 +101,14 @@ export async function POST(request: NextRequest) {
           media: true,
           externalSendRequiresApproval: true,
         },
+        metadata: { pairCodeHash, pairExpiresAt },
       },
       update: {
         status: "PENDING",
         consentedAt: new Date(),
         disconnectedAt: null,
+        externalIdentityHash: null,
+        metadata: { pairCodeHash, pairExpiresAt },
         lastError: null,
       },
     });
@@ -111,6 +117,8 @@ export async function POST(request: NextRequest) {
       connection,
       setup: parsed.channel === "TELEGRAM" ? "BOT_TOKEN_REQUIRED" : "QR_PAIRING_REQUIRED",
       accountId: id,
+      pairingCode,
+      pairingExpiresAt: pairExpiresAt,
     });
   } catch (error) {
     const status = (error as Error & { status?: number }).status ?? 400;
