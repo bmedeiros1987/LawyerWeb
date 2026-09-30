@@ -179,3 +179,15 @@
 .telegram-pair-card{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;padding:13px;border:1px solid rgba(101,92,246,.13);border-radius:12px;background:#f8f8ff}.telegram-pair-card>div{display:grid}.telegram-pair-card strong{font-size:9px}.telegram-pair-card span{margin-top:3px;color:#7d8592;font-size:8px}
 .telegram-admin-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:#858d98;font-size:8px}
 @media(max-width:650px){.telegram-user-link,.telegram-pair-card,.telegram-admin-footer{align-items:flex-start;flex-direction:column}.telegram-paired-actions{width:100%;justify-content:space-between}.telegram-pair-card .new-button{width:100%;justify-content:center}}
+
+.whatsapp-agent-panel{grid-column:1/-1}
+.whatsapp-cloud-form{max-width:720px}
+.agent-channel-safety{display:flex;align-items:flex-start;gap:10px;margin-bottom:13px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--muted)}
+.agent-channel-safety>div{display:grid}.agent-channel-safety strong{font-size:9px;color:var(--ink)}.agent-channel-safety span{margin-top:3px;font-size:8px;line-height:1.55}
+.whatsapp-webhook-card{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.whatsapp-webhook-card>div{display:grid}.whatsapp-webhook-card>div strong{font-size:9px}.whatsapp-webhook-card>div span{margin-top:3px;color:var(--muted);font-size:8px;line-height:1.55}
+.whatsapp-webhook-card>label>span{display:block;margin-bottom:5px;color:var(--muted);font-size:8px;font-weight:700}
+.whatsapp-webhook-card>label>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center}
+.whatsapp-webhook-card code{min-width:0;overflow:auto;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--surface);font-size:8px}
+.whatsapp-webhook-card button{height:34px;display:inline-flex;align-items:center;gap:5px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-size:8px;font-weight:700;cursor:pointer}
+@media(max-width:650px){.whatsapp-webhook-card>label>div{grid-template-columns:1fr}.whatsapp-webhook-card button{justify-content:center}}
