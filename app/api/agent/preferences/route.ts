@@ -33,16 +33,41 @@ export async function PATCH(request:NextRequest){
     const parsed=input.parse(await request.json());
     const member=await requireActiveMembership(session.user.id,parsed.workspaceId);
     await requirePermission(session.user.id,member.workspaceId,P.AGENT_USE);
+
+    if(parsed.enabled&&parsed.channel==="EMAIL"){
+      const gmail=await prisma.googleGmailConnection.findUnique({
+        where:{workspaceId_userId:{workspaceId:member.workspaceId,userId:session.user.id}},
+        select:{id:true},
+      });
+      if(!gmail)return NextResponse.json({error:"Conecte o Gmail antes de habilitar o agente por e-mail."},{status:409});
+    }
+    if(parsed.enabled&&parsed.channel==="TELEGRAM"){
+      const telegram=await prisma.agentChannelConnection.findUnique({
+        where:{workspaceId_channel_accountKey:{workspaceId:member.workspaceId,channel:"TELEGRAM",accountKey:"workspace-bot"}},
+        select:{id:true,status:true},
+      });
+      const identity=telegram?await prisma.agentExternalIdentity.findUnique({
+        where:{channelConnectionId_userId:{channelConnectionId:telegram.id,userId:session.user.id}},
+        select:{status:true},
+      }):null;
+      if(!telegram||telegram.status!=="CONNECTED"||identity?.status!=="VERIFIED"){
+        return NextResponse.json({error:"Conclua o pareamento do Telegram antes de habilitar o canal."},{status:409});
+      }
+    }
+    if(parsed.enabled&&parsed.channel==="WHATSAPP"){
+      return NextResponse.json({error:"O canal WhatsApp ainda não foi liberado neste workspace."},{status:409});
+    }
+    const safeMode=parsed.channel==="TELEGRAM"?parsed.mode:"DRAFT";
     const preference=await prisma.agentChannelPreference.upsert({
       where:{workspaceId_userId_channel:{workspaceId:member.workspaceId,userId:session.user.id,channel:parsed.channel}},
-      create:{workspaceId:member.workspaceId,userId:session.user.id,channel:parsed.channel,enabled:parsed.enabled,mode:parsed.mode},
-      update:{enabled:parsed.enabled,mode:parsed.mode},
+      create:{workspaceId:member.workspaceId,userId:session.user.id,channel:parsed.channel,enabled:parsed.enabled,mode:safeMode},
+      update:{enabled:parsed.enabled,mode:safeMode},
     });
     await prisma.activityLog.create({data:{
       workspaceId:member.workspaceId,userId:session.user.id,type:"AGENT_CHANNEL_PREFERENCE",
       entityType:"AgentChannelPreference",entityId:preference.id,
       summary:`${parsed.channel} ${parsed.enabled?"ativado":"desativado"} para o agente MBLZ`,
-      source:"SYSTEM",metadata:{channel:parsed.channel,enabled:parsed.enabled,mode:parsed.mode}
+      source:"SYSTEM",metadata:{channel:parsed.channel,enabled:parsed.enabled,mode:safeMode}
     }});
     return NextResponse.json({preference});
   }catch(error){

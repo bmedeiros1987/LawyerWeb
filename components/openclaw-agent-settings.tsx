@@ -97,8 +97,8 @@ export function OpenClawAgentSettings({
         </div>
         <div className="agent-channel-row">
           <span className="agent-channel-icon"><Send size={18}/></span>
-          <div><strong>Telegram</strong><span>Bot por workspace + pareamento individual. O conector será ativado na próxima etapa.</span></div>
-          <span className="status-pill quiet">Preparando</span>
+          <div><strong>Telegram</strong><span>Bot oficial por workspace + pareamento individual. A configuração detalhada fica logo abaixo.</span></div>
+          <span className="status-pill success">Disponível</span>
         </div>
         <div className="agent-channel-row">
           <span className="agent-channel-icon"><MessageCircle size={18}/></span>
