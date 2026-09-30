@@ -50,8 +50,8 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
         externalEventId,status:"RECEIVED",
         metadata:{
           messageId:update.message?.message_id??null,
-          chatId:update.message?.chat?.id!=null?String(update.message.chat.id):null,
-          fromId:update.message?.from?.id!=null?String(update.message.from.id):null,
+          chatHash:update.message?.chat?.id!=null?sha256(String(update.message.chat.id)):null,
+          fromHash:update.message?.from?.id!=null?sha256(String(update.message.from.id)):null,
           textHash:update.message?.text?sha256(update.message.text):null,
         },
       },
@@ -73,6 +73,11 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
 
     const startMatch=text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+([A-Za-z0-9_-]{8,80}))?$/i);
     if(startMatch){
+      if(message.chat?.type!=="private"){
+        await sendTelegramMessage(connection,chatId,"Por segurança, faça o pareamento em uma conversa privada com o bot.");
+        await prisma.agentChannelEvent.update({where:{id:event.id},data:{status:"REJECTED",processedAt:new Date(),error:"pairing requires private chat"}});
+        return NextResponse.json({ok:true});
+      }
       const code=startMatch[1];
       if(!code){
         await sendTelegramMessage(connection,chatId,"Abra o MBLZ e use Integrações → MBLZ Agent → Telegram para gerar seu link de pareamento.");
