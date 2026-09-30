@@ -12,7 +12,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./index.mjs"
     ]
   },
   "scripts": {
