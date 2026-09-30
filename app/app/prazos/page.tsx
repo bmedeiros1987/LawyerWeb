@@ -54,7 +54,7 @@ export default async function Page() {
         const candidate=["CANDIDATE","PENDING_CONFIRMATION"].includes(d.status);
         const late=Boolean(d.dueAt&&d.dueAt<now&&!["COMPLETED"].includes(d.status));
         return <div className="table-row deadlines" key={d.id}>
-          <div className="matter-name"><span className="table-icon"><Clock3 size={16}/></span><div><strong>{d.title}</strong><small>{d.matter?<Link href={"/app/processos/"+d.matter.id}>{d.matter.number??d.matter.title}</Link>:(d.source??"Sem processo")}{d.dueAt?" · legal "+d.dueAt.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):""}</small></div></div>
+          <div className="matter-name"><span className="table-icon"><Clock3 size={16}/></span><div><strong>{d.title}</strong><small>{d.matter?<Link href={"/app/processos/"+d.matter.id}>{d.matter.number??d.matter.title}</Link>:(d.source??"Sem processo")}{d.dueAt?" · "+(candidate?"sugerido ":"legal ")+d.dueAt.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):""}</small></div></div>
           <span>{d.primaryResponsibleUserId?names.get(d.primaryResponsibleUserId)??"Usuário":"Não definido"}</span>
           <span className="deadline-control-copy"><UserRoundCheck size={14}/>{d.reviewerUserId?"Revisor: "+(names.get(d.reviewerUserId)??"Usuário"):candidate?"Revisor obrigatório":"Sem revisor"}</span>
           <span className={"status-pill "+(late||d.risk==="CRITICAL"||d.risk==="HIGH"?"danger":d.risk==="NORMAL"?"success":"")}>{late?"Vencido":candidate?statusLabel(d.status):riskLabel(d.risk)}</span>

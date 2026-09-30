@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
+import { InboxTriage } from "@/components/inbox-triage";
 
 export const dynamic="force-dynamic";
 
@@ -17,6 +18,9 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   if(!(await memberWithPermission(session.user.id,member.workspaceId,P.MATTERS_VIEW))) {
     return <div className="empty-state"><LockKeyhole size={28}/><h2>Acesso restrito</h2><p>Seu perfil não possui acesso à Caixa Jurídica.</p></div>;
   }
+  const canTriage=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.INBOX_TRIAGE));
+  const canCreateTask=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.TASKS_EDIT));
+  const canCreateDeadline=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.DEADLINES_CREATE));
   const {q=""}=await searchParams; const search=q.trim();
   const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
 
@@ -54,14 +58,14 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
 
   const rows=[
     ...communications.map(c=>({
-      id:"court-"+c.id,kind:"COURT",source:c.source,title:c.title??"Comunicação processual",
+      id:"court-"+c.id,sourceId:c.id,sourceType:"COURT" as const,kind:"COURT",source:c.source,title:c.title??"Comunicação processual",
       preview:c.body?.slice(0,180)??null,receivedAt:c.receivedAt,status:c.status,
-      requiresAction:c.requiresAction,matter:c.matter,client:null,
+      requiresAction:c.requiresAction,matter:c.matter,client:null,suggestedDue:null,
     })),
     ...demands.map(d=>({
-      id:"demand-"+d.id,kind:d.source,source:sourceLabel(d.source),title:d.title,
+      id:"demand-"+d.id,sourceId:d.id,sourceType:"DEMAND" as const,kind:d.source,source:sourceLabel(d.source),title:d.title,
       preview:d.actionCandidate??d.bodyPreview?.slice(0,180)??null,receivedAt:d.receivedAt,status:d.status,
-      requiresAction:d.requiresAction,matter:d.matter,client:d.client,
+      requiresAction:d.requiresAction,matter:d.matter,client:d.client,suggestedDue:d.dueCandidate?d.dueCandidate.toISOString():null,
     })),
   ].sort((a,b)=>b.receivedAt.getTime()-a.receivedAt.getTime()).slice(0,250);
 
@@ -85,7 +89,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
             {row.preview&&<p>{row.preview}</p>}
           </div>
           <div className="inbox-state">
-            <span className={"status-pill "+(row.requiresAction?"danger":"quiet")}>{row.requiresAction?"Revisar":statusLabel(row.status)}</span>
+            {canTriage?<InboxTriage workspaceId={member.workspaceId} sourceType={row.sourceType} sourceId={row.sourceId} status={row.status} defaultTitle={row.title} suggestedDue={row.suggestedDue} canCreateTask={canCreateTask} canCreateDeadline={canCreateDeadline}/>:<span className={"status-pill "+(row.requiresAction?"danger":"quiet")}>{row.requiresAction?"Revisar":statusLabel(row.status)}</span>}
             {row.matter&&<Link href={"/app/processos/"+row.matter.id}>Abrir processo</Link>}
           </div>
         </div>

@@ -111,6 +111,11 @@
 @media(max-width:760px){.table-head.deadlines,.table-row.deadlines{min-width:900px}.deadline-confirm-popover{position:fixed;left:12px;right:12px;top:80px;width:auto;max-height:calc(100vh - 100px);overflow:auto}.inbox-row{grid-template-columns:auto 1fr}.inbox-state{grid-column:2;justify-items:start}}
 
 
+.inbox-triage{position:relative}.inbox-triage>summary{list-style:none;cursor:pointer}.inbox-triage>summary::-webkit-details-marker{display:none}
+.inbox-triage-popover{position:absolute;right:0;top:34px;z-index:90;width:390px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 22px 60px rgba(22,28,45,.16);display:grid;gap:9px}
+.inbox-triage-popover label>span{display:block;margin-bottom:5px;color:#6f7783;font-size:8px;font-weight:700}.inbox-triage-popover input{width:100%;border:1px solid #e2e5ea;border-radius:9px;background:#fafbfc;padding:9px 10px;font-size:9px;outline:0}.inbox-triage-popover>p{margin:0;color:#818995;font-size:8px;line-height:1.55}
+.inbox-triage-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.inbox-triage-actions button{min-height:34px;border-radius:9px;background:#171b24;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-size:8px;font-weight:700;cursor:pointer}.inbox-triage-actions button.quiet{background:#f1f2f5;color:#6e7682}.inbox-triage-actions button.danger{background:rgba(216,70,91,.08);color:#bd4253}.inbox-triage-actions button:disabled{opacity:.45}
+@media(max-width:760px){.inbox-triage-popover{position:fixed;left:12px;right:12px;top:80px;width:auto;max-height:calc(100vh - 100px);overflow:auto}}
 .form-hint{margin:0;padding:8px 10px;border-radius:9px;background:#f6f7f9;color:#858d98;font-size:8px;line-height:1.55}
 .table-head.contracts,.table-row.contracts{grid-template-columns:1.45fr .95fr .85fr .62fr 18px}
 .table-head.legal-docs,.table-row.legal-docs{grid-template-columns:1.45fr .7fr 1fr .62fr 18px}

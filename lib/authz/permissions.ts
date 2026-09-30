@@ -13,6 +13,7 @@ export const P = {
   DEADLINES_CONFIRM: "deadlines.confirm",
   DEADLINES_COMPLETE: "deadlines.complete",
   DEADLINES_MANAGE: "deadlines.manage",
+  INBOX_TRIAGE: "inbox.triage",
   TASKS_VIEW: "tasks.view",
   TASKS_EDIT: "tasks.edit",
   DOCUMENTS_VIEW: "documents.view",
