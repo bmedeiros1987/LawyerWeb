@@ -178,11 +178,11 @@ export function WhatsAppAgentSettings({
 
     {!connected && canManage && <form className="quick-form whatsapp-cloud-form" onSubmit={configure}>
       <div className="quick-form-grid">
-        <label><span>Phone Number ID</span><input name="phoneNumberId" required inputMode="numeric" autoComplete="off"/></label>
-        <label><span>Versão da Graph API</span><input name="graphVersion" required placeholder="vXX.X" autoComplete="off"/></label>
+        <label><span>ID do número no WhatsApp</span><input name="phoneNumberId" required inputMode="numeric" autoComplete="off"/></label>
+        <label><span>Versão da API Graph</span><input name="graphVersion" required placeholder="vXX.X" autoComplete="off"/></label>
       </div>
-      <label><span>Access Token</span><input name="accessToken" type="password" required autoComplete="new-password"/></label>
-      <label><span>App Secret</span><input name="appSecret" type="password" required autoComplete="new-password"/></label>
+      <label><span>Token de acesso</span><input name="accessToken" type="password" required autoComplete="new-password"/></label>
+      <label><span>Segredo do aplicativo</span><input name="appSecret" type="password" required autoComplete="new-password"/></label>
       <p className="form-hint">Os segredos são enviados apenas ao servidor MBLZ e armazenados criptografados. A versão da Graph API é informada pelo administrador conforme o app configurado na Meta.</p>
       <button className="form-submit" disabled={busy === "configure"}><MessageCircle size={15}/>{busy === "configure" ? "Validando…" : pending ? "Configurar novamente" : "Configurar WhatsApp Cloud"}</button>
     </form>}
@@ -192,9 +192,9 @@ export function WhatsAppAgentSettings({
     {webhookUrl && verifyToken && <div className="whatsapp-webhook-card">
       <div>
         <strong>Finalize o webhook na Meta</strong>
-        <span>Cadastre a URL de callback e o token abaixo no painel do WhatsApp Business e habilite o evento de mensagens. O token de verificação é exibido somente nesta configuração.</span>
+        <span>Cadastre a URL de retorno (callback) e o token abaixo no painel do WhatsApp Business e habilite o evento de mensagens. O token de verificação é exibido somente nesta configuração.</span>
       </div>
-      <label><span>URL de callback</span><div><code>{webhookUrl}</code><button type="button" aria-label="Copiar URL de callback" onClick={() => copy(webhookUrl, "url")}><Copy size={13}/>{copied === "url" ? "Copiado" : "Copiar"}</button></div></label>
+      <label><span>URL de retorno (callback)</span><div><code>{webhookUrl}</code><button type="button" aria-label="Copiar URL de retorno (callback)" onClick={() => copy(webhookUrl, "url")}><Copy size={13}/>{copied === "url" ? "Copiado" : "Copiar"}</button></div></label>
       <label><span>Token de verificação</span><div><code>{verifyToken}</code><button type="button" aria-label="Copiar token de verificação" onClick={() => copy(verifyToken, "token")}><Copy size={13}/>{copied === "token" ? "Copiado" : "Copiar"}</button></div></label>
     </div>}
 
