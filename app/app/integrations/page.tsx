@@ -1,4 +1,4 @@
-import { BellRing, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
+import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
 import { PushOptIn } from "@/components/push-opt-in";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +19,9 @@ export default async function Page() {
 
   const gmail = userId && membership
     ? await prisma.googleGmailConnection.findUnique({ where: { workspaceId_userId: { workspaceId: membership.workspaceId, userId } } })
+    : null;
+  const openClaw = membership
+    ? await prisma.openClawConnection.findUnique({ where: { workspaceId: membership.workspaceId } })
     : null;
 
   return <div className="page-stack">
@@ -49,6 +52,14 @@ export default async function Page() {
           : membership
             ? <a className="new-button" href={`/api/integrations/google-gmail/connect?workspaceId=${membership.workspaceId}`}><Mail size={15}/>Conectar</a>
             : <span className="status-pill quiet">Aguardando setup</span>}
+      </article>
+
+      <article className="integration-card">
+        <div className="integration-logo" style={{color:"#655cf6"}}><Bot size={20}/></div>
+        <div><strong>MBLZ Agent · OpenClaw</strong><span>{openClaw ? "Gateway conectado. Configure seus canais e teste o agente." : "Agente próprio com e-mail, Telegram, WhatsApp e Web em uma única camada."}</span></div>
+        {membership
+          ? <a className="new-button" href="/app/integrations/openclaw"><Bot size={15}/>{openClaw ? "Configurar" : "Preparar"}</a>
+          : <span className="status-pill quiet">Aguardando setup</span>}
       </article>
 
       <article className="integration-card">
