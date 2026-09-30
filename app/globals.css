@@ -169,3 +169,13 @@
 .agent-chat-form{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.agent-chat-form textarea{width:100%;border:1px solid #e2e5ea;border-radius:12px;background:#fafbfc;padding:11px;font-size:10px;outline:0;resize:vertical}.agent-chat-form textarea:focus{border-color:rgba(101,92,246,.38);box-shadow:0 0 0 3px rgba(101,92,246,.06);background:#fff}
 .agent-reply{margin-top:12px;padding:14px;border-radius:13px;background:#f7f8ff;border:1px solid rgba(101,92,246,.10)}.agent-reply strong{font-size:9px;color:#565cca}.agent-reply p{margin:6px 0 0;white-space:pre-wrap;color:#4f5864;font-size:10px;line-height:1.65}
 @media(max-width:900px){.agent-settings-grid{grid-template-columns:1fr}.agent-test-panel{grid-column:auto}}@media(max-width:650px){.agent-chat-form{grid-template-columns:1fr}.agent-chat-form .new-button{width:100%;justify-content:center}.agent-channel-row{grid-template-columns:auto 1fr}.agent-channel-row>:last-child{grid-column:2;justify-self:start}}
+
+
+.telegram-agent-panel{grid-column:1/-1}
+.telegram-bot-connect{max-width:720px}
+.telegram-user-link{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0;border-top:1px solid var(--line)}
+.telegram-link-copy{display:flex;align-items:center;gap:11px}.telegram-link-copy>div{display:grid}.telegram-link-copy strong{font-size:10px}.telegram-link-copy div span{margin-top:3px;color:#858d98;font-size:8px}
+.telegram-paired-actions{display:flex;align-items:center;gap:8px}
+.telegram-pair-card{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;padding:13px;border:1px solid rgba(101,92,246,.13);border-radius:12px;background:#f8f8ff}.telegram-pair-card>div{display:grid}.telegram-pair-card strong{font-size:9px}.telegram-pair-card span{margin-top:3px;color:#7d8592;font-size:8px}
+.telegram-admin-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:#858d98;font-size:8px}
+@media(max-width:650px){.telegram-user-link,.telegram-pair-card,.telegram-admin-footer{align-items:flex-start;flex-direction:column}.telegram-paired-actions{width:100%;justify-content:space-between}.telegram-pair-card .new-button{width:100%;justify-content:center}}
