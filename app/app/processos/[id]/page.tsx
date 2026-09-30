@@ -1,3 +1,4 @@
+import { MatterRecords } from "@/components/matter-records";
 import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -94,5 +95,6 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
         </article>
       </aside>
     </section>
+    <MatterRecords matterId={id} viewer={member} timeZone={member.workspace.timezone}/>
   </div>;
 }
