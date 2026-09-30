@@ -36,7 +36,20 @@
   },
 
   session: {
-    dmScope: "per-account-channel-peer"
+    dmScope: "per-account-channel-peer",
+    reset: {
+      mode: "idle",
+      idleMinutes: 240
+    },
+    maintenance: {
+      mode: "enforce",
+      pruneAfter: "30d",
+      resetArchiveRetention: "30d",
+      maxEntries: 2000,
+      preserveRecent: "7d",
+      maxDiskBytes: "500mb",
+      highWaterBytes: "400mb"
+    }
   },
 
   channels: {
