@@ -32,7 +32,7 @@ export function OpenClawAgentSettings({
     event.preventDefault();setBusy("connect");setError("");
     const fd=new FormData(event.currentTarget);
     const response=await fetch("/api/integrations/openclaw",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-      workspaceId,gatewayUrl:String(fd.get("gatewayUrl")||""),gatewayToken:String(fd.get("gatewayToken")||""),agentId:String(fd.get("agentId")||"mblz"),
+      workspaceId,gatewayUrl:String(fd.get("gatewayUrl")||""),gatewayToken:String(fd.get("gatewayToken")||""),agentId:String(fd.get("agentId")||"default"),
     })});
     const data=await response.json().catch(()=>({}));
     setBusy("");
@@ -79,10 +79,10 @@ export function OpenClawAgentSettings({
       </div>:canManage?<form className="quick-form" onSubmit={connect}>
         <label><span>URL HTTPS do Gateway</span><input name="gatewayUrl" type="url" required placeholder="https://mblz-openclaw.onrender.com"/></label>
         <div className="quick-form-grid">
-          <label><span>Agent ID</span><input name="agentId" defaultValue="mblz" required/></label>
+          <label><span>ID do agente</span><input name="agentId" defaultValue="default" required/></label>
           <label><span>Token do Gateway</span><input name="gatewayToken" type="password" required autoComplete="new-password"/></label>
         </div>
-        <p className="form-hint">O token é enviado somente ao servidor MBLZ e armazenado criptografado. Ele nunca é devolvido ao navegador.</p>
+        <p className="form-hint">Use <strong>default</strong> para o agente padrão do Gateway ou informe o ID exato de um agente configurado. O token é enviado somente ao servidor MBLZ, fica criptografado e nunca é devolvido ao navegador.</p>
         <button className="form-submit" disabled={busy==="connect"}><Bot size={15}/>{busy==="connect"?"Testando…":"Conectar OpenClaw"}</button>
       </form>:<div className="mini-empty">A conexão do Gateway é configurada pelo responsável pelo workspace.</div>}
     </section>
