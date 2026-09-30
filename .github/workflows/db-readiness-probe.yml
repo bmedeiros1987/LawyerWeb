@@ -1,0 +1,27 @@
+name: Probe MBLZ database readiness
+
+on:
+  push:
+    branches:
+      - chore/db-readiness-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query non-sensitive readiness endpoint
+        shell: bash
+        run: |
+          set +e
+          body=$(curl -sS --max-time 30 https://mblz-legal-os.onrender.com/api/health/database)
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 https://mblz-legal-os.onrender.com/api/health/database)
+          echo "HTTP_STATUS=$code"
+          echo "BODY=$body"
+          if [[ "$body" != *'"database"'* ]]; then
+            echo "Unexpected response shape"
+            exit 1
+          fi
