@@ -25,3 +25,5 @@ jobs:
             echo "Unexpected response shape"
             exit 1
           fi
+
+# rerun after Render DATABASE_URL update
