@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { Mail, MessageCircle, Send } from "lucide-react";
 
-type Channel = {
-  id:string; channel:"EMAIL"|"WHATSAPP"|"TELEGRAM"; status:string; displayName:string|null; maskedAddress:string|null;
+export type AgentChannelSummary = {
+  id:string; channel:"WEB"|"EMAIL"|"WHATSAPP"|"TELEGRAM"; status:string; displayName:string|null; maskedAddress:string|null;
 };
 
-export function AgentChannelPanel({ initial, gmailConnected }:{ initial:Channel[]; gmailConnected:boolean }) {
+export function AgentChannelPanel({ initial, gmailConnected }:{ initial:AgentChannelSummary[]; gmailConnected:boolean }) {
   const [channels,setChannels]=useState(initial);
   const [busy,setBusy]=useState("");
   const [note,setNote]=useState("");
@@ -18,7 +18,7 @@ export function AgentChannelPanel({ initial, gmailConnected }:{ initial:Channel[
     const data=await response.json().catch(()=>({}));
     setBusy("");
     if(!response.ok){setNote(data?.error??"Não foi possível preparar o canal.");return}
-    const next=data.connection as Channel;
+    const next=data.connection as AgentChannelSummary;
     setChannels(current=>[...current.filter(c=>c.channel!==channel),next]);
     if(data.setup==="BOT_TOKEN_REQUIRED")setNote("Telegram preparado. O próximo passo será informar o token do bot ao Gateway OpenClaw em uma tela protegida.");
     else if(data.setup==="QR_PAIRING_REQUIRED")setNote("WhatsApp preparado. O próximo passo será escanear o QR do Gateway OpenClaw.");
