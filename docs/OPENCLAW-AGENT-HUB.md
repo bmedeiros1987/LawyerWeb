@@ -44,6 +44,8 @@ Mensagens recebidas por canal são tratadas como conteúdo não confiável e pod
 
 A integração inicial usa GET /v1/models para health/probe e POST /v1/chat/completions para turns do agente. O bearer token do Gateway é credencial de operador e fica somente no backend MBLZ.
 
+No cadastro da conexão, use `default` para o alias estável `openclaw/default`. Um ID como `mblz` só deve ser usado quando o Gateway realmente listar `openclaw/mblz`; o MBLZ valida o alvo exato antes de salvar a conexão.
+
 Config mínima esperada no Gateway:
 
 ```json5
