@@ -55,9 +55,19 @@ export async function PATCH(request:NextRequest){
       }
     }
     if(parsed.enabled&&parsed.channel==="WHATSAPP"){
-      return NextResponse.json({error:"O canal WhatsApp ainda não foi liberado neste workspace."},{status:409});
+      const whatsapp=await prisma.agentChannelConnection.findUnique({
+        where:{workspaceId_channel_accountKey:{workspaceId:member.workspaceId,channel:"WHATSAPP",accountKey:"workspace-cloud"}},
+        select:{id:true,status:true},
+      });
+      const identity=whatsapp?await prisma.agentExternalIdentity.findUnique({
+        where:{channelConnectionId_userId:{channelConnectionId:whatsapp.id,userId:session.user.id}},
+        select:{status:true},
+      }):null;
+      if(!whatsapp||whatsapp.status!=="CONNECTED"||identity?.status!=="VERIFIED"){
+        return NextResponse.json({error:"Conclua o pareamento do WhatsApp antes de habilitar o canal."},{status:409});
+      }
     }
-    const safeMode=parsed.channel==="TELEGRAM"?parsed.mode:"DRAFT";
+    const safeMode=parsed.channel==="EMAIL"?"DRAFT":"ASSIST";
     const preference=await prisma.agentChannelPreference.upsert({
       where:{workspaceId_userId_channel:{workspaceId:member.workspaceId,userId:session.user.id,channel:parsed.channel}},
       create:{workspaceId:member.workspaceId,userId:session.user.id,channel:parsed.channel,enabled:parsed.enabled,mode:safeMode},
