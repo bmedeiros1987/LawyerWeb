@@ -779,8 +779,6 @@ model OpenClawConnection {
   lastError String? @db.Text
   createdByUserId String?
   conversations AgentConversation[]
-  identities AgentExternalIdentity[]
-  events AgentChannelEvent[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -802,6 +800,8 @@ model AgentChannelConnection {
   connectedAt DateTime?
   revokedAt DateTime?
   conversations AgentConversation[]
+  identities AgentExternalIdentity[]
+  events AgentChannelEvent[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([workspaceId,channel,accountKey])
