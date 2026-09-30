@@ -1,0 +1,117 @@
+{
+  gateway: {
+    mode: "local",
+    bind: "lan",
+    publicOrigin: "${OPENCLAW_PUBLIC_ORIGIN}",
+    auth: {
+      mode: "token",
+      token: "${OPENCLAW_GATEWAY_TOKEN}",
+      rateLimit: {
+        maxAttempts: 10,
+        windowMs: 60000,
+        lockoutMs: 300000,
+        exemptLoopback: true
+      }
+    },
+    http: {
+      endpoints: {
+        responses: {
+          enabled: true,
+          maxBodyBytes: 2097152,
+          files: {
+            allowUrl: false,
+            maxBytes: 5242880,
+            maxChars: 60000
+          },
+          images: {
+            allowUrl: false,
+            maxBytes: 10485760
+          }
+        }
+      }
+    },
+    controlUi: {
+      enabled: true
+    }
+  },
+
+  session: {
+    dmScope: "per-channel-peer"
+  },
+
+  tools: {
+    profile: "minimal",
+    allow: ["session_status", "mblz_context"],
+    deny: [
+      "group:runtime",
+      "group:fs",
+      "group:web",
+      "group:ui",
+      "group:automation",
+      "group:messaging",
+      "group:nodes",
+      "group:agents",
+      "group:media"
+    ],
+    elevated: {
+      enabled: false
+    }
+  },
+
+  agents: {
+    defaults: {
+      workspace: "${OPENCLAW_WORKSPACE_DIR}",
+      heartbeat: {
+        every: "0m"
+      }
+    },
+    entries: {
+      mblz: {
+        default: true,
+        name: "MBLZ Agent",
+        workspace: "${OPENCLAW_WORKSPACE_DIR}",
+        model: "${OPENCLAW_MODEL:-openai/gpt-5.6-sol}",
+        identity: {
+          name: "MBLZ Agent",
+          theme: "jurídico objetivo, discreto e orientado a risco",
+          emoji: "⚖️"
+        },
+        tools: {
+          profile: "minimal",
+          allow: ["session_status", "mblz_context"],
+          deny: [
+            "group:runtime",
+            "group:fs",
+            "group:web",
+            "group:ui",
+            "group:automation",
+            "group:messaging",
+            "group:nodes",
+            "group:agents",
+            "group:media"
+          ],
+          elevated: {
+            enabled: false
+          }
+        }
+      }
+    }
+  },
+
+  hooks: {
+    enabled: true,
+    token: "${OPENCLAW_HOOK_TOKEN}",
+    path: "/hooks",
+    allowedAgentIds: ["mblz"],
+    allowRequestSessionKey: true,
+    allowedSessionKeyPrefixes: ["hook:mblz:"]
+  },
+
+  plugins: {
+    entries: {
+      mblz: {
+        enabled: true
+      }
+    }
+  }
+}
