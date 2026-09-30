@@ -11,6 +11,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    staticGenerationMaxConcurrency: 4,
+    staticGenerationMinPagesPerWorker: 8,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
