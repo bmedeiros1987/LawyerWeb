@@ -93,6 +93,7 @@ model User {
   pushSubscriptions PushSubscription[]
   agentChannelConnections AgentChannelConnection[]
   agentExternalIdentities AgentExternalIdentity[]
+  agentChannelEvents AgentChannelEvent[]
   agentConversations AgentConversation[]
   agentChannelPreferences AgentChannelPreference[]
   createdAt DateTime @default(now())
