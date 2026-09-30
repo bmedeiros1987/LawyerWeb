@@ -1,7 +1,9 @@
-import { BellRing, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
+import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
 import { PushOptIn } from "@/components/push-opt-in";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { AgentChannelPanel } from "@/components/agent-channel-panel";
+import { openClawConfigured } from "@/lib/openclaw/client";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,14 @@ export default async function Page() {
   const gmail = userId && membership
     ? await prisma.googleGmailConnection.findUnique({ where: { workspaceId_userId: { workspaceId: membership.workspaceId, userId } } })
     : null;
+  const agentChannels = userId && membership
+    ? await prisma.agentChannelConnection.findMany({
+        where: { workspaceId: membership.workspaceId, userId },
+        select: { id: true, channel: true, status: true, displayName: true, maskedAddress: true },
+        orderBy: { channel: "asc" },
+      })
+    : [];
+  const agentConfigured = openClawConfigured();
 
   return <div className="page-stack">
     <section className="page-header">
@@ -51,6 +61,12 @@ export default async function Page() {
             : <span className="status-pill quiet">Aguardando setup</span>}
       </article>
 
+      <article className="integration-card integration-card-agent">
+        <div className="integration-logo" style={{color:"#655cf6"}}><Bot size={20}/></div>
+        <div><strong>MBLZ Agent · OpenClaw</strong><span>{agentConfigured?"Gateway conectado. Escolha apenas os canais que desejar.":"Infraestrutura preparada; falta ativar o Gateway OpenClaw."}</span></div>
+        <span className={"status-pill "+(agentConfigured?"success":"quiet")}>{agentConfigured?"Gateway ativo":"Setup"}</span>
+      </article>
+      {membership&&userId&&<AgentChannelPanel initial={agentChannels as never} gmailConnected={Boolean(gmail)}/>}
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#655cf6"}}><BellRing size={20}/></div>
         <div><strong>Notificações do dispositivo</strong><span>Prazos críticos, escalonamentos e atualizações importantes no PWA.</span></div>
