@@ -22,14 +22,14 @@ chown -R node:node "$STATE_DIR" "$WORKSPACE_DIR"
 
 PLUGIN_TGZ="$(find /opt/mblz -maxdepth 1 -name '*.tgz' | head -n 1)"
 if [ -n "$PLUGIN_TGZ" ]; then
-  gosu node openclaw plugins install "npm-pack:$PLUGIN_TGZ" --force >/tmp/mblz-plugin-install.log 2>&1 || {
+  gosu node openclaw plugins install "$PLUGIN_TGZ" --force >/tmp/mblz-plugin-install.log 2>&1 || {
     cat /tmp/mblz-plugin-install.log >&2
     exit 1
   }
 fi
 
 if [ "${OPENCLAW_INSTALL_WHATSAPP_PLUGIN:-true}" = "true" ]; then
-  gosu node openclaw plugins install @openclaw/whatsapp --force >/tmp/whatsapp-plugin-install.log 2>&1 || {
+  gosu node openclaw plugins install @openclaw/whatsapp@2026.9.6 --force >/tmp/whatsapp-plugin-install.log 2>&1 || {
     cat /tmp/whatsapp-plugin-install.log >&2
     exit 1
   }
