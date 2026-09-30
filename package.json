@@ -15,7 +15,8 @@
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "ci": "npm run db:validate && npm run typecheck && npm run build"
+    "ci": "npm run db:validate && npm test && npm run typecheck && npm run build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.3",
@@ -24,22 +25,23 @@
     "dotenv": "latest",
     "google-auth-library": "latest",
     "googleapis": "182.0.0",
+    "lucide-react": "latest",
     "next": "16.3.6",
     "next-auth": "5.0.0-beta.32",
     "pg": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "zod": "latest",
-    "lucide-react": "latest",
-    "web-push": "latest"
+    "web-push": "latest",
+    "zod": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
     "@types/pg": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/web-push": "latest",
     "prisma": "7.10.0",
     "typescript": "latest",
-    "@types/web-push": "latest"
+    "vitest": "^3.2.4"
   }
 }

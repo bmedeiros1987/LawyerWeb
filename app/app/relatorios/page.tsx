@@ -4,6 +4,8 @@ import { Activity, BriefcaseBusiness, Clock3, FileCheck2, Gauge, LockKeyhole, Sc
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
+import { allows, contractScope, deadlineScope, documentScope, matterScope, taskScope } from "@/lib/authz/visibility";
+import { visibleActivities } from "@/lib/reports/worklog";
 import { getActiveMembership } from "@/lib/workspace/context";
 
 export const dynamic="force-dynamic";
@@ -30,18 +32,19 @@ export default async function Page() {
   const since30=new Date(now.getTime()-30*24*60*60*1000);
   const stale90=new Date(now.getTime()-90*24*60*60*1000);
   const in60=new Date(now.getTime()+60*24*60*60*1000);
-  const matterVisible={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
-  const taskVisible={OR:[{private:false},{requesterUserId:session.user.id},{assigneeUserId:session.user.id},{reviewerUserId:session.user.id}]};
+  const visibleMatters = await prisma.matter.findMany({where:matterScope(member),select:{id:true}});
 
-  const [deadlines,tasks,contracts,staleMatters,activities,timeEntries,documents]=await Promise.all([
-    prisma.deadline.findMany({where:{workspaceId:member.workspaceId,status:{notIn:["COMPLETED","CANCELLED"]},AND:[matterVisible]},select:{id:true,status:true,risk:true,dueAt:true}}),
-    prisma.legalTask.findMany({where:{workspaceId:member.workspaceId,status:{notIn:["DONE","CANCELLED"]},AND:[matterVisible,taskVisible]},select:{id:true,status:true,dueAt:true}}),
-    prisma.contract.findMany({where:{workspaceId:member.workspaceId,status:{notIn:["ARCHIVED","TERMINATED"]},AND:[matterVisible]},select:{id:true,status:true,expiresAt:true,title:true,client:{select:{name:true}}},orderBy:{expiresAt:"asc"}}),
-    prisma.matter.findMany({where:{workspaceId:member.workspaceId,status:"ACTIVE",updatedAt:{lt:stale90},OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},select:{id:true,number:true,title:true,updatedAt:true,client:{select:{name:true}}},orderBy:{updatedAt:"asc"},take:40}),
+  const [deadlines,tasks,contracts,staleMatters,rawActivities,timeEntries,documents]=await Promise.all([
+    prisma.deadline.findMany({where:{workspaceId:member.workspaceId,status:{notIn:["COMPLETED","CANCELLED"]},AND:[deadlineScope(member)]},select:{id:true,status:true,risk:true,dueAt:true}}),
+    prisma.legalTask.findMany({where:{workspaceId:member.workspaceId,status:{notIn:["DONE","CANCELLED"]},AND:[taskScope(member)]},select:{id:true,status:true,dueAt:true}}),
+    prisma.contract.findMany({where:{workspaceId:member.workspaceId,status:{notIn:["ARCHIVED","TERMINATED"]},AND:[contractScope(member)]},select:{id:true,status:true,expiresAt:true,title:true,client:{select:{name:true}}},orderBy:{expiresAt:"asc"}}),
+    prisma.matter.findMany({where:{workspaceId:member.workspaceId,status:"ACTIVE",updatedAt:{lt:stale90},AND:[matterScope(member)]},select:{id:true,number:true,title:true,updatedAt:true,client:{select:{name:true}}},orderBy:{updatedAt:"asc"},take:40}),
     prisma.activityLog.findMany({where:{workspaceId:member.workspaceId,userId:session.user.id,occurredAt:{gte:since30}},orderBy:{occurredAt:"desc"},take:300}),
-    prisma.timeEntry.findMany({where:{workspaceId:member.workspaceId,userId:session.user.id,startedAt:{gte:since30}},select:{minutes:true,startedAt:true,billable:true}}),
-    prisma.legalDocument.findMany({where:{workspaceId:member.workspaceId,updatedAt:{gte:since30},AND:[matterVisible]},select:{status:true,kind:true}}),
+    prisma.timeEntry.findMany({where:{workspaceId:member.workspaceId,userId:session.user.id,startedAt:{gte:since30},OR:[{matterId:null},{matterId:{in:visibleMatters.map(m=>m.id)}}]},select:{minutes:true,startedAt:true,billable:true}}),
+    prisma.legalDocument.findMany({where:{workspaceId:member.workspaceId,updatedAt:{gte:since30},AND:[documentScope(member)]},select:{status:true,kind:true}}),
   ]);
+
+  const activities=await visibleActivities(member,rawActivities);
 
   const critical=deadlines.filter(d=>["CRITICAL","HIGH"].includes(d.risk)).length;
   const candidates=deadlines.filter(d=>["CANDIDATE","PENDING_CONFIRMATION"].includes(d.status)).length;
@@ -54,7 +57,7 @@ export default async function Page() {
 
   const byDay=new Map<string,typeof activities>();
   for(const activity of activities){
-    const key=activity.occurredAt.toLocaleDateString("pt-BR");
+    const key=activity.occurredAt.toLocaleDateString("pt-BR",{timeZone:member.workspace.timezone});
     const list=byDay.get(key)??[]; list.push(activity); byDay.set(key,list);
   }
 
@@ -62,17 +65,17 @@ export default async function Page() {
     <section className="page-header"><div><span className="eyebrow">Gestão</span><h1>Relatórios</h1><p>Métricas que ajudam a agir e um registro automático do trabalho realizado.</p></div></section>
 
     <section className="metric-grid">
-      <article className={"metric-card "+(critical?"priority":"")}><div className="metric-icon"><Clock3 size={19}/></div><span>Prazos alto risco</span><strong>{critical}</strong><small>{candidates} ainda sem confirmação</small></article>
-      <article className={"metric-card "+(overdue?"priority":"")}><div className="metric-icon"><Gauge size={19}/></div><span>Tarefas vencidas</span><strong>{overdue}</strong><small>na sua visibilidade atual</small></article>
-      <article className="metric-card"><div className="metric-icon"><ScrollText size={19}/></div><span>Contratos em 60 dias</span><strong>{expiring}</strong><small>vigências próximas</small></article>
-      <article className="metric-card"><div className="metric-icon"><FileCheck2 size={19}/></div><span>Documentos 30 dias</span><strong>{documents.length}</strong><small>{inReview} em revisão · {signed} assinados</small></article>
+      <article className={"metric-card "+(critical?"priority":"")}><div className="metric-icon"><Clock3 size={19}/></div><span>Prazos alto risco</span><strong>{allows(member,P.DEADLINES_VIEW)?critical:"—"}</strong><small>{candidates} ainda sem confirmação</small></article>
+      <article className={"metric-card "+(overdue?"priority":"")}><div className="metric-icon"><Gauge size={19}/></div><span>Tarefas vencidas</span><strong>{allows(member,P.TASKS_VIEW)?overdue:"—"}</strong><small>na sua visibilidade atual</small></article>
+      <article className="metric-card"><div className="metric-icon"><ScrollText size={19}/></div><span>Contratos em 60 dias</span><strong>{allows(member,P.CONTRACTS_VIEW)?expiring:"—"}</strong><small>vigências próximas</small></article>
+      <article className="metric-card"><div className="metric-icon"><FileCheck2 size={19}/></div><span>Documentos 30 dias</span><strong>{allows(member,P.DOCUMENTS_VIEW)?documents.length:"—"}</strong><small>{inReview} em revisão · {signed} assinados</small></article>
     </section>
 
     <section className="reports-grid">
       <article className="panel panel-wide">
-        <div className="panel-heading"><div><span className="eyebrow">Meu trabalho</span><h2>Registro automático — últimos 30 dias</h2></div><span className="status-pill quiet">{activities.length} atividades</span></div>
+        <div className="panel-heading"><div><span className="eyebrow">Meu trabalho</span><h2>Atividades acessíveis — últimos 30 dias</h2></div><span className="status-pill quiet">{activities.length} atividades{rawActivities.length===300?" · últimas 300 verificadas":""}</span></div>
         <div className="worklog-summary"><div><strong>{Math.floor(totalMinutes/60)}h {totalMinutes%60}min</strong><span>tempo registrado</span></div><div><strong>{Math.floor(billableMinutes/60)}h {billableMinutes%60}min</strong><span>tempo tarifável</span></div><div><strong>{byDay.size}</strong><span>dias com atividade</span></div></div>
-        {activities.length===0?<div className="mini-empty">Ainda não há atividade registrada nos últimos 30 dias.</div>:<div className="worklog-days">{[...byDay.entries()].slice(0,12).map(([day,items])=><section key={day}><time>{day}</time><div>{items.slice(0,12).map(a=><div className="worklog-row" key={a.id}><span><Activity size={14}/></span><div><strong>{a.summary}</strong><small>{actionLabel(a.type)} · {a.occurredAt.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</small></div></div>)}</div></section>)}</div>}
+        {activities.length===0?<div className="mini-empty">Ainda não há atividade registrada nos últimos 30 dias.</div>:<div className="worklog-days">{[...byDay.entries()].slice(0,12).map(([day,items])=><section key={day}><time>{day}</time><div>{items.slice(0,12).map(a=><div className="worklog-row" key={a.id}><span><Activity size={14}/></span><div><strong>{a.summary}</strong><small>{actionLabel(a.type)} · {a.occurredAt.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",timeZone:member.workspace.timezone})}</small></div></div>)}</div></section>)}</div>}
       </article>
 
       <aside className="matter-side">
