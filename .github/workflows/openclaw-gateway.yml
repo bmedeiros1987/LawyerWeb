@@ -1,0 +1,53 @@
+name: OpenClaw Gateway
+
+on:
+  pull_request:
+    paths:
+      - "openclaw-agent/**"
+      - ".github/workflows/openclaw-gateway.yml"
+  push:
+    branches: [main]
+    paths:
+      - "openclaw-agent/**"
+      - ".github/workflows/openclaw-gateway.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  gateway-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build hardened MBLZ OpenClaw image
+        run: docker build -t mblz-openclaw-test ./openclaw-agent
+      - name: Start gateway
+        run: |
+          docker run -d --name mblz-openclaw-test -p 18080:8080 \
+            -e OPENCLAW_GATEWAY_TOKEN=ci-gateway-token-012345678901234567890123456789 \
+            -e OPENCLAW_HOOK_TOKEN=ci-hook-token-0123456789012345678901234567890123 \
+            -e OPENCLAW_PUBLIC_ORIGIN=http://127.0.0.1:18080 \
+            -e OPENCLAW_INSTALL_WHATSAPP_PLUGIN=false \
+            -e MBLZ_INTERNAL_API_URL=http://127.0.0.1:9 \
+            -e MBLZ_AGENT_SERVICE_TOKEN=ci-service-token-012345678901234567890123456789 \
+            -e OPENCLAW_MODEL=openai/gpt-5.6-sol \
+            mblz-openclaw-test
+      - name: Wait for startup health
+        shell: bash
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18080/startupz >/tmp/startupz; then
+              cat /tmp/startupz
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs mblz-openclaw-test
+          exit 1
+      - name: Show logs on failure
+        if: failure()
+        run: docker logs mblz-openclaw-test || true
+      - name: Cleanup
+        if: always()
+        run: docker rm -f mblz-openclaw-test || true
