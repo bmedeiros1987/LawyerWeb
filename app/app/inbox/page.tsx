@@ -65,7 +65,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
     ...demands.map(d=>({
       id:"demand-"+d.id,sourceId:d.id,sourceType:"DEMAND" as const,kind:d.source,source:sourceLabel(d.source),title:d.title,
       preview:d.actionCandidate??d.bodyPreview?.slice(0,180)??null,receivedAt:d.receivedAt,status:d.status,
-      requiresAction:d.requiresAction,matter:d.matter,client:d.client,suggestedDue:d.dueCandidate?d.dueCandidate.toISOString().slice(0,16):null,
+      requiresAction:d.requiresAction,matter:d.matter,client:d.client,suggestedDue:d.dueCandidate?d.dueCandidate.toISOString():null,
     })),
   ].sort((a,b)=>b.receivedAt.getTime()-a.receivedAt.getTime()).slice(0,250);
 
