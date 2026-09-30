@@ -12,6 +12,7 @@ export const dynamic="force-dynamic";
 
 function actionLabel(type:string){
   const labels:Record<string,string>={
+    ADD_PARTY:"Parte vinculada",ADD_PHASE:"Fase registrada",ADD_MOVEMENT:"Andamento registrado",
     WORKSPACE_CREATED:"Workspace criado",CLIENT_CREATED:"Cliente cadastrado",MATTER_CREATED:"Processo/assunto cadastrado",
     TASK_CREATED:"Tarefa criada",TASK_UPDATED:"Tarefa atualizada",TASK_COMPLETED:"Tarefa concluída",
     DEADLINE_CANDIDATE_CREATED:"Prazo candidato criado",DEADLINE_CONFIRMED:"Prazo confirmado",DEADLINE_COMPLETED:"Prazo concluído",
