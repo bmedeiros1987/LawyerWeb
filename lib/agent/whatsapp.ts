@@ -30,7 +30,7 @@ export type WhatsAppInboundMessage = {
 
 function validateGraphVersion(value: string) {
   const version = value.trim();
-  if (!/^v\d+\.\d+$/.test(version)) throw new Error("Versão da Graph API inválida.");
+  if (!/^v\d+\.\d+$/.test(version)) throw new Error("Versão da API Graph inválida.");
   return version;
 }
 
@@ -80,7 +80,7 @@ export async function inspectWhatsAppPhone(args: {
   graphVersion: string;
 }) {
   const id = args.phoneNumberId.trim();
-  if (!/^\d{5,30}$/.test(id)) throw new Error("Phone Number ID inválido.");
+  if (!/^\d{5,30}$/.test(id)) throw new Error("ID do número de telefone inválido.");
   const response = await graphFetch(args.graphVersion, `${id}?fields=display_phone_number,verified_name`, args.accessToken, { method: "GET" });
   const payload = await response.json().catch(() => null) as { display_phone_number?: string; verified_name?: string; error?: { message?: string } } | null;
   if (!response.ok) throw new Error(payload?.error?.message ?? `Meta Graph respondeu HTTP ${response.status}.`);
