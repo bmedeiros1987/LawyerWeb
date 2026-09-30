@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ connection }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const status = (error as Error & { status?: number }).status ?? 400;
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid request" }, { status });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Solicitação inválida" }, { status });
   }
 }
 
