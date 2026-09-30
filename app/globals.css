@@ -191,3 +191,14 @@
 .whatsapp-webhook-card code{min-width:0;overflow:auto;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--surface);font-size:8px}
 .whatsapp-webhook-card button{height:34px;display:inline-flex;align-items:center;gap:5px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-size:8px;font-weight:700;cursor:pointer}
 @media(max-width:650px){.whatsapp-webhook-card>label>div{grid-template-columns:1fr}.whatsapp-webhook-card button{justify-content:center}}
+
+.inbox-agent-draft{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.inbox-agent-draft-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.inbox-agent-draft-head>div{display:flex;align-items:flex-start;gap:7px;color:#6269d3}
+.inbox-agent-draft-head span{display:grid}.inbox-agent-draft-head strong{font-size:8px;color:var(--ink)}.inbox-agent-draft-head small{margin-top:2px;color:var(--muted);font-size:7px;line-height:1.45}
+.inbox-agent-draft-head button,.inbox-agent-draft-copy button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:7px;font-weight:700;cursor:pointer}
+.inbox-agent-draft-head button:disabled{opacity:.55;cursor:not-allowed}
+.inbox-agent-draft-copy{display:grid;gap:8px;margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.inbox-agent-draft-copy p{margin:0;max-height:210px;overflow:auto;white-space:pre-wrap;color:var(--ink);font-size:8px;line-height:1.65}
+.inbox-agent-draft-copy button{justify-self:start}
+@media(max-width:650px){.inbox-agent-draft-head{align-items:flex-start;flex-direction:column}.inbox-agent-draft-head button{width:100%}}
