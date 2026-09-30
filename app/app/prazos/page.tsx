@@ -1,3 +1,4 @@
+import { deadlineScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Clock3, LockKeyhole, ShieldAlert, UserRoundCheck } from "lucide-react";
@@ -20,7 +21,7 @@ export default async function Page() {
   }
   const canConfirm=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.DEADLINES_CONFIRM));
   const now=new Date(); const week=new Date(now.getTime()+7*24*60*60*1000);
-  const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
+  const visibility=deadlineScope(member);
 
   const [deadlines,members]=await Promise.all([
     prisma.deadline.findMany({

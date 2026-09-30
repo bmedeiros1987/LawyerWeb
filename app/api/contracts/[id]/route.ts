@@ -1,8 +1,9 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { P, canAccessMatter, requirePermission } from "@/lib/authz/permissions";
+import { P, canAccessMatter, memberWithPermission, requirePermission } from "@/lib/authz/permissions";
 import { requireActiveMembership } from "@/lib/workspace/context";
 
 const patchInput=z.object({
@@ -24,7 +25,9 @@ const patchInput=z.object({
 });
 
 async function findAccessible(id:string,workspaceId:string,userId:string) {
-  const contract=await prisma.contract.findFirst({where:{id,workspaceId}});
+  const viewer=await memberWithPermission(userId,workspaceId,P.CONTRACTS_VIEW);
+  if(!viewer)return null;
+  const contract=await prisma.contract.findFirst({where:{id,AND:[contractScope(viewer)]}});
   if(!contract) return null;
   if(contract.matterId&&!(await canAccessMatter(userId,workspaceId,contract.matterId,P.MATTERS_VIEW))) return null;
   return contract;
@@ -59,6 +62,8 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
     const existing=await findAccessible(id,member.workspaceId,session.user.id);
     if(!existing) return NextResponse.json({error:"Not found"},{status:404});
 
+    if(existing.matterId&&parsed.matterId!==undefined&&parsed.matterId!==existing.matterId) return NextResponse.json({error:"O vínculo ao processo deve ser preservado."},{status:409});
+    if(existing.documentId&&parsed.documentId!==undefined&&parsed.documentId!==existing.documentId) return NextResponse.json({error:"O vínculo documental deve ser preservado."},{status:409});
     if(parsed.matterId){
       if(!(await canAccessMatter(session.user.id,member.workspaceId,parsed.matterId,P.MATTERS_VIEW))) return NextResponse.json({error:"Processo/assunto sem acesso."},{status:400});
     }
@@ -67,7 +72,7 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
       if(!client) return NextResponse.json({error:"Cliente inválido."},{status:400});
     }
     if(parsed.documentId){
-      const document=await prisma.legalDocument.findFirst({where:{id:parsed.documentId,workspaceId:member.workspaceId}});
+      const document=await prisma.legalDocument.findFirst({where:{id:parsed.documentId,AND:[documentScope(member)]}});
       if(!document) return NextResponse.json({error:"Documento inválido."},{status:400});
     }
     if(parsed.responsibleUserId){

@@ -1,8 +1,9 @@
+import { deadlineScope, inboxScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { P, requirePermission } from "@/lib/authz/permissions";
+import { P, canAccessMatter, requirePermission } from "@/lib/authz/permissions";
 
 const createInput = z.object({
   workspaceId: z.string().min(1),
@@ -23,9 +24,9 @@ export async function GET(request: NextRequest) {
   const workspaceId = request.nextUrl.searchParams.get("workspaceId");
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   try {
-    await requirePermission(session.user.id, workspaceId, P.DEADLINES_VIEW);
+    const member=await requirePermission(session.user.id, workspaceId, P.DEADLINES_VIEW);
     const deadlines = await prisma.deadline.findMany({
-      where: { workspaceId },
+      where: deadlineScope(member),
       orderBy: [{ risk: "desc" }, { dueAt: "asc" }, { createdAt: "desc" }],
       take: 250,
     });
@@ -40,11 +41,20 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const parsed = createInput.parse(await request.json());
-    await requirePermission(session.user.id, parsed.workspaceId, P.DEADLINES_CREATE);
-    const deadline = await prisma.deadline.create({
+    const member=await requirePermission(session.user.id, parsed.workspaceId, P.DEADLINES_CREATE);
+    let matterId=parsed.matterId;
+    if(parsed.communicationId){
+      const source=await prisma.courtCommunication.findFirst({where:{id:parsed.communicationId,AND:[inboxScope(member)]}});
+      if(!source)return NextResponse.json({error:"Comunicação inválida ou sem acesso."},{status:404});
+      if(source.matterId&&matterId&&source.matterId!==matterId)return NextResponse.json({error:"Preserve o processo de origem."},{status:409});
+      matterId=source.matterId??matterId;
+    }
+    if(matterId&&!(await canAccessMatter(session.user.id,parsed.workspaceId,matterId,P.MATTERS_VIEW)))return NextResponse.json({error:"Processo inválido ou sem acesso."},{status:404});
+    const deadline=await prisma.$transaction(async tx=>{
+    const deadline = await tx.deadline.create({
       data: {
         workspaceId: parsed.workspaceId,
-        matterId: parsed.matterId,
+        matterId,
         communicationId: parsed.communicationId,
         title: parsed.title,
         description: parsed.description,
@@ -57,8 +67,10 @@ export async function POST(request: NextRequest) {
         risk: "ATTENTION",
       },
     });
-    await prisma.activityLog.create({
+    await tx.activityLog.create({
       data: { workspaceId: parsed.workspaceId, userId: session.user.id, type: "DEADLINE_CANDIDATE_CREATED", entityType: "Deadline", entityId: deadline.id, summary: `Prazo candidato criado: ${deadline.title}` },
+    });
+    return deadline;
     });
     return NextResponse.json({ deadline }, { status: 201 });
   } catch (error) {

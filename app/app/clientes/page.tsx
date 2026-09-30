@@ -1,3 +1,4 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2, LockKeyhole, Search, UserRound } from "lucide-react";
@@ -26,7 +27,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
     ]}:{})},
     include:{
       matters:{where:{OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},select:{id:true}},
-      _count:{select:{documents:true,contracts:true}},
+      _count:{select:{documents:{where:documentScope(member)},contracts:{where:contractScope(member)}}},
     },
     orderBy:{name:"asc"},take:250,
   });

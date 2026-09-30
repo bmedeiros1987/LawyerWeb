@@ -1,3 +1,4 @@
+import { contractScope, documentScope, inboxScope, matterScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowUpRight, BriefcaseBusiness, Building2, FileText, Mail, Phone, ScrollText, UserRound } from "lucide-react";
@@ -16,10 +17,10 @@ export default async function ClientPage({params}:{params:Promise<{id:string}>})
   const client=await prisma.client.findFirst({
     where:{id,workspaceId:member.workspaceId},
     include:{
-      matters:{where:{OR:[{secrecy:false},{access:{some:{memberId:member.id}}}]},orderBy:{updatedAt:"desc"},take:100},
-      documents:{where:{OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]},orderBy:{updatedAt:"desc"},take:50},
-      contracts:{where:{OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]},orderBy:{updatedAt:"desc"},take:50},
-      intakeDemands:{where:{OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]},orderBy:{receivedAt:"desc"},take:50},
+      matters:{where:matterScope(member),orderBy:{updatedAt:"desc"},take:100},
+      documents:{where:documentScope(member),orderBy:{updatedAt:"desc"},take:50},
+      contracts:{where:contractScope(member),orderBy:{updatedAt:"desc"},take:50},
+      intakeDemands:{where:inboxScope(member),orderBy:{receivedAt:"desc"},take:50},
     },
   });
   if(!client) notFound();

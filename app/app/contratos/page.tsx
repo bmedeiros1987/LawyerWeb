@@ -1,3 +1,4 @@
+import { contractScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Clock3, FileDiff, LockKeyhole, ScrollText, Search, Signature } from "lucide-react";
@@ -21,7 +22,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   }
   const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.CONTRACTS_EDIT));
   const {q=""}=await searchParams; const search=q.trim(); const now=new Date(); const in60d=new Date(now.getTime()+60*24*60*60*1000);
-  const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
+  const visibility=contractScope(member);
 
   const [contracts,clients,matters,members]=await Promise.all([
     prisma.contract.findMany({

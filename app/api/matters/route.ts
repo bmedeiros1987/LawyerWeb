@@ -1,3 +1,4 @@
+import { deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         client: { select: { id: true, name: true } },
-        _count: { select: { tasks: true, deadlines: true, documents: true, communications: true } },
+        _count: { select: { tasks:{where:taskScope(member)},deadlines:{where:deadlineScope(member)},documents:{where:documentScope(member)},communications:{where:inboxScope(member)} } },
       },
       orderBy: { updatedAt: "desc" },
       take: 200,

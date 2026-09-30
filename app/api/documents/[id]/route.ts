@@ -1,8 +1,9 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { P, canAccessMatter, requirePermission } from "@/lib/authz/permissions";
+import { P, canAccessMatter, memberWithPermission, requirePermission } from "@/lib/authz/permissions";
 import { requireActiveMembership } from "@/lib/workspace/context";
 
 const patchInput=z.object({
@@ -17,7 +18,9 @@ const patchInput=z.object({
 });
 
 async function accessible(id:string,workspaceId:string,userId:string){
-  const document=await prisma.legalDocument.findFirst({where:{id,workspaceId}});
+  const viewer=await memberWithPermission(userId,workspaceId,P.DOCUMENTS_VIEW);
+  if(!viewer)return null;
+  const document=await prisma.legalDocument.findFirst({where:{id,AND:[documentScope(viewer)]}});
   if(!document)return null;
   if(document.matterId&&!(await canAccessMatter(userId,workspaceId,document.matterId,P.MATTERS_VIEW)))return null;
   return document;
@@ -35,7 +38,7 @@ export async function GET(_request:NextRequest,context:{params:Promise<{id:strin
       include:{
         client:true,matter:true,template:true,letterhead:true,
         versions:{orderBy:{version:"desc"},include:{signatureEnvelopes:{orderBy:{requestedAt:"desc"}}}},
-        contracts:{orderBy:{updatedAt:"desc"}},
+        contracts:{where:contractScope(member),orderBy:{updatedAt:"desc"}},
       },
     });
     return NextResponse.json({document});
@@ -52,7 +55,14 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
     const member=await requireActiveMembership(session.user.id,parsed.workspaceId);
     await requirePermission(session.user.id,member.workspaceId,P.DOCUMENTS_EDIT);
     const {id}=await context.params;
-    if(!await accessible(id,member.workspaceId,session.user.id))return NextResponse.json({error:"Not found"},{status:404});
+    const existing=await accessible(id,member.workspaceId,session.user.id);
+    if(!existing)return NextResponse.json({error:"Not found"},{status:404});
+    if(existing.matterId&&parsed.matterId!==undefined&&parsed.matterId!==existing.matterId)return NextResponse.json({error:"O vínculo ao processo deve ser preservado."},{status:409});
+    if(parsed.status==="SIGNING"||parsed.status==="SIGNED")await requirePermission(session.user.id,member.workspaceId,P.DOCUMENTS_SIGN);
+    if(parsed.status==="SIGNED"){
+      const signed=await prisma.signatureEnvelope.findFirst({where:{status:"SIGNED",signedAt:{not:null},documentVersion:{documentId:id,version:existing.currentVersion}}});
+      if(!signed)return NextResponse.json({error:"A versão atual ainda não possui assinatura concluída."},{status:409});
+    }
     if(parsed.matterId&&!(await canAccessMatter(session.user.id,member.workspaceId,parsed.matterId,P.MATTERS_VIEW)))return NextResponse.json({error:"Processo/assunto sem acesso."},{status:400});
     if(parsed.clientId&&!await prisma.client.findFirst({where:{id:parsed.clientId,workspaceId:member.workspaceId}}))return NextResponse.json({error:"Cliente inválido."},{status:400});
     if(parsed.templateId&&!await prisma.documentTemplate.findFirst({where:{id:parsed.templateId,workspaceId:member.workspaceId}}))return NextResponse.json({error:"Modelo inválido."},{status:400});

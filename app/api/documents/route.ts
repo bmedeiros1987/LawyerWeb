@@ -1,3 +1,4 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
@@ -30,7 +31,7 @@ export async function GET(request:NextRequest) {
     await requirePermission(session.user.id,member.workspaceId,P.DOCUMENTS_VIEW);
     const q=request.nextUrl.searchParams.get("q")?.trim();
     const kind=request.nextUrl.searchParams.get("kind")?.trim();
-    const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
+    const visibility=documentScope(member);
     const documents=await prisma.legalDocument.findMany({
       where:{workspaceId:member.workspaceId,AND:[
         visibility,
@@ -48,7 +49,7 @@ export async function GET(request:NextRequest) {
         matter:{select:{id:true,number:true,title:true}},
         template:{select:{id:true,name:true}},
         letterhead:{select:{id:true,name:true}},
-        _count:{select:{versions:true,contracts:true}},
+        _count:{select:{versions:true,contracts:{where:contractScope(member)}}},
       },
       orderBy:{updatedAt:"desc"},take:300,
     });
@@ -65,6 +66,7 @@ export async function POST(request:NextRequest) {
     const parsed=input.parse(await request.json());
     const member=await requireActiveMembership(session.user.id,parsed.workspaceId);
     await requirePermission(session.user.id,member.workspaceId,P.DOCUMENTS_EDIT);
+    if(["SIGNING","SIGNED"].includes(parsed.status)) return NextResponse.json({error:"Cadastre a minuta antes de iniciar a assinatura."},{status:400});
     await validateRefs(member.workspaceId,session.user.id,parsed);
     const document=await prisma.$transaction(async tx=>{
       const created=await tx.legalDocument.create({data:{

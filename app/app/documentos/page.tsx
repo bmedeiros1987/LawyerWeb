@@ -1,3 +1,4 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FileText, FolderOpen, LockKeyhole, Search } from "lucide-react";
@@ -24,7 +25,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   }
   const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.DOCUMENTS_EDIT));
   const {q=""}=await searchParams; const search=q.trim();
-  const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
+  const visibility=documentScope(member);
 
   const [documents,clients,matters,templateCount,letterheadCount,signedCount]=await Promise.all([
     prisma.legalDocument.findMany({
@@ -38,7 +39,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
           {matter:{title:{contains:search,mode:"insensitive" as const}}},
         ]}]:[]),
       ]},
-      include:{client:{select:{id:true,name:true}},matter:{select:{id:true,number:true,title:true}},_count:{select:{versions:true,contracts:true}}},
+      include:{client:{select:{id:true,name:true}},matter:{select:{id:true,number:true,title:true}},_count:{select:{versions:true,contracts:{where:contractScope(member)}}}},
       orderBy:{updatedAt:"desc"},take:300,
     }),
     prisma.client.findMany({where:{workspaceId:member.workspaceId,status:"ACTIVE"},select:{id:true,name:true},orderBy:{name:"asc"},take:300}),

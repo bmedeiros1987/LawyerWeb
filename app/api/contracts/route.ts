@@ -1,8 +1,9 @@
+import { contractScope, documentScope } from "@/lib/authz/visibility";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { P, canAccessMatter, requirePermission } from "@/lib/authz/permissions";
+import { P, canAccessMatter, memberWithPermission, requirePermission } from "@/lib/authz/permissions";
 import { requireActiveMembership } from "@/lib/workspace/context";
 
 const input = z.object({
@@ -33,7 +34,8 @@ async function validateReferences(workspaceId:string, userId:string, parsed:z.in
     if(!allowed) throw new Error("Processo/assunto inválido ou sem acesso.");
   }
   if (parsed.documentId) {
-    const document=await prisma.legalDocument.findFirst({where:{id:parsed.documentId,workspaceId}});
+    const viewer=await memberWithPermission(userId,workspaceId,P.DOCUMENTS_VIEW);
+    const document=viewer?await prisma.legalDocument.findFirst({where:{id:parsed.documentId,AND:[documentScope(viewer)]}}):null;
     if(!document) throw new Error("Documento inválido para este workspace.");
   }
   if (parsed.responsibleUserId) {
@@ -51,7 +53,7 @@ export async function GET(request:NextRequest) {
     await requirePermission(session.user.id,member.workspaceId,P.CONTRACTS_VIEW);
     const q=request.nextUrl.searchParams.get("q")?.trim();
     const status=request.nextUrl.searchParams.get("status")?.trim();
-    const visibility={OR:[{matterId:null},{matter:{secrecy:false}},{matter:{access:{some:{memberId:member.id}}}}]};
+    const visibility=contractScope(member);
     const contracts=await prisma.contract.findMany({
       where:{
         workspaceId:member.workspaceId,

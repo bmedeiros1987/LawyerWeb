@@ -1,3 +1,4 @@
+import { deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowUpRight, BriefcaseBusiness, CircleDot, Filter, LockKeyhole, Search } from "lucide-react";
@@ -32,7 +33,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
         client:{select:{id:true,name:true}},
         communications:{select:{receivedAt:true,title:true,source:true},orderBy:{receivedAt:"desc"},take:1},
         deadlines:{select:{dueAt:true,risk:true,status:true,title:true},where:{status:{in:["CONFIRMED","IN_PROGRESS"]}},orderBy:{dueAt:"asc"},take:1},
-        _count:{select:{tasks:true,deadlines:true,documents:true,communications:true}},
+        _count:{select:{tasks:{where:taskScope(member)},deadlines:{where:deadlineScope(member)},documents:{where:documentScope(member)},communications:{where:inboxScope(member)}}},
       },
       orderBy:{updatedAt:"desc"},take:200,
     }),

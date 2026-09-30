@@ -1,3 +1,4 @@
+import { canReceiveDeadline } from "@/lib/deadlines/service";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { deadlineRisk } from "@/lib/deadlines/safety";
@@ -33,15 +34,15 @@ export async function POST(request: NextRequest) {
   let notifications = 0;
   for (const r of reminders) {
     await prisma.$transaction(async (tx) => {
-      if (r.recipientUserId) {
+      if (r.recipientUserId && await canReceiveDeadline(r.recipientUserId,r.deadline.workspaceId,r.deadlineId)) {
         await tx.userNotification.create({
           data: {
             workspaceId: r.deadline.workspaceId,
             userId: r.recipientUserId,
             type: r.channel === "ESCALATION" ? "DEADLINE_ESCALATION" : "DEADLINE_REMINDER",
             severity: r.stage >= 4 ? "CRITICAL" : r.stage >= 3 ? "HIGH" : "INFO",
-            title: r.stage >= 4 ? `Prazo exige ação: ${r.deadline.title}` : `Lembrete de prazo: ${r.deadline.title}`,
-            body: r.deadline.dueAt ? `Prazo legal: ${r.deadline.dueAt.toISOString()}` : undefined,
+            title: r.stage >= 4 ? "Prazo exige ação no MBLZ" : "Lembrete de prazo no MBLZ",
+            body: "Abra o MBLZ para consultar os detalhes autorizados.",
             entityType: "Deadline",
             entityId: r.deadlineId,
           },
@@ -49,8 +50,8 @@ export async function POST(request: NextRequest) {
         notifications += 1;
         if (r.channel === "PUSH" || r.channel === "ESCALATION") {
           await sendPushToUser(r.recipientUserId, {
-            title: r.stage >= 4 ? `Prazo exige ação: ${r.deadline.title}` : `Lembrete de prazo: ${r.deadline.title}`,
-            body: r.deadline.dueAt ? `Prazo legal: ${r.deadline.dueAt.toLocaleString("pt-BR")}` : "Abra o MBLZ para revisar.",
+            title: r.stage >= 4 ? "Prazo exige ação no MBLZ" : "Lembrete de prazo no MBLZ",
+            body: "Abra o MBLZ para consultar os detalhes autorizados.",
             url: "/app/prazos",
             tag: `deadline-${r.deadlineId}`,
           });
@@ -63,13 +64,14 @@ export async function POST(request: NextRequest) {
         });
         for (const m of managers) {
           if (m.userId === r.recipientUserId) continue;
+          if (!await canReceiveDeadline(m.userId,r.deadline.workspaceId,r.deadlineId)) continue;
           await tx.userNotification.create({
             data: {
               workspaceId: r.deadline.workspaceId,
               userId: m.userId,
               type: "DEADLINE_ESCALATION",
               severity: "CRITICAL",
-              title: `Escalonamento de prazo: ${r.deadline.title}`,
+              title: "Escalonamento de prazo no MBLZ",
               body: "Prazo próximo do limite e requer acompanhamento da coordenação.",
               entityType: "Deadline",
               entityId: r.deadlineId,
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
           });
           notifications += 1;
           await sendPushToUser(m.userId, {
-            title: `Escalonamento de prazo: ${r.deadline.title}`,
+            title: "Escalonamento de prazo no MBLZ",
             body: "Prazo próximo do limite e requer acompanhamento da coordenação.",
             url: "/app/prazos",
             tag: `deadline-escalation-${r.deadlineId}`,
