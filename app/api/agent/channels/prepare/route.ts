@@ -23,6 +23,17 @@ function accountId(profileId: string, channel: string) {
   return `${channel.toLowerCase()}-${digest}`;
 }
 
+function publicConnection(connection: { id: string; channel: string; status: string; displayName: string | null; maskedAddress: string | null; accountId: string }) {
+  return {
+    id: connection.id,
+    channel: connection.channel,
+    status: connection.status,
+    displayName: connection.displayName,
+    maskedAddress: connection.maskedAddress,
+    accountId: connection.accountId,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -70,7 +81,7 @@ export async function POST(request: NextRequest) {
           lastError: null,
         },
       });
-      return NextResponse.json({ connection, setup: "READY" });
+      return NextResponse.json({ connection: publicConnection(connection), setup: "READY" });
     }
 
     const id = accountId(profile.id, parsed.channel);
@@ -114,7 +125,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      connection,
+      connection: publicConnection(connection),
       setup: parsed.channel === "TELEGRAM" ? "BOT_TOKEN_REQUIRED" : "QR_PAIRING_REQUIRED",
       accountId: id,
       pairingCode,
