@@ -26,6 +26,8 @@ export const P = {
   REPORTS_VIEW: "reports.view",
   AUDIT_VIEW: "audit.view",
   INTEGRATIONS_MANAGE: "integrations.manage",
+  AGENT_USE: "agent.use",
+  AGENT_MANAGE: "agent.manage",
 } as const;
 
 export type Permission = (typeof P)[keyof typeof P];
