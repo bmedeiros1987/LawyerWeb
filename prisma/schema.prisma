@@ -75,6 +75,29 @@ enum IntakeStatus {
   DISMISSED
 }
 
+enum AgentChannel {
+  WEB
+  EMAIL
+  WHATSAPP
+  TELEGRAM
+}
+
+enum AgentConnectionStatus {
+  DISCONNECTED
+  PENDING
+  CONNECTED
+  ERROR
+  SUSPENDED
+}
+
+enum AgentRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 model User {
   id String @id @default(cuid())
   name String?
@@ -91,6 +114,9 @@ model User {
   timeEntries TimeEntry[]
   notifications UserNotification[]
   pushSubscriptions PushSubscription[]
+  agentProfiles AgentProfile[]
+  agentChannelConnections AgentChannelConnection[]
+  agentRuns AgentRun[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -149,6 +175,9 @@ model Workspace {
   notifications UserNotification[]
   gmailConnections GoogleGmailConnection[]
   intakeDemands IntakeDemand[]
+  agentProfiles AgentProfile[]
+  agentChannelConnections AgentChannelConnection[]
+  agentRuns AgentRun[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -754,4 +783,77 @@ model PushSubscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([userId])
+}
+
+
+model AgentProfile {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  provider String @default("OPENCLAW")
+  agentId String @default("mblz")
+  displayName String @default("MBLZ Agent")
+  enabled Boolean @default(true)
+  policy Json?
+  channels AgentChannelConnection[]
+  runs AgentRun[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,userId])
+  @@index([workspaceId,enabled])
+}
+
+model AgentChannelConnection {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  agentProfileId String
+  agentProfile AgentProfile @relation(fields:[agentProfileId],references:[id],onDelete:Cascade)
+  channel AgentChannel
+  provider String @default("OPENCLAW")
+  accountId String
+  status AgentConnectionStatus @default(PENDING)
+  displayName String?
+  maskedAddress String?
+  externalIdentityHash String?
+  capabilities Json?
+  metadata Json?
+  consentedAt DateTime?
+  disconnectedAt DateTime?
+  lastHealthAt DateTime?
+  lastError String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([workspaceId,userId,channel,accountId])
+  @@index([agentProfileId,status])
+  @@index([workspaceId,channel,status])
+}
+
+model AgentRun {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  agentProfileId String
+  agentProfile AgentProfile @relation(fields:[agentProfileId],references:[id],onDelete:Cascade)
+  channel AgentChannel @default(WEB)
+  requestType String @default("CHAT")
+  status AgentRunStatus @default(PENDING)
+  providerRunId String?
+  sessionKeyHash String?
+  idempotencyKey String
+  inputHash String?
+  outputPreview String? @db.Text
+  errorCode String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  @@unique([workspaceId,idempotencyKey])
+  @@index([agentProfileId,createdAt])
+  @@index([userId,createdAt])
 }
