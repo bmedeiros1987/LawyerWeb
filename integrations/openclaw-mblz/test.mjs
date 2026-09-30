@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(resolve(here, "index.ts"), "utf8");
+const source = readFileSync(resolve(here, "index.mjs"), "utf8");
 const manifest = JSON.parse(readFileSync(resolve(here, "openclaw.plugin.json"), "utf8"));
 
 assert.deepEqual(manifest.contracts.tools.sort(), ["mblz_upcoming_deadlines", "mblz_workspace_summary"]);
