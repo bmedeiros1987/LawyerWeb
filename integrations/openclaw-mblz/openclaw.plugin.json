@@ -1,0 +1,13 @@
+{
+  "id": "mblz-agent",
+  "name": "MBLZ Agent",
+  "description": "Permission-filtered read-only channel tools for MBLZ Legal OS.",
+  "version": "0.1.0",
+  "contracts": {
+    "tools": ["mblz_workspace_summary", "mblz_upcoming_deadlines"]
+  },
+  "toolMetadata": {
+    "mblz_workspace_summary": { "optional": true },
+    "mblz_upcoming_deadlines": { "optional": true }
+  }
+}
