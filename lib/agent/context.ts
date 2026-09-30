@@ -28,10 +28,15 @@ export async function buildAgentContext(viewer:Viewer,timeZone:string){
     }),
   ]);
 
+  const confirmedDeadlines=deadlines.filter(d=>d.status==="CONFIRMED"||d.status==="IN_PROGRESS");
+  const candidateDeadlines=deadlines.filter(d=>d.status==="CANDIDATE"||d.status==="PENDING_CONFIRMATION");
+
   const lines=[
     `Agora: ${fmt(now,timeZone)}.`,
-    "Prazos visíveis:",
-    ...deadlines.map(d=>`- [${d.status}/${d.risk}] ${d.title} | ${d.matter?.number??d.matter?.title??"sem processo"} | data ${fmt(d.dueAt,timeZone)} | interno ${fmt(d.internalDueAt,timeZone)}`),
+    "Prazos confirmados em vigor:",
+    ...(confirmedDeadlines.length?confirmedDeadlines.map(d=>`- [${d.status}/${d.risk}] ${d.title} | ${d.matter?.number??d.matter?.title??"sem processo"} | prazo ${fmt(d.dueAt,timeZone)} | interno ${fmt(d.internalDueAt,timeZone)}`):["- sem prazo confirmado em vigor"]),
+    "Datas candidatas — NÃO são prazo em vigor e exigem revisão humana:",
+    ...(candidateDeadlines.length?candidateDeadlines.map(d=>`- [${d.status}] ${d.title} | ${d.matter?.number??d.matter?.title??"sem processo"} | data sugerida ${fmt(d.dueAt,timeZone)}`):["- nenhuma data candidata pendente"]),
     "Tarefas visíveis:",
     ...tasks.map(t=>`- [${t.status}/${t.priority}] ${t.title} | ${t.matter?.number??t.matter?.title??"sem processo"} | ${fmt(t.dueAt,timeZone)}`),
     "Processos recentes visíveis:",
