@@ -95,10 +95,7 @@ export async function inspectWhatsAppPhone(args: {
 }
 
 export function newWhatsAppWebhookSecrets() {
-  return {
-    appSecretPlaceholder: false,
-    verifyToken: crypto.randomBytes(24).toString("base64url"),
-  };
+  return { verifyToken: crypto.randomBytes(24).toString("base64url") };
 }
 
 export function newWhatsAppPairingCode() {
