@@ -16,6 +16,19 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mblz_ci
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mblz_ci
       AUTH_SECRET: ci-only-auth-secret-not-for-production
@@ -24,16 +37,21 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       TOKEN_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       CRON_SECRET: ci-only-cron-secret
+      RUN_DB_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Validate schema
         run: npm run db:validate
       - name: Typecheck
         run: npm run typecheck
+      - name: Prepare isolated test database
+        run: npx prisma db push
+      - name: Security regression tests
+        run: npm test
       - name: Build
         run: npm run build

@@ -116,3 +116,24 @@
 .inbox-triage-popover label>span{display:block;margin-bottom:5px;color:#6f7783;font-size:8px;font-weight:700}.inbox-triage-popover input{width:100%;border:1px solid #e2e5ea;border-radius:9px;background:#fafbfc;padding:9px 10px;font-size:9px;outline:0}.inbox-triage-popover>p{margin:0;color:#818995;font-size:8px;line-height:1.55}
 .inbox-triage-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.inbox-triage-actions button{min-height:34px;border-radius:9px;background:#171b24;color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-size:8px;font-weight:700;cursor:pointer}.inbox-triage-actions button.quiet{background:#f1f2f5;color:#6e7682}.inbox-triage-actions button.danger{background:rgba(216,70,91,.08);color:#bd4253}.inbox-triage-actions button:disabled{opacity:.45}
 @media(max-width:760px){.inbox-triage-popover{position:fixed;left:12px;right:12px;top:80px;width:auto;max-height:calc(100vh - 100px);overflow:auto}}
+.form-hint{margin:0;padding:8px 10px;border-radius:9px;background:#f6f7f9;color:#858d98;font-size:8px;line-height:1.55}
+.table-head.contracts,.table-row.contracts{grid-template-columns:1.45fr .95fr .85fr .62fr 18px}
+.table-head.legal-docs,.table-row.legal-docs{grid-template-columns:1.45fr .7fr 1fr .62fr 18px}
+.status-select{max-width:150px;height:31px;border:1px solid #e2e5ea;border-radius:9px;background:#fff;color:#303742;padding:0 8px;font-size:8px;font-weight:700;outline:0}
+.contract-alert{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border:1px solid rgba(216,70,91,.14);border-radius:14px;background:linear-gradient(90deg,rgba(216,70,91,.07),rgba(216,70,91,.025));color:#bf4455}
+.contract-alert div{display:grid}.contract-alert strong{font-size:9px;color:#5a2730}.contract-alert span{margin-top:3px;color:#875e65;font-size:8px;line-height:1.55}
+.contract-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(270px,.75fr);gap:13px}
+.compact-links a,.compact-links>div{min-height:57px}
+.history-subhead{margin-top:22px;padding-top:17px;border-top:1px solid var(--line)}
+.storage-placeholder{display:flex;align-items:flex-start;gap:11px;padding:18px;border:1px dashed #dcdfe6;border-radius:13px;background:#fafbfc;color:#6269d2}
+.storage-placeholder div{display:grid}.storage-placeholder strong{font-size:9px;color:#343b45}.storage-placeholder span{margin-top:4px;color:#818995;font-size:8px;line-height:1.6}
+.document-meta{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+.contract-hero .client-big-icon{background:linear-gradient(145deg,#17233a,#0d1524);color:#d7b46b}
+@media(max-width:900px){.contract-layout{grid-template-columns:1fr}}
+@media(max-width:760px){.table-head.contracts,.table-row.contracts,.table-head.legal-docs,.table-row.legal-docs{min-width:850px}.status-select{max-width:100%;width:100%}}
+
+.reports-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,.75fr);gap:13px}
+.worklog-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.worklog-summary>div{padding:11px;border-radius:11px;background:#f6f7f9}.worklog-summary strong,.worklog-summary span{display:block}.worklog-summary strong{font-size:17px}.worklog-summary span{margin-top:3px;color:#8a929d;font-size:7px}
+.worklog-days{display:grid;gap:15px}.worklog-days>section{display:grid;grid-template-columns:80px 1fr;gap:12px}.worklog-days>section>time{padding-top:11px;color:#8b939e;font-size:8px;font-weight:700}.worklog-days>section>div{display:grid}.worklog-row{min-height:46px;display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:center;border-top:1px solid var(--line)}.worklog-row:first-child{border-top:0}.worklog-row>span{width:28px;height:28px;border-radius:9px;background:#f2f3f5;color:#6269d3;display:grid;place-items:center}.worklog-row strong,.worklog-row small{display:block}.worklog-row strong{font-size:9px}.worklog-row small{margin-top:3px;color:#9299a3;font-size:7px}
+.report-caveat{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);color:#9299a4;font-size:7px;line-height:1.55}
+@media(max-width:900px){.reports-grid{grid-template-columns:1fr}}@media(max-width:650px){.worklog-summary{grid-template-columns:1fr}.worklog-days>section{grid-template-columns:1fr;gap:3px}.worklog-days>section>time{padding-top:0}}
