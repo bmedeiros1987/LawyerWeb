@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: mblz-agent-gateway
+    runtime: docker
+    plan: starter
+    rootDir: openclaw-agent
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /startupz
+    envVars:
+      - key: OPENCLAW_GATEWAY_PORT
+        value: "8080"
+      - key: OPENCLAW_STATE_DIR
+        value: /data/.openclaw
+      - key: OPENCLAW_WORKSPACE_DIR
+        value: /data/workspace
+      - key: OPENCLAW_CONFIG_PATH
+        value: /data/.openclaw/openclaw.json
+      - key: OPENCLAW_PUBLIC_ORIGIN
+        value: https://mblz-agent-gateway.onrender.com
+      - key: OPENCLAW_GATEWAY_TOKEN
+        generateValue: true
+      - key: OPENCLAW_HOOK_TOKEN
+        generateValue: true
+      - key: MBLZ_AGENT_SERVICE_TOKEN
+        generateValue: true
+      - key: MBLZ_INTERNAL_API_URL
+        value: https://mblz-legal-os.onrender.com
+      - key: OPENCLAW_MODEL
+        value: openai/gpt-5.6-sol
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENCLAW_INSTALL_WHATSAPP_PLUGIN
+        value: "true"
+    disk:
+      name: mblz-agent-data
+      mountPath: /data
+      sizeGB: 1
