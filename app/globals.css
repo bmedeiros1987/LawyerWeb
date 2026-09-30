@@ -126,3 +126,9 @@
 .contract-hero .client-big-icon{background:linear-gradient(145deg,#17233a,#0d1524);color:#d7b46b}
 @media(max-width:900px){.contract-layout{grid-template-columns:1fr}}
 @media(max-width:760px){.table-head.contracts,.table-row.contracts,.table-head.legal-docs,.table-row.legal-docs{min-width:850px}.status-select{max-width:100%;width:100%}}
+
+.reports-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,.75fr);gap:13px}
+.worklog-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.worklog-summary>div{padding:11px;border-radius:11px;background:#f6f7f9}.worklog-summary strong,.worklog-summary span{display:block}.worklog-summary strong{font-size:17px}.worklog-summary span{margin-top:3px;color:#8a929d;font-size:7px}
+.worklog-days{display:grid;gap:15px}.worklog-days>section{display:grid;grid-template-columns:80px 1fr;gap:12px}.worklog-days>section>time{padding-top:11px;color:#8b939e;font-size:8px;font-weight:700}.worklog-days>section>div{display:grid}.worklog-row{min-height:46px;display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:center;border-top:1px solid var(--line)}.worklog-row:first-child{border-top:0}.worklog-row>span{width:28px;height:28px;border-radius:9px;background:#f2f3f5;color:#6269d3;display:grid;place-items:center}.worklog-row strong,.worklog-row small{display:block}.worklog-row strong{font-size:9px}.worklog-row small{margin-top:3px;color:#9299a3;font-size:7px}
+.report-caveat{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);color:#9299a4;font-size:7px;line-height:1.55}
+@media(max-width:900px){.reports-grid{grid-template-columns:1fr}}@media(max-width:650px){.worklog-summary{grid-template-columns:1fr}.worklog-days>section{grid-template-columns:1fr;gap:3px}.worklog-days>section>time{padding-top:0}}
