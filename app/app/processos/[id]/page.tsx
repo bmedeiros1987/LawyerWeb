@@ -1,5 +1,6 @@
 import { MatterRecords } from "@/components/matter-records";
-import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";\nimport { deadlineTimelineDetail } from "@/lib/deadlines/presentation";
+import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
+import { deadlineTimelineDetail } from "@/lib/deadlines/presentation";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, Clock3, FileText, Landmark, LockKeyhole, ScrollText } from "lucide-react";
