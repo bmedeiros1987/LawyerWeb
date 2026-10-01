@@ -26,3 +26,9 @@ export function isOverdueConfirmedDeadline(
 ): boolean {
   return OPERATIONAL_STATUSES.has(status) && Boolean(dueAt && dueAt < now);
 }
+
+const CONFIRMED_RECORD_STATUSES = new Set(["CONFIRMED", "IN_PROGRESS", "COMPLETED"]);
+
+export function countsAsConfirmedDeadlineRecord(status: string): boolean {
+  return CONFIRMED_RECORD_STATUSES.has(status);
+}
