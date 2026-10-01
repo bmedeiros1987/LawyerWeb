@@ -45,7 +45,7 @@ function response(movements: unknown[]) {
           id: "tjdft-process-1",
           tribunal: "TJDFT",
           numeroProcesso: "00000000020268070000",
-          movimentos,
+          movimentos: movements,
         },
       }],
     },
