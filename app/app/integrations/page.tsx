@@ -27,7 +27,7 @@ export default async function Page() {
   const openClawState = openClawConnectionState(openClaw);
   const lastCourtPush = membership
     ? await prisma.courtCommunication.findFirst({
-        where: { workspaceId: membership.workspaceId, source: "DATAJUD" },
+        where: { workspaceId: membership.workspaceId, source: { in: ["DATAJUD", "DJEN"] } },
         select: { receivedAt: true },
         orderBy: { receivedAt: "desc" },
       })
@@ -87,14 +87,14 @@ export default async function Page() {
         <div>
           <strong>MBLZ Push — Tribunais</strong>
           <span>
-            DataJud público em modo leitura: movimentações entram na Caixa Jurídica para revisão e nunca confirmam prazo automaticamente.
-            {lastCourtPushLabel ? ` Última entrada capturada: ${lastCourtPushLabel}.` : " Nenhuma entrada DataJud foi capturada neste workspace ainda."}
-            {" "}DJEN e Domicílio Judicial exigem integração oficial separada.
+            CNJ em modo leitura: DataJud traz movimentações e DJEN traz publicações oficiais para a Caixa Jurídica, sempre sujeitas a revisão humana.
+            {lastCourtPushLabel ? ` Última entrada capturada: ${lastCourtPushLabel}.` : " Nenhuma entrada CNJ foi capturada neste workspace ainda."}
+            {" "}Nenhuma publicação confirma prazo automaticamente. Domicílio Judicial exige credencial institucional separada.
           </span>
         </div>
         {membership
           ? <form action="/api/integrations/court-push/refresh" method="post">
-              <button className="new-button"><RefreshCw size={15}/>Atualizar DataJud</button>
+              <button className="new-button"><RefreshCw size={15}/>Atualizar tribunais</button>
             </form>
           : <span className="status-pill quiet">Aguardando setup</span>}
       </article>
