@@ -7,6 +7,7 @@ import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { allows, contractScope, deadlineScope, documentScope, matterScope, taskScope } from "@/lib/authz/visibility";
 import { visibleActivities } from "@/lib/reports/worklog";
 import { getActiveMembership } from "@/lib/workspace/context";
+import { countsAsHighRiskDeadline } from "@/lib/deadlines/presentation";
 
 export const dynamic="force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function Page() {
 
   const activities=await visibleActivities(member,rawActivities);
 
-  const critical=deadlines.filter(d=>["CRITICAL","HIGH"].includes(d.risk)).length;
+  const critical=deadlines.filter(d=>countsAsHighRiskDeadline(d.status,d.risk)).length;
   const candidates=deadlines.filter(d=>["CANDIDATE","PENDING_CONFIRMATION"].includes(d.status)).length;
   const overdue=tasks.filter(t=>t.dueAt&&t.dueAt<now).length;
   const expiring=contracts.filter(c=>c.expiresAt&&c.expiresAt>=now&&c.expiresAt<=in60).length;
