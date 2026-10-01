@@ -1,5 +1,6 @@
 import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail, RefreshCw } from "lucide-react";
 import { PushOptIn } from "@/components/push-opt-in";
+import { PushTestButton } from "@/components/push-test-button";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { openClawConnectionState } from "@/lib/agent/connection-state";
@@ -79,7 +80,7 @@ export default async function Page() {
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#655cf6"}}><BellRing size={20}/></div>
         <div><strong>Notificações do dispositivo</strong><span>Prazos críticos, escalonamentos e atualizações importantes no PWA.</span></div>
-        <PushOptIn/>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}><PushOptIn/><PushTestButton/></div>
       </article>
 
       <article className="integration-card">
