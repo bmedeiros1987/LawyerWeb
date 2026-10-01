@@ -73,7 +73,7 @@ npm run dev
 
 ## Render
 
-O repositório contém `render.yaml`. Segredos OAuth devem ser configurados no Dashboard do Render e **nunca** commitados no GitHub.
+O repositório **não** contém `render.yaml` (nenhum Blueprint versionado): o serviço Render é configurado diretamente no Dashboard, com auto-deploy a partir da `main`. Segredos OAuth devem ser configurados no Dashboard do Render e **nunca** commitados no GitHub.
 
 Variáveis necessárias:
 

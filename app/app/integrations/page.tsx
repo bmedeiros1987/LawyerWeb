@@ -2,6 +2,7 @@ import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } 
 import { PushOptIn } from "@/components/push-opt-in";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { openClawConnectionState } from "@/lib/agent/connection-state";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function Page() {
   const openClaw = membership
     ? await prisma.openClawConnection.findUnique({ where: { workspaceId: membership.workspaceId } })
     : null;
+  const openClawState = openClawConnectionState(openClaw);
 
   return <div className="page-stack">
     <section className="page-header">
@@ -56,9 +58,9 @@ export default async function Page() {
 
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#655cf6"}}><Bot size={20}/></div>
-        <div><strong>MBLZ Agent · OpenClaw</strong><span>{openClaw ? "Gateway conectado. Configure seus canais e teste o agente." : "Agente próprio com e-mail, Telegram, WhatsApp e Web em uma única camada."}</span></div>
+        <div><strong>MBLZ Agent · OpenClaw</strong><span>{openClawState === "CONNECTED" ? "Gateway conectado. Configure seus canais e teste o agente." : openClawState === "DEGRADED" ? "Não conectado: existe uma configuração, mas o Gateway não está com status conectado. Revise a conexão." : "Não conectado. Agente próprio com e-mail, Telegram, WhatsApp e Web em uma única camada."}</span></div>
         {membership
-          ? <a className="new-button" href="/app/integrations/openclaw"><Bot size={15}/>{openClaw ? "Configurar" : "Preparar"}</a>
+          ? <a className="new-button" href="/app/integrations/openclaw"><Bot size={15}/>{openClawState === "CONNECTED" ? "Configurar" : openClawState === "DEGRADED" ? "Revisar" : "Preparar"}</a>
           : <span className="status-pill quiet">Aguardando setup</span>}
       </article>
 
