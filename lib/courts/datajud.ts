@@ -13,11 +13,18 @@ const STATE_COURT_BY_CODE: Record<string, string> = {
 
 const STATE_CODES = new Set(Object.values(STATE_COURT_BY_CODE));
 
+export type DataJudComplement = {
+  codigo?: string | number | null;
+  descricao?: string | null;
+  valor?: string | number | boolean | null;
+  nome?: string | null;
+};
+
 export type DataJudMovement = {
   codigo?: string | number | null;
   nome?: string | null;
   dataHora?: string | null;
-  complementosTabelados?: unknown[] | null;
+  complementosTabelados?: DataJudComplement[] | null;
   orgaoJulgador?: {
     codigoOrgao?: string | number | null;
     nomeOrgao?: string | null;
