@@ -1,51 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
 import { DjenRateLimitError } from "@/lib/courts/djen";
-import { syncMatterFromDataJud, syncMatterFromDjen, type CourtPushMatter } from "@/lib/courts/push";
+import { rotatingBatch } from "@/lib/courts/batch";
+import { PUSH_DELIVERY_NOTE, addPushDelivery, emptyPushDelivery, syncMatterFromDataJud, syncMatterFromDjen, type CourtPushMatter } from "@/lib/courts/push";
 
 const DATAJUD_BATCH_SIZE = 30;
 const DJEN_BATCH_SIZE = 5;
 
-async function rotatingBatch(size: number): Promise<CourtPushMatter[]> {
-  const where = { secrecy: false, status: "ACTIVE", number: { not: null } } satisfies Prisma.MatterWhereInput;
-  const total = await prisma.matter.count({ where });
-  if (!total) return [];
-
-  const take = Math.min(size, total);
-  const window = Math.floor(Date.now() / (15 * 60 * 1000));
-  const skip = total > take ? (window * take) % total : 0;
-  const select = {
-    id: true,
-    workspaceId: true,
-    number: true,
-    court: true,
-    secrecy: true,
-    ownerUserId: true,
-    responsibleUserId: true,
-  } as const;
-
-  const first = await prisma.matter.findMany({
-    where,
-    select,
-    orderBy: { id: "asc" },
-    skip,
-    take,
-  });
-  if (first.length === take || skip === 0) return first;
-
-  const remainder = await prisma.matter.findMany({
-    where,
-    select,
-    orderBy: { id: "asc" },
-    take: take - first.length,
-  });
-  return [...first, ...remainder];
-}
-
 async function pollDataJud(matters: CourtPushMatter[]) {
   let imported = 0;
-  let notified = 0;
+  let inAppNotified = 0;
+  let push = emptyPushDelivery();
   let errors = 0;
   let checked = 0;
 
@@ -65,17 +29,19 @@ async function pollDataJud(matters: CourtPushMatter[]) {
         continue;
       }
       imported += item.result.imported;
-      notified += item.result.notified;
+      inAppNotified += item.result.inAppNotified;
+      push = addPushDelivery(push, item.result.push);
     }
   }
 
-  return { checked, imported, notified, errors };
+  return { checked, imported, inAppNotified, push, errors };
 }
 
 async function pollDjen(matters: CourtPushMatter[]) {
   let checked = 0;
   let imported = 0;
-  let notified = 0;
+  let inAppNotified = 0;
+  let push = emptyPushDelivery();
   let errors = 0;
   let truncated = 0;
   let rateLimited = false;
@@ -85,7 +51,8 @@ async function pollDjen(matters: CourtPushMatter[]) {
       const result = await syncMatterFromDjen(matter);
       checked += 1;
       imported += result.imported;
-      notified += result.notified;
+      inAppNotified += result.inAppNotified;
+      push = addPushDelivery(push, result.push);
       if (result.truncated) truncated += 1;
     } catch (error) {
       if (error instanceof DjenRateLimitError) {
@@ -97,7 +64,7 @@ async function pollDjen(matters: CourtPushMatter[]) {
     }
   }
 
-  return { checked, imported, notified, errors, truncated, rateLimited };
+  return { checked, imported, inAppNotified, push, errors, truncated, rateLimited };
 }
 
 export async function POST(request: NextRequest) {
@@ -120,6 +87,8 @@ export async function POST(request: NextRequest) {
     sources: ["CNJ_DATAJUD_PUBLIC", "CNJ_DJEN_PUBLIC"],
     datajud,
     djen,
+    push: addPushDelivery(datajud.push, djen.push),
+    pushNote: PUSH_DELIVERY_NOTE,
     deadlineWrites: 0,
     externalActions: 0,
   });

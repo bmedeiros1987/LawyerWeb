@@ -5,14 +5,15 @@ import { P, requirePermission } from "@/lib/authz/permissions";
 import { matterScope } from "@/lib/authz/visibility";
 import { requireActiveMembership } from "@/lib/workspace/context";
 import { DjenRateLimitError } from "@/lib/courts/djen";
-import { syncMatterFromDataJud, syncMatterFromDjen, type CourtPushMatter } from "@/lib/courts/push";
+import { addPushDelivery, emptyPushDelivery, syncMatterFromDataJud, syncMatterFromDjen, type CourtPushMatter } from "@/lib/courts/push";
 
 const DATAJUD_MANUAL_LIMIT = 20;
 const DJEN_MANUAL_LIMIT = 5;
 
 async function syncDataJudBatch(matters: CourtPushMatter[]) {
   let imported = 0;
-  let notified = 0;
+  let inAppNotified = 0;
+  let push = emptyPushDelivery();
   let errors = 0;
 
   for (let index = 0; index < matters.length; index += 5) {
@@ -28,16 +29,18 @@ async function syncDataJudBatch(matters: CourtPushMatter[]) {
     for (const result of results) {
       if (!result) continue;
       imported += result.imported;
-      notified += result.notified;
+      inAppNotified += result.inAppNotified;
+      push = addPushDelivery(push, result.push);
     }
   }
 
-  return { imported, notified, errors };
+  return { imported, inAppNotified, push, errors };
 }
 
 async function syncDjenBatch(matters: CourtPushMatter[]) {
   let imported = 0;
-  let notified = 0;
+  let inAppNotified = 0;
+  let push = emptyPushDelivery();
   let errors = 0;
   let truncated = 0;
   let rateLimited = false;
@@ -47,7 +50,8 @@ async function syncDjenBatch(matters: CourtPushMatter[]) {
     try {
       const result = await syncMatterFromDjen(matter);
       imported += result.imported;
-      notified += result.notified;
+      inAppNotified += result.inAppNotified;
+      push = addPushDelivery(push, result.push);
       if (result.truncated) truncated += 1;
     } catch (error) {
       if (error instanceof DjenRateLimitError) {
@@ -58,7 +62,7 @@ async function syncDjenBatch(matters: CourtPushMatter[]) {
     }
   }
 
-  return { imported, notified, errors, truncated, rateLimited };
+  return { imported, inAppNotified, push, errors, truncated, rateLimited };
 }
 
 export async function POST(request: NextRequest) {

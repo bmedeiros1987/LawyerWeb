@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({
-  courtCommunication: {
-    count: vi.fn(),
-    createMany: vi.fn(),
-    findUniqueOrThrow: vi.fn(),
-  },
-  userNotification: { create: vi.fn() },
-}));
+const db = vi.hoisted(() => {
+  const mock = {
+    courtCommunication: {
+      count: vi.fn(),
+      createMany: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+    },
+    userNotification: { createMany: vi.fn() },
+    $transaction: vi.fn(),
+  };
+  mock.$transaction.mockImplementation(async (fn: (tx: typeof mock) => unknown) => fn(mock));
+  return mock;
+});
 const access = vi.hoisted(() => vi.fn());
 const push = vi.hoisted(() => vi.fn());
 
@@ -133,9 +140,16 @@ describe("Court Push safety", () => {
     db.courtCommunication.count.mockReset();
     db.courtCommunication.createMany.mockReset();
     db.courtCommunication.findUniqueOrThrow.mockReset();
-    db.userNotification.create.mockReset();
+    db.courtCommunication.findUnique.mockReset();
+    db.courtCommunication.findUnique.mockResolvedValue(null);
+    db.courtCommunication.findMany.mockReset();
+    db.courtCommunication.findMany.mockResolvedValue([]);
+    db.userNotification.createMany.mockReset();
+    db.$transaction.mockReset();
+    db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
     access.mockReset();
     push.mockReset();
+    push.mockResolvedValue({ sent: 1, attempted: 1, failed: 0, removed: 0, skipped: false, failureStatusCodes: [] });
     vi.stubGlobal("fetch", vi.fn());
   });
 
@@ -164,7 +178,7 @@ describe("Court Push safety", () => {
     expect(createArg.data[0].title).toBe("Juntada");
     expect(createArg.data[0].requiresAction).toBe(false);
     expect(JSON.stringify(createArg)).not.toContain("\"status\":\"CONFIRMED\"");
-    expect(db.userNotification.create).not.toHaveBeenCalled();
+    expect(db.userNotification.createMany).not.toHaveBeenCalled();
   });
 
   it("deduplicates DataJud retries and only notifies authorized responsible users", async () => {
@@ -180,7 +194,7 @@ describe("Court Push safety", () => {
 
     const duplicate = await syncMatterFromDataJud({ ...matter, ownerUserId: "owner" });
     expect(duplicate.imported).toBe(0);
-    expect(db.userNotification.create).not.toHaveBeenCalled();
+    expect(db.userNotification.createMany).not.toHaveBeenCalled();
 
     db.courtCommunication.createMany.mockResolvedValueOnce({ count: 1 });
     db.courtCommunication.findUniqueOrThrow.mockResolvedValue({ id: "communication-2" });
@@ -188,8 +202,8 @@ describe("Court Push safety", () => {
 
     const blocked = await syncMatterFromDataJud({ ...matter, ownerUserId: "owner" });
     expect(blocked.imported).toBe(1);
-    expect(blocked.notified).toBe(0);
-    expect(db.userNotification.create).not.toHaveBeenCalled();
+    expect(blocked.inAppNotified).toBe(0);
+    expect(db.userNotification.createMany).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -202,7 +216,7 @@ describe("Court Push safety", () => {
 
     const result = await syncMatterFromDjen({ ...matter, ownerUserId: "owner" });
     expect(result.imported).toBe(1);
-    expect(result.notified).toBe(1);
+    expect(result.inAppNotified).toBe(1);
 
     const createArg = db.courtCommunication.createMany.mock.calls[0][0];
     const stored = createArg.data[0];
@@ -213,7 +227,8 @@ describe("Court Push safety", () => {
     expect(stored.body).toContain("revisão humana");
     expect(JSON.stringify(createArg)).not.toContain("\"status\":\"CONFIRMED\"");
 
-    expect(db.userNotification.create).toHaveBeenCalledTimes(1);
+    expect(db.userNotification.createMany).toHaveBeenCalledTimes(1);
+    expect(db.userNotification.createMany.mock.calls[0][0].data).toHaveLength(1);
     expect(push).toHaveBeenCalledWith("owner", expect.objectContaining({
       title: "Nova publicação oficial no DJEN",
       url: "/app/inbox",
