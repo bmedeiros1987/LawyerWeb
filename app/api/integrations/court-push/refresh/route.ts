@@ -4,9 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { P, requirePermission } from "@/lib/authz/permissions";
 import { matterScope } from "@/lib/authz/visibility";
 import { requireActiveMembership } from "@/lib/workspace/context";
-import { syncMatterFromDataJud, type CourtPushMatter } from "@/lib/courts/push";
+import { DjenRateLimitError } from "@/lib/courts/djen";
+import { syncMatterFromDataJud, syncMatterFromDjen, type CourtPushMatter } from "@/lib/courts/push";
 
-async function syncBatch(matters: CourtPushMatter[]) {
+const DATAJUD_MANUAL_LIMIT = 20;
+const DJEN_MANUAL_LIMIT = 5;
+
+async function syncDataJudBatch(matters: CourtPushMatter[]) {
   let imported = 0;
   let notified = 0;
   let errors = 0;
@@ -29,6 +33,32 @@ async function syncBatch(matters: CourtPushMatter[]) {
   }
 
   return { imported, notified, errors };
+}
+
+async function syncDjenBatch(matters: CourtPushMatter[]) {
+  let imported = 0;
+  let notified = 0;
+  let errors = 0;
+  let truncated = 0;
+  let rateLimited = false;
+
+  // DJEN is intentionally sequential and small: the public API rate-limits by IP.
+  for (const matter of matters.slice(0, DJEN_MANUAL_LIMIT)) {
+    try {
+      const result = await syncMatterFromDjen(matter);
+      imported += result.imported;
+      notified += result.notified;
+      if (result.truncated) truncated += 1;
+    } catch (error) {
+      if (error instanceof DjenRateLimitError) {
+        rateLimited = true;
+        break;
+      }
+      errors += 1;
+    }
+  }
+
+  return { imported, notified, errors, truncated, rateLimited };
 }
 
 export async function POST(request: NextRequest) {
@@ -55,13 +85,20 @@ export async function POST(request: NextRequest) {
         responsibleUserId: true,
       },
       orderBy: { updatedAt: "desc" },
-      take: 75,
+      take: DATAJUD_MANUAL_LIMIT,
     });
 
-    const result = await syncBatch(matters);
+    const [datajud, djen] = await Promise.all([
+      syncDataJudBatch(matters),
+      syncDjenBatch(matters),
+    ]);
     const target = new URL("/app/integrations", request.url);
-    target.searchParams.set("courtPush", String(result.imported));
-    if (result.errors) target.searchParams.set("courtErrors", String(result.errors));
+    target.searchParams.set("courtPush", String(datajud.imported + djen.imported));
+    target.searchParams.set("courtDataJud", String(datajud.imported));
+    target.searchParams.set("courtDjen", String(djen.imported));
+    if (datajud.errors + djen.errors) target.searchParams.set("courtErrors", String(datajud.errors + djen.errors));
+    if (djen.rateLimited) target.searchParams.set("courtDjenRateLimited", "1");
+    if (djen.truncated) target.searchParams.set("courtDjenTruncated", String(djen.truncated));
     return NextResponse.redirect(target, 303);
   } catch (error) {
     const status = (error as Error & { status?: number }).status ?? 400;
