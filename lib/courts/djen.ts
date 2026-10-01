@@ -72,7 +72,7 @@ function cleanText(value?: string | null) {
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, """)
+    .replace(/&quot;/gi, "\\\"")
     .replace(/&#39;/gi, "'")
     .replace(/\s+/g, " ")
     .trim();
