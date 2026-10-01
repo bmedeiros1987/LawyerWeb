@@ -80,7 +80,7 @@ export function dataJudAliasFromCourt(court?: string | null) {
   const trf = label.match(/TRF0?([1-6])/);
   if (trf) return `trf${Number(trf[1])}`;
 
-  const trt = label.match(/TRT0?([1-9]|1[0-9]|2[0-4])/);
+  const trt = label.match(/TRT0?(2[0-4]|1[0-9]|[1-9])/);
   if (trt) return `trt${Number(trt[1])}`;
 
   const tre = label.match(/TRE(?:DFT|DF|([A-Z]{2}))/);
