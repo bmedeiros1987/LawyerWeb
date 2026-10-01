@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Bot, CheckCircle2, Mail, MessageCircle, Send, ShieldCheck, Unplug } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { isOpenClawConnected } from "@/lib/agent/connection-state";
 
 type Connection = {
   gatewayUrl:string;
@@ -23,6 +24,7 @@ export function OpenClawAgentSettings({
   gmailConnected:boolean;
 }){
   const router=useRouter();
+  const connected=isOpenClawConnected(connection);
   const [busy,setBusy]=useState("");
   const [error,setError]=useState("");
   const [reply,setReply]=useState("");
@@ -70,8 +72,8 @@ export function OpenClawAgentSettings({
 
   return <div className="agent-settings-grid">
     <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">Runtime</span><h2>OpenClaw Gateway</h2></div>{connection?<span className="status-pill success"><CheckCircle2 size={11}/>Conectado</span>:<span className="status-pill quiet">Não conectado</span>}</div>
-      {connection?<div className="agent-connection-summary">
+      <div className="panel-heading"><div><span className="eyebrow">Runtime</span><h2>OpenClaw Gateway</h2></div>{connected?<span className="status-pill success"><CheckCircle2 size={11}/>Conectado</span>:<span className="status-pill quiet">Não conectado</span>}</div>
+      {connection&&connected?<div className="agent-connection-summary">
         <div><span>Gateway</span><strong>{connection.gatewayUrl}</strong></div>
         <div><span>Agente</span><strong>{connection.agentId}</strong></div>
         <div><span>Último teste</span><strong>{connection.lastHealthAt?new Date(connection.lastHealthAt).toLocaleString("pt-BR"):"—"}</strong></div>
@@ -110,7 +112,7 @@ export function OpenClawAgentSettings({
 
     <section className="panel agent-test-panel">
       <div className="panel-heading"><div><span className="eyebrow">Teste seguro</span><h2>Conversar com o agente MBLZ</h2></div><Bot size={18}/></div>
-      {connection?<form className="agent-chat-form" onSubmit={ask}>
+      {connected?<form className="agent-chat-form" onSubmit={ask}>
         <textarea name="message" rows={4} maxLength={12000} placeholder="Ex.: Quais são meus prazos e tarefas mais importantes de hoje?"/>
         <button className="new-button" disabled={busy==="chat"}><Send size={14}/>{busy==="chat"?"Consultando…":"Enviar"}</button>
       </form>:<div className="mini-empty">Conecte primeiro um Gateway OpenClaw.</div>}
