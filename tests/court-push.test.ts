@@ -24,7 +24,13 @@ import {
   dataJudMovementIdentity,
   orderedDataJudMovements,
 } from "@/lib/courts/datajud";
-import { syncMatterFromDataJud } from "@/lib/courts/push";
+import {
+  DjenRateLimitError,
+  djenPublicationBody,
+  djenPublicationIdentity,
+  fetchDjenPublications,
+} from "@/lib/courts/djen";
+import { syncMatterFromDataJud, syncMatterFromDjen } from "@/lib/courts/push";
 
 const matter = {
   id: "matter-1",
@@ -36,7 +42,7 @@ const matter = {
   responsibleUserId: null,
 };
 
-function response(movements: unknown[]) {
+function dataJudResponse(movements: unknown[]) {
   return new Response(JSON.stringify({
     hits: {
       hits: [{
@@ -51,6 +57,26 @@ function response(movements: unknown[]) {
     },
   }), { status: 200, headers: { "content-type": "application/json" } });
 }
+
+function djenResponse(items: unknown[], count = items.length) {
+  return new Response(JSON.stringify({ status: "success", count, items }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+const djenItem = {
+  id: 123,
+  hash: "abcDEF_123456789",
+  data_disponibilizacao: "2026-10-01",
+  siglaTribunal: "TJDFT",
+  tipoComunicacao: "Intimação",
+  nomeOrgao: "1ª Vara",
+  texto: "<p>Publicação oficial</p>",
+  numero_processo: "00000000020268070000",
+  numeroComunicacao: 987,
+  ativo: true,
+};
 
 describe("DataJud court mapping", () => {
   it("recognizes explicit court labels and CNJ numbering without guessing unsupported courts", () => {
@@ -80,6 +106,27 @@ describe("DataJud court mapping", () => {
   });
 });
 
+describe("DJEN public reader", () => {
+  it("sanitizes publication HTML and keeps deterministic evidence identity", () => {
+    const publication = { ...djenItem, texto: "<p>Intimação &amp; conteúdo</p><script>alert(1)</script>" };
+    const body = djenPublicationBody(publication);
+    expect(body).toContain("Intimação & conteúdo");
+    expect(body).toContain("Conselho Nacional de Justiça");
+    expect(body).not.toContain("<script>");
+    expect(body).not.toContain("alert(1)");
+    expect(djenPublicationIdentity(publication)).toEqual(djenPublicationIdentity(publication));
+  });
+
+  it("stops on rate limiting instead of retrying automatically", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("rate limited", {
+      status: 429,
+      headers: { "retry-after": "60" },
+    })));
+    await expect(fetchDjenPublications(matter.number)).rejects.toBeInstanceOf(DjenRateLimitError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Court Push safety", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -92,15 +139,17 @@ describe("Court Push safety", () => {
     vi.stubGlobal("fetch", vi.fn());
   });
 
-  it("never queries a public source for a secret matter", async () => {
-    const result = await syncMatterFromDataJud({ ...matter, secrecy: true });
-    expect(result.skipped).toBe("secret-matter");
+  it("never queries public court sources for a secret matter", async () => {
+    const datajud = await syncMatterFromDataJud({ ...matter, secrecy: true });
+    const djen = await syncMatterFromDjen({ ...matter, secrecy: true });
+    expect(datajud.skipped).toBe("secret-matter");
+    expect(djen.skipped).toBe("secret-matter");
     expect(fetch).not.toHaveBeenCalled();
     expect(db.courtCommunication.createMany).not.toHaveBeenCalled();
   });
 
-  it("bootstraps only the latest movement and creates no deadline", async () => {
-    vi.mocked(fetch).mockResolvedValue(response([
+  it("bootstraps only the latest DataJud movement and creates no deadline", async () => {
+    vi.mocked(fetch).mockResolvedValue(dataJudResponse([
       { codigo: 1, nome: "Distribuição", dataHora: "2026-09-01T10:00:00Z" },
       { codigo: 51, nome: "Juntada", dataHora: "2026-10-01T10:00:00Z" },
     ]));
@@ -113,16 +162,17 @@ describe("Court Push safety", () => {
     const createArg = db.courtCommunication.createMany.mock.calls[0][0];
     expect(createArg.data).toHaveLength(1);
     expect(createArg.data[0].title).toBe("Juntada");
-    expect(JSON.stringify(createArg)).not.toContain("Deadline");
+    expect(createArg.data[0].requiresAction).toBe(false);
+    expect(JSON.stringify(createArg)).not.toContain("\"status\":\"CONFIRMED\"");
     expect(db.userNotification.create).not.toHaveBeenCalled();
   });
 
-  it("deduplicates upstream retries and only notifies authorized responsible users", async () => {
+  it("deduplicates DataJud retries and only notifies authorized responsible users", async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce(response([
+      .mockResolvedValueOnce(dataJudResponse([
         { codigo: 51, nome: "Juntada", dataHora: "2026-10-01T10:00:00Z" },
       ]))
-      .mockResolvedValueOnce(response([
+      .mockResolvedValueOnce(dataJudResponse([
         { codigo: 51, nome: "Juntada", dataHora: "2026-10-01T10:00:00Z" },
       ]));
     db.courtCommunication.count.mockResolvedValue(1);
@@ -141,5 +191,34 @@ describe("Court Push safety", () => {
     expect(blocked.notified).toBe(0);
     expect(db.userNotification.create).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("stores a DJEN publication as review-only evidence and sends only generic authorized push", async () => {
+    vi.mocked(fetch).mockResolvedValue(djenResponse([djenItem]));
+    db.courtCommunication.count.mockResolvedValue(0);
+    db.courtCommunication.createMany.mockResolvedValue({ count: 1 });
+    db.courtCommunication.findUniqueOrThrow.mockResolvedValue({ id: "djen-communication-1" });
+    access.mockResolvedValue(true);
+
+    const result = await syncMatterFromDjen({ ...matter, ownerUserId: "owner" });
+    expect(result.imported).toBe(1);
+    expect(result.notified).toBe(1);
+
+    const createArg = db.courtCommunication.createMany.mock.calls[0][0];
+    const stored = createArg.data[0];
+    expect(stored.source).toBe("DJEN");
+    expect(stored.type).toBe("COURT_PUBLICATION");
+    expect(stored.requiresAction).toBe(false);
+    expect(stored.officialUrl).toContain("/certidao");
+    expect(stored.body).toContain("revisão humana");
+    expect(JSON.stringify(createArg)).not.toContain("\"status\":\"CONFIRMED\"");
+
+    expect(db.userNotification.create).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith("owner", expect.objectContaining({
+      title: "Nova publicação oficial no DJEN",
+      url: "/app/inbox",
+    }));
+    expect(JSON.stringify(push.mock.calls[0][1])).not.toContain(matter.number);
+    expect(JSON.stringify(push.mock.calls[0][1])).not.toContain("Publicação oficial");
   });
 });
