@@ -1,6 +1,6 @@
 import { MatterRecords } from "@/components/matter-records";
 import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
-import { deadlineTimelineDetail } from "@/lib/deadlines/presentation";
+import { countsAsConfirmedDeadlineRecord, deadlineTimelineDetail } from "@/lib/deadlines/presentation";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, Clock3, FileText, Landmark, LockKeyhole, ScrollText } from "lucide-react";
@@ -45,6 +45,7 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
 
   const nextDeadline=matter.deadlines.find(d=>["CONFIRMED","IN_PROGRESS"].includes(d.status)&&d.dueAt);
   const openTasks=matter.tasks.filter(t=>!["DONE","CANCELLED"].includes(t.status));
+  const confirmedDeadlineCount=matter.deadlines.filter(d=>countsAsConfirmedDeadlineRecord(d.status)).length;
 
   return <div className="page-stack">
     <section className="matter-hero">
@@ -90,7 +91,7 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
           <div className="matter-links">
             <span><FileText size={15}/><b>{matter.documents.length}</b> documentos</span>
             <span><ScrollText size={15}/><b>{matter.contracts.length}</b> contratos</span>
-            <span><CalendarClock size={15}/><b>{matter.deadlines.length}</b> prazos</span>
+            <span><CalendarClock size={15}/><b>{confirmedDeadlineCount}</b> prazos confirmados</span>
             <span><Landmark size={15}/><b>—</b> financeiro</span>
           </div>
         </article>
