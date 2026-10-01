@@ -165,6 +165,8 @@ export function dataJudMovementBody(movement: DataJudMovement) {
     movement.nome?.trim() || (movement.codigo != null ? `Movimentação TPU ${movement.codigo}` : "Movimentação processual"),
     movement.dataHora ? `Ocorrência informada pelo DataJud: ${movement.dataHora}` : null,
     movement.orgaoJulgador?.nomeOrgao ? `Órgão julgador: ${movement.orgaoJulgador.nomeOrgao}` : null,
+    "Fonte: Conselho Nacional de Justiça (CNJ) / DataJud.",
+    "Informação sujeita à atualização pelo tribunal de origem e à revisão humana no MBLZ.",
   ].filter(Boolean);
   return parts.join("\n");
 }
