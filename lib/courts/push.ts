@@ -8,6 +8,14 @@ import {
   fetchDataJudProcess,
   orderedDataJudMovements,
 } from "@/lib/courts/datajud";
+import {
+  djenOfficialUrl,
+  djenPublicationBody,
+  djenPublicationDate,
+  djenPublicationIdentity,
+  fetchDjenPublications,
+  type DjenPublication,
+} from "@/lib/courts/djen";
 
 export type CourtPushMatter = {
   id: string;
@@ -24,10 +32,19 @@ export type CourtPushResult = {
   imported: number;
   notified: number;
   skipped?: string;
+  truncated?: boolean;
 };
 
-async function notifyMatterUsers(matter: CourtPushMatter, communicationId: string) {
+async function notifyMatterUsers(
+  matter: CourtPushMatter,
+  communicationId: string,
+  kind: "movement" | "publication",
+) {
   const recipients = [...new Set([matter.ownerUserId, matter.responsibleUserId].filter((value): value is string => Boolean(value)))];
+  const title = kind === "publication" ? "Nova publicação oficial no DJEN" : "Nova movimentação de tribunal";
+  const body = kind === "publication"
+    ? "Abra a Caixa Jurídica para revisar a publicação. Nenhum prazo foi criado automaticamente."
+    : "Abra a Caixa Jurídica para revisar a atualização. Nenhum prazo foi criado automaticamente.";
   let notified = 0;
 
   for (const userId of recipients) {
@@ -38,14 +55,14 @@ async function notifyMatterUsers(matter: CourtPushMatter, communicationId: strin
         userId,
         type: "COURT_UPDATE",
         severity: "INFO",
-        title: "Nova movimentação de tribunal",
-        body: "Abra a Caixa Jurídica para revisar a atualização. Nenhum prazo foi criado automaticamente.",
+        title,
+        body,
         entityType: "CourtCommunication",
         entityId: communicationId,
       },
     });
     await sendPushToUser(userId, {
-      title: "Nova movimentação de tribunal",
+      title,
       body: "Abra a Caixa Jurídica para revisar a atualização.",
       url: "/app/inbox",
       tag: `court-update-${communicationId}`,
@@ -117,8 +134,85 @@ export async function syncMatterFromDataJud(matter: CourtPushMatter): Promise<Co
       },
       select: { id: true },
     });
-    notified += await notifyMatterUsers(matter, communication.id);
+    notified += await notifyMatterUsers(matter, communication.id, "movement");
   }
 
   return { matterId: matter.id, imported, notified };
+}
+
+function publicationTime(publication: DjenPublication) {
+  return djenPublicationDate(publication)?.getTime() ?? 0;
+}
+
+export async function syncMatterFromDjen(matter: CourtPushMatter): Promise<CourtPushResult> {
+  if (matter.secrecy) return { matterId: matter.id, imported: 0, notified: 0, skipped: "secret-matter" };
+  if (!matter.number) return { matterId: matter.id, imported: 0, notified: 0, skipped: "missing-number" };
+
+  const lookup = await fetchDjenPublications(matter.number);
+  const publications = lookup.publications.slice().sort((a, b) => publicationTime(a) - publicationTime(b));
+  if (publications.length === 0) {
+    return { matterId: matter.id, imported: 0, notified: 0, skipped: "no-publications", truncated: lookup.truncated };
+  }
+
+  const hasBaseline = await prisma.courtCommunication.count({
+    where: { workspaceId: matter.workspaceId, matterId: matter.id, source: "DJEN" },
+  }) > 0;
+  const newestIndex = publications.length - 1;
+  let imported = 0;
+  let notified = 0;
+
+  for (const [index, publication] of publications.entries()) {
+    const { externalId, contentHash } = djenPublicationIdentity(publication);
+    const publishedAt = djenPublicationDate(publication);
+    const evidence = JSON.parse(JSON.stringify({
+      provider: "CNJ_DJEN_PUBLIC",
+      queryWindow: lookup.window,
+      publication,
+      deadlineSafety: "NO_AUTOMATIC_DEADLINE",
+      requiresHumanReview: true,
+    })) as Prisma.InputJsonValue;
+
+    const create = await prisma.courtCommunication.createMany({
+      data: [{
+        workspaceId: matter.workspaceId,
+        matterId: matter.id,
+        source: "DJEN",
+        externalId,
+        type: "COURT_PUBLICATION",
+        title: publication.tipoComunicacao?.trim()
+          ? `DJEN · ${publication.tipoComunicacao.trim()}`
+          : "DJEN · Publicação oficial",
+        body: djenPublicationBody(publication),
+        publishedAt,
+        availableAt: publishedAt,
+        officialUrl: djenOfficialUrl(publication),
+        contentHash,
+        status: "NEW",
+        requiresAction: false,
+        payload: evidence,
+      }],
+      skipDuplicates: true,
+    });
+    if (create.count === 0) continue;
+
+    imported += 1;
+    const communication = await prisma.courtCommunication.findUniqueOrThrow({
+      where: {
+        workspaceId_source_externalId: {
+          workspaceId: matter.workspaceId,
+          source: "DJEN",
+          externalId,
+        },
+      },
+      select: { id: true },
+    });
+
+    // On first activation preserve all recent evidence but notify only the newest item.
+    // Subsequent polls notify every genuinely new publication.
+    if (hasBaseline || index === newestIndex) {
+      notified += await notifyMatterUsers(matter, communication.id, "publication");
+    }
+  }
+
+  return { matterId: matter.id, imported, notified, truncated: lookup.truncated };
 }
