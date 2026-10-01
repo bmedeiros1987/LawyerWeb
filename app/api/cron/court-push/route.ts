@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { syncMatterFromDataJud, type CourtPushMatter } from "@/lib/courts/push";
 
 const BATCH_SIZE = 60;
 
 async function rotatingBatch(): Promise<CourtPushMatter[]> {
-  const where = { secrecy: false, status: "ACTIVE", number: { not: null as null | string } };
+  const where = { secrecy: false, status: "ACTIVE", number: { not: null } } satisfies Prisma.MatterWhereInput;
   const total = await prisma.matter.count({ where });
   if (!total) return [];
 
