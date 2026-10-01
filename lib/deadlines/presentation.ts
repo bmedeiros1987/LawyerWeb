@@ -18,3 +18,11 @@ const HIGH_RISK_LEVELS = new Set(["CRITICAL", "HIGH"]);
 export function countsAsHighRiskDeadline(status: string, risk: string): boolean {
   return OPERATIONAL_STATUSES.has(status) && HIGH_RISK_LEVELS.has(risk);
 }
+
+export function isOverdueConfirmedDeadline(
+  status: string,
+  dueAt: Date | null | undefined,
+  now: Date,
+): boolean {
+  return OPERATIONAL_STATUSES.has(status) && Boolean(dueAt && dueAt < now);
+}

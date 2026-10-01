@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { DeadlineConfirm } from "@/components/deadline-confirm";
+import { isOverdueConfirmedDeadline } from "@/lib/deadlines/presentation";
 
 export const dynamic="force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function Page() {
       <div className="table-head deadlines"><span>Prazo</span><span>Responsável</span><span>Controle</span><span>Risco</span><span>Ação</span></div>
       {deadlines.map(d=>{
         const candidate=["CANDIDATE","PENDING_CONFIRMATION"].includes(d.status);
-        const late=Boolean(d.dueAt&&d.dueAt<now&&!["COMPLETED"].includes(d.status));
+        const late=isOverdueConfirmedDeadline(d.status,d.dueAt,now);
         return <div className="table-row deadlines" key={d.id}>
           <div className="matter-name"><span className="table-icon"><Clock3 size={16}/></span><div><strong>{d.title}</strong><small>{d.matter?<Link href={"/app/processos/"+d.matter.id}>{d.matter.number??d.matter.title}</Link>:(d.source??"Sem processo")}{d.dueAt?" · "+(candidate?"sugerido ":"legal ")+d.dueAt.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):""}</small></div></div>
           <span>{d.primaryResponsibleUserId?names.get(d.primaryResponsibleUserId)??"Usuário":"Não definido"}</span>
