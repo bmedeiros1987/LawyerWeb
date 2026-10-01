@@ -1,5 +1,7 @@
 # MBLZ Push — Tribunais
 
+> **Escopo desta funcionalidade: MONITORAMENTO de processos já cadastrados.** O MBLZ só consulta o DataJud e o DJEN para processos que já existem no MBLZ, são públicos, estão ativos e têm número CNJ. **Não existe descoberta/importação de processos por advogado** (OAB/nome): ver "Monitoramento × descoberta" abaixo.
+
 ## Escopo v1
 
 A primeira versão usa duas fontes públicas oficiais do Conselho Nacional de Justiça:
@@ -58,6 +60,60 @@ Nenhuma data de disponibilização do DJEN é tratada, por si só, como termo in
 - o conector não usa OpenClaw e não habilita Cross-System ACTION;
 - não existe escrita automática em `MatterMovement`, evitando atribuir a uma pessoa uma ação que ela não praticou.
 
+## Contadores e prova de entrega
+
+Os resultados (`POST /api/cron/court-push` e a atualização manual) separam três coisas que **não** são equivalentes:
+
+| Campo | Significa | Não significa |
+|---|---|---|
+| `imported` | comunicações novas gravadas em `CourtCommunication` | notificação |
+| `inAppNotified` | notificações dentro do MBLZ (`UserNotification`) gravadas, na mesma transação da comunicação | que o aparelho recebeu algo |
+| `push.accepted` | o serviço de push do navegador (FCM/APNs/Mozilla) **aceitou** o envio (HTTP 2xx) | **entrega**: ninguém no servidor sabe se o aparelho exibiu |
+| `push.skippedNoVapid` | push **não tentado**: VAPID não configurado no ambiente | — |
+| `push.skippedNoSubscription` | push não tentado: o usuário não tem aparelho registrado | — |
+| `push.failed` / `push.removed` | recusado/erro; assinatura expirada (404/410) removida | — |
+
+O contador antigo `notified` foi removido: ele contava usuários com notificação *interna* criada e ignorava o resultado do Web Push, de modo que parecia prova de entrega mesmo com VAPID ausente ou com todas as tentativas recusadas. A resposta traz `pushNote` lembrando isso.
+
+A ingestão e a notificação interna são **uma única transação**: se a gravação da notificação falhar, nada é gravado e a próxima consulta tenta de novo (pelo menos uma vez). O Web Push é enviado **depois** do commit, é melhor-esforço e sua falha nunca desfaz a ingestão. Um destinatário que perdeu acesso ao processo (ou saiu do escritório) é simplesmente ignorado e não bloqueia os demais.
+
+Só o aparelho prova entrega. Use o roteiro abaixo.
+
+## Agendamento
+
+**Nada no repositório agenda a consulta aos tribunais.** Não há `render.yaml`, `vercel.json`, workflow de GitHub Actions nem outro job que chame `POST /api/cron/court-push`; o endpoint só existe. Sem um agendador externo, o MBLZ só consulta quando alguém clica em **Atualizar tribunais**. (O mesmo vale para `/api/cron/deadline-safety` e os crons do Google, que também dependem de agendador externo.)
+
+Configuração necessária, fora do código e sem custo definido aqui:
+- um agendador externo (cron do host, Render Cron Job, GitHub Actions agendado, etc.);
+- `POST https://<host>/api/cron/court-push` com `Authorization: Bearer <CRON_SECRET>` (o segredo já existente) a cada **15 minutos**;
+- o plano/serviço do agendador precisa ser aprovado separadamente.
+
+Rodízio: cada execução consulta no máximo **30 processos no DataJud e 5 no DJEN**. O ponto de partida é calculado por uma sequência de baixa discrepância (razão áurea) sobre o horário, então todos os processos são visitados com qualquer cadência de agendador (a fórmula anterior só funcionava com exatamente uma execução a cada 15 minutos e, com um agendador de hora em hora, nunca chegava aos processos 31 em diante).
+
+Capacidade: com execuções a cada 15 minutos o DJEN cobre no máximo ~480 processos por dia (5 × 96). Como a janela consultada é **ontem + hoje**, um processo que fique mais de ~1 dia sem ser consultado pode ter publicações **não capturadas**. Acima de algumas centenas de processos ativos o DJEN deixa de cobrir todos a tempo com o limite atual; ajuste de lote/cadência é decisão operacional (respeitando o rate limit por IP).
+
+## Monitoramento × descoberta
+
+| | Monitoramento (implementado) | Descoberta/importação por advogado (**não implementado**) |
+|---|---|---|
+| Ponto de partida | processo **já cadastrado** no MBLZ com número CNJ | OAB/nome do advogado |
+| O que faz | consulta novidades daquele processo e avisa o responsável | listaria processos do advogado e proporia cadastrá-los |
+| Estado | em PR (draft #47) | não existe código, rota nem tela |
+
+Descobrir processos por advogado seria outra funcionalidade: exigiria checar na documentação oficial do CNJ quais filtros as APIs públicas aceitam, consentimento e vínculo do advogado com a OAB, revisão humana antes de criar qualquer processo, e tratamento de sigilo (dados públicos não indicam com segurança se um processo é sigiloso). Nada disso foi feito nem consultado.
+
+## Roteiro curto: comprovar uma notificação no aparelho
+
+Sem tocar em dados reais, sem cron e sem refresh.
+1. **Servidor:** confirmar no ambiente que `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` existem (o teste do passo 4 acusa se não existirem).
+2. **Aparelho:** abrir o MBLZ no navegador/PWA (no iPhone, primeiro “Adicionar à Tela de Início” e abrir pelo ícone), entrar e ir em **Integrações**.
+3. Tocar **Ativar push** e permitir notificações.
+4. Tocar **Testar push**. A tela informa uma destas respostas: *sem VAPID*, *nenhum aparelho registrado*, *aceito pelo serviço de push para N aparelho(s)* ou *recusado (código)*.
+5. **Prova:** a notificação “MBLZ · teste de notificação” aparece no aparelho (tela bloqueada incluída). Tocar nela deve abrir `/app/integrations`. Registrar aparelho, sistema, horário e uma captura de tela.
+6. Só depois, para o push real dos tribunais: com o agendador configurado (ou um processo de teste combinado com o responsável), conferir no aparelho a notificação genérica “Nova movimentação de tribunal” / “Nova publicação oficial no DJEN” e que **não** traz número, partes ou conteúdo.
+
+Se o passo 4 disser *aceito* e nada aparecer: permissão do sistema, modo foco/economia de bateria ou PWA não instalado (iOS). *Aceito* sem exibição não é falha do MBLZ, mas também **não é entrega**.
+
 ## Execução
 
 Atualização autenticada:
@@ -73,7 +129,7 @@ Polling protegido:
 - usa lotes rotativos: DataJud até 30 e DJEN até 5 processos;
 - não introduz secret novo, migration ou plano pago.
 
-A existência do endpoint não significa que um agendador externo esteja configurado. Essa configuração deve ser validada separadamente no ambiente.
+A existência do endpoint não significa que um agendador externo esteja configurado: **não está** (ver "Agendamento").
 
 ## Domicílio Judicial Eletrônico
 
