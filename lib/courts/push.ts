@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canAccessMatter, P } from "@/lib/authz/permissions";
 import { sendPushToUser } from "@/lib/push/webpush";
@@ -77,6 +78,16 @@ export async function syncMatterFromDataJud(matter: CourtPushMatter): Promise<Co
 
   for (const movement of candidates) {
     const { externalId, contentHash } = dataJudMovementIdentity(lookup.process.id, movement);
+    const evidence = JSON.parse(JSON.stringify({
+      provider: "CNJ_DATAJUD_PUBLIC",
+      alias: lookup.alias,
+      datajudProcessId: lookup.process.id,
+      tribunal: lookup.process.tribunal ?? null,
+      numeroProcesso: lookup.process.numeroProcesso ?? matter.number,
+      dataHoraUltimaAtualizacao: lookup.process.dataHoraUltimaAtualizacao ?? null,
+      movement,
+      deadlineSafety: "NO_AUTOMATIC_DEADLINE",
+    })) as Prisma.InputJsonValue;
     const create = await prisma.courtCommunication.createMany({
       data: [{
         workspaceId: matter.workspaceId,
@@ -89,16 +100,7 @@ export async function syncMatterFromDataJud(matter: CourtPushMatter): Promise<Co
         contentHash,
         status: "NEW",
         requiresAction: false,
-        payload: {
-          provider: "CNJ_DATAJUD_PUBLIC",
-          alias: lookup.alias,
-          datajudProcessId: lookup.process.id,
-          tribunal: lookup.process.tribunal ?? null,
-          numeroProcesso: lookup.process.numeroProcesso ?? matter.number,
-          dataHoraUltimaAtualizacao: lookup.process.dataHoraUltimaAtualizacao ?? null,
-          movement,
-          deadlineSafety: "NO_AUTOMATIC_DEADLINE",
-        },
+        payload: evidence,
       }],
       skipDuplicates: true,
     });
