@@ -1,4 +1,4 @@
-import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
+import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail, RefreshCw } from "lucide-react";
 import { PushOptIn } from "@/components/push-opt-in";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +25,18 @@ export default async function Page() {
     ? await prisma.openClawConnection.findUnique({ where: { workspaceId: membership.workspaceId } })
     : null;
   const openClawState = openClawConnectionState(openClaw);
+  const lastCourtPush = membership
+    ? await prisma.courtCommunication.findFirst({
+        where: { workspaceId: membership.workspaceId, source: "DATAJUD" },
+        select: { receivedAt: true },
+        orderBy: { receivedAt: "desc" },
+      })
+    : null;
+  const lastCourtPushLabel = lastCourtPush?.receivedAt.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: membership?.workspace.timezone ?? "America/Sao_Paulo",
+  });
 
   return <div className="page-stack">
     <section className="page-header">
@@ -72,8 +84,19 @@ export default async function Page() {
 
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#59616d"}}><Cloud size={19}/></div>
-        <div><strong>MBLZ Push — Tribunais</strong><span>DJEN, DataJud, Domicílio Judicial e conectores permitidos.</span></div>
-        <span className="status-pill quiet">Em preparação</span>
+        <div>
+          <strong>MBLZ Push — Tribunais</strong>
+          <span>
+            DataJud público em modo leitura: movimentações entram na Caixa Jurídica para revisão e nunca confirmam prazo automaticamente.
+            {lastCourtPushLabel ? ` Última entrada capturada: ${lastCourtPushLabel}.` : " Nenhuma entrada DataJud foi capturada neste workspace ainda."}
+            {" "}DJEN e Domicílio Judicial exigem integração oficial separada.
+          </span>
+        </div>
+        {membership
+          ? <form action="/api/integrations/court-push/refresh" method="post">
+              <button className="new-button"><RefreshCw size={15}/>Atualizar DataJud</button>
+            </form>
+          : <span className="status-pill quiet">Aguardando setup</span>}
       </article>
 
       <article className="integration-card">
