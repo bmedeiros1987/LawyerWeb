@@ -12,6 +12,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
+    // Render build hosts can expose many CPUs; bound Next's page-data worker pool.
+    cpus: 4,
     staticGenerationMaxConcurrency: 4,
     staticGenerationMinPagesPerWorker: 8,
   },
