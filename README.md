@@ -73,7 +73,13 @@ npm run dev
 
 ## Render
 
-O repositório contém `render.yaml`. Segredos OAuth devem ser configurados no Dashboard do Render e **nunca** commitados no GitHub.
+A produção é configurada atualmente pelo **Dashboard do Render**; não há `render.yaml` versionado na `main`. Não assuma que alterações de Blueprint serão aplicadas ao serviço existente.
+
+O serviço de produção usa auto-deploy a partir da `main`. Depois de um merge, acompanhe o deploy automático em vez de disparar um deploy manual duplicado.
+
+Segredos OAuth e demais credenciais devem ser configurados no Dashboard do Render e **nunca** commitados no GitHub.
+
+O endpoint `/api/health` existe para verificação de disponibilidade. O health check nativo do serviço Render deve ser configurado explicitamente no Dashboard antes do lançamento externo.
 
 Variáveis necessárias:
 
