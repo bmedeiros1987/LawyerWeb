@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { syncMatterFromDataJud, type CourtPushMatter } from "@/lib/courts/push";
+import { DjenRateLimitError } from "@/lib/courts/djen";
+import { syncMatterFromDataJud, syncMatterFromDjen, type CourtPushMatter } from "@/lib/courts/push";
 
-const BATCH_SIZE = 60;
+const DATAJUD_BATCH_SIZE = 30;
+const DJEN_BATCH_SIZE = 5;
 
-async function rotatingBatch(): Promise<CourtPushMatter[]> {
+async function rotatingBatch(size: number): Promise<CourtPushMatter[]> {
   const where = { secrecy: false, status: "ACTIVE", number: { not: null } } satisfies Prisma.MatterWhereInput;
   const total = await prisma.matter.count({ where });
   if (!total) return [];
 
-  const take = Math.min(BATCH_SIZE, total);
+  const take = Math.min(size, total);
   const window = Math.floor(Date.now() / (15 * 60 * 1000));
   const skip = total > take ? (window * take) % total : 0;
   const select = {
@@ -41,13 +43,7 @@ async function rotatingBatch(): Promise<CourtPushMatter[]> {
   return [...first, ...remainder];
 }
 
-export async function POST(request: NextRequest) {
-  const secret = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const matters = await rotatingBatch();
+async function pollDataJud(matters: CourtPushMatter[]) {
   let imported = 0;
   let notified = 0;
   let errors = 0;
@@ -57,13 +53,11 @@ export async function POST(request: NextRequest) {
     const batch = matters.slice(index, index + 5);
     const results = await Promise.all(batch.map(async matter => {
       try {
-        const result = await syncMatterFromDataJud(matter);
-        return { result, error: false };
+        return { result: await syncMatterFromDataJud(matter), error: false };
       } catch {
         return { result: null, error: true };
       }
     }));
-
     for (const item of results) {
       checked += 1;
       if (item.error || !item.result) {
@@ -75,13 +69,58 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  return { checked, imported, notified, errors };
+}
+
+async function pollDjen(matters: CourtPushMatter[]) {
+  let checked = 0;
+  let imported = 0;
+  let notified = 0;
+  let errors = 0;
+  let truncated = 0;
+  let rateLimited = false;
+
+  for (const matter of matters) {
+    try {
+      const result = await syncMatterFromDjen(matter);
+      checked += 1;
+      imported += result.imported;
+      notified += result.notified;
+      if (result.truncated) truncated += 1;
+    } catch (error) {
+      if (error instanceof DjenRateLimitError) {
+        rateLimited = true;
+        break;
+      }
+      checked += 1;
+      errors += 1;
+    }
+  }
+
+  return { checked, imported, notified, errors, truncated, rateLimited };
+}
+
+export async function POST(request: NextRequest) {
+  const secret = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const [datajudMatters, djenMatters] = await Promise.all([
+    rotatingBatch(DATAJUD_BATCH_SIZE),
+    rotatingBatch(DJEN_BATCH_SIZE),
+  ]);
+  const [datajud, djen] = await Promise.all([
+    pollDataJud(datajudMatters),
+    pollDjen(djenMatters),
+  ]);
+
   return NextResponse.json({
     ok: true,
-    source: "CNJ_DATAJUD_PUBLIC",
-    checked,
-    imported,
-    notified,
-    errors,
+    sources: ["CNJ_DATAJUD_PUBLIC", "CNJ_DJEN_PUBLIC"],
+    datajud,
+    djen,
     deadlineWrites: 0,
+    externalActions: 0,
   });
 }
