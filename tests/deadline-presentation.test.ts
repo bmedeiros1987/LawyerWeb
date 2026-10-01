@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countsAsHighRiskDeadline, deadlineTimelineDetail, isOverdueConfirmedDeadline } from "@/lib/deadlines/presentation";
+import { countsAsConfirmedDeadlineRecord, countsAsHighRiskDeadline, deadlineTimelineDetail, isOverdueConfirmedDeadline } from "@/lib/deadlines/presentation";
 
 const format = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -68,4 +68,17 @@ describe("deadline overdue classification", () => {
   it("não marca prazo concluído como vencido", () => {
     expect(isOverdueConfirmedDeadline("COMPLETED", past, now)).toBe(false);
   });
+});
+
+
+describe("deadline confirmed-record count", () => {
+  it.each(["CANDIDATE", "PENDING_CONFIRMATION", "CANCELLED"])(
+    "não conta %s como prazo confirmado no resumo do processo",
+    (status) => expect(countsAsConfirmedDeadlineRecord(status)).toBe(false),
+  );
+
+  it.each(["CONFIRMED", "IN_PROGRESS", "COMPLETED"])(
+    "conta %s como registro de prazo confirmado",
+    (status) => expect(countsAsConfirmedDeadlineRecord(status)).toBe(true),
+  );
 });
