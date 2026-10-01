@@ -11,3 +11,10 @@ export function deadlineTimelineDetail(
   if (status === "CANCELLED") return "Prazo cancelado";
   return dueAt ? `Prazo confirmado: ${formatDate(dueAt)}` : "Prazo confirmado sem data definida";
 }
+
+const OPERATIONAL_STATUSES = new Set(["CONFIRMED", "IN_PROGRESS"]);
+const HIGH_RISK_LEVELS = new Set(["CRITICAL", "HIGH"]);
+
+export function countsAsHighRiskDeadline(status: string, risk: string): boolean {
+  return OPERATIONAL_STATUSES.has(status) && HIGH_RISK_LEVELS.has(risk);
+}
