@@ -1,5 +1,5 @@
 import { MatterRecords } from "@/components/matter-records";
-import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";
+import { contractScope, deadlineScope, documentScope, inboxScope, taskScope } from "@/lib/authz/visibility";\nimport { deadlineTimelineDetail } from "@/lib/deadlines/presentation";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BellRing, BriefcaseBusiness, CalendarClock, CheckCircle2, Clock3, FileText, Landmark, LockKeyhole, ScrollText } from "lucide-react";
@@ -36,7 +36,7 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
   const responsible=matter.responsibleUserId?await prisma.user.findUnique({where:{id:matter.responsibleUserId},select:{name:true,email:true}}):null;
   const timeline=[
     ...matter.communications.map(x=>({type:"COMMUNICATION",at:x.receivedAt,title:x.title??"Comunicação processual",detail:x.source,status:x.status,id:x.id})),
-    ...matter.deadlines.map(x=>({type:"DEADLINE",at:x.createdAt,title:x.title,detail:x.dueAt?"Prazo: "+when(x.dueAt):"Prazo candidato",status:x.risk,id:x.id})),
+    ...matter.deadlines.map(x=>({type:"DEADLINE",at:x.createdAt,title:x.title,detail:deadlineTimelineDetail(x.status,x.dueAt,when),status:x.risk,id:x.id})),
     ...matter.tasks.map(x=>({type:"TASK",at:x.createdAt,title:x.title,detail:x.dueAt?"Entrega: "+when(x.dueAt):"Sem prazo",status:x.status,id:x.id})),
     ...matter.documents.map(x=>({type:"DOCUMENT",at:x.updatedAt,title:x.name,detail:"Versão "+x.currentVersion,status:x.status,id:x.id})),
     ...matter.contracts.map(x=>({type:"CONTRACT",at:x.updatedAt,title:x.title,detail:x.counterparty??x.contractType,status:x.status,id:x.id})),
