@@ -118,9 +118,13 @@ describe("Court Push safety", () => {
   });
 
   it("deduplicates upstream retries and only notifies authorized responsible users", async () => {
-    vi.mocked(fetch).mockResolvedValue(response([
-      { codigo: 51, nome: "Juntada", dataHora: "2026-10-01T10:00:00Z" },
-    ]));
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response([
+        { codigo: 51, nome: "Juntada", dataHora: "2026-10-01T10:00:00Z" },
+      ]))
+      .mockResolvedValueOnce(response([
+        { codigo: 51, nome: "Juntada", dataHora: "2026-10-01T10:00:00Z" },
+      ]));
     db.courtCommunication.count.mockResolvedValue(1);
     db.courtCommunication.createMany.mockResolvedValueOnce({ count: 0 });
 
