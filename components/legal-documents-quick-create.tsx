@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { FilePlus2, ScrollText } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { QuickCreateShell } from "./quick-create-shell";
 
 type ClientOption={id:string;name:string};
 type MatterOption={id:string;label:string};
@@ -10,13 +11,7 @@ type MemberOption={userId:string;name:string};
 
 function Shell({label,icon,children}:{label:string;icon:"contract"|"document";children:React.ReactNode}) {
   const Icon=icon==="contract"?ScrollText:FilePlus2;
-  return <details className="quick-create">
-    <summary className="new-button"><Icon size={16}/>{label}</summary>
-    <div className="quick-create-popover">
-      <div className="quick-create-head"><strong>{label}</strong><Icon size={16}/></div>
-      {children}
-    </div>
-  </details>;
+  return <QuickCreateShell title={label} summary={<><Icon size={16}/>{label}</>}>{children}</QuickCreateShell>;
 }
 
 export function QuickContractForm({workspaceId,clients,matters,members}:{workspaceId:string;clients:ClientOption[];matters:MatterOption[];members:MemberOption[]}) {

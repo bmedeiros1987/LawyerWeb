@@ -1,17 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { QuickCreateShell } from "./quick-create-shell";
 
 function DialogShell({title,children}:{title:string;children:React.ReactNode}) {
-  return <details className="quick-create">
-    <summary className="new-button"><Plus size={16}/>{title}</summary>
-    <div className="quick-create-popover">
-      <div className="quick-create-head"><strong>{title}</strong><span><X size={15}/></span></div>
-      {children}
-    </div>
-  </details>;
+  return <QuickCreateShell title={title} summary={<><Plus size={16}/>{title}</>}>{children}</QuickCreateShell>;
 }
 
 function ErrorLine({message}:{message:string}) {
