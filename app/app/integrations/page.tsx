@@ -1,5 +1,6 @@
-import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail } from "lucide-react";
+import { BellRing, Bot, CalendarDays, CheckCircle2, Cloud, ExternalLink, Mail, RefreshCw } from "lucide-react";
 import { PushOptIn } from "@/components/push-opt-in";
+import { PushTestButton } from "@/components/push-test-button";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { openClawConnectionState } from "@/lib/agent/connection-state";
@@ -25,6 +26,18 @@ export default async function Page() {
     ? await prisma.openClawConnection.findUnique({ where: { workspaceId: membership.workspaceId } })
     : null;
   const openClawState = openClawConnectionState(openClaw);
+  const lastCourtPush = membership
+    ? await prisma.courtCommunication.findFirst({
+        where: { workspaceId: membership.workspaceId, source: { in: ["DATAJUD", "DJEN"] } },
+        select: { receivedAt: true },
+        orderBy: { receivedAt: "desc" },
+      })
+    : null;
+  const lastCourtPushLabel = lastCourtPush?.receivedAt.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: membership?.workspace.timezone ?? "America/Sao_Paulo",
+  });
 
   return <div className="page-stack">
     <section className="page-header">
@@ -67,13 +80,24 @@ export default async function Page() {
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#655cf6"}}><BellRing size={20}/></div>
         <div><strong>Notificações do dispositivo</strong><span>Prazos críticos, escalonamentos e atualizações importantes no PWA.</span></div>
-        <PushOptIn/>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}><PushOptIn/><PushTestButton/></div>
       </article>
 
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#59616d"}}><Cloud size={19}/></div>
-        <div><strong>MBLZ Push — Tribunais</strong><span>DJEN, DataJud, Domicílio Judicial e conectores permitidos.</span></div>
-        <span className="status-pill quiet">Em preparação</span>
+        <div>
+          <strong>MBLZ Push — Tribunais</strong>
+          <span>
+            CNJ em modo leitura: DataJud traz movimentações e DJEN traz publicações oficiais para a Caixa Jurídica, sempre sujeitas a revisão humana.
+            {lastCourtPushLabel ? ` Última entrada capturada: ${lastCourtPushLabel}.` : " Nenhuma entrada CNJ foi capturada neste workspace ainda."}
+            {" "}Nenhuma publicação confirma prazo automaticamente. Domicílio Judicial exige credencial institucional separada.
+          </span>
+        </div>
+        {membership
+          ? <form action="/api/integrations/court-push/refresh" method="post">
+              <button className="new-button"><RefreshCw size={15}/>Atualizar tribunais</button>
+            </form>
+          : <span className="status-pill quiet">Aguardando setup</span>}
       </article>
 
       <article className="integration-card">
