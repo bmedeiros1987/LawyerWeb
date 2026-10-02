@@ -113,11 +113,52 @@ async function authorizedRecipients(matter: CourtPushMatter) {
   return allowed;
 }
 
-/**
- * Persist one court communication and, in the SAME transaction, the in-app notifications for authorized users.
- * If anything fails the whole thing rolls back, so the next poll sees the item as new and retries (at-least-once).
- * Web Push is sent after commit, is best-effort, and its outcome is reported but never undoes the ingestion.
- */
+/** Persist evidence and its in-app notification in the caller's transaction. */
+async function persistCommunication(
+  tx: Prisma.TransactionClient,
+  matter: CourtPushMatter,
+  source: "DATAJUD" | "DJEN",
+  data: Omit<Prisma.CourtCommunicationUncheckedCreateInput, "workspaceId" | "matterId" | "source">,
+  notify: Kind | null,
+  recipients: string[],
+): Promise<string | null> {
+  const key = { workspaceId_source_externalId: { workspaceId: matter.workspaceId, source, externalId: data.externalId as string } };
+  const create = await tx.courtCommunication.createMany({
+    data: [{ ...data, workspaceId: matter.workspaceId, matterId: matter.id, source }], skipDuplicates: true,
+  });
+  if (create.count === 0) return null;
+  const communication = await tx.courtCommunication.findUniqueOrThrow({ where: key, select: { id: true } });
+  if (notify && recipients.length > 0) {
+    await tx.userNotification.createMany({ data: recipients.map(userId => ({
+      workspaceId: matter.workspaceId, userId, type: "COURT_UPDATE", severity: "INFO",
+      title: COPY[notify].title, body: COPY[notify].body, entityType: "CourtCommunication", entityId: communication.id,
+    })) });
+  }
+  return communication.id;
+}
+
+/** Web Push is best-effort, after commit, and never undoes persisted evidence. */
+async function deliverPush(communicationId: string, notify: Kind | null, recipients: string[]) {
+  const push = emptyPushDelivery();
+  if (!notify) return push;
+  for (const userId of recipients) {
+    push.recipients += 1;
+    try {
+      const sent = await sendPushToUser(userId, {
+        title: COPY[notify].title, body: "Abra a Caixa Jurídica para revisar a atualização.",
+        url: "/app/inbox", tag: `court-update-${communicationId}`,
+      });
+      if (sent.skipped) {
+        if (sent.reason === "VAPID_NOT_CONFIGURED") push.skippedNoVapid += 1; else push.skippedNoSubscription += 1;
+      } else {
+        push.subscriptions += sent.attempted; push.accepted += sent.sent;
+        push.failed += sent.failed; push.removed += sent.removed;
+      }
+    } catch { push.failed += 1; }
+  }
+  return push;
+}
+
 async function recordCommunication(
   matter: CourtPushMatter,
   source: "DATAJUD" | "DJEN",
@@ -126,61 +167,12 @@ async function recordCommunication(
   recipientsOnce: () => Promise<string[]>,
 ): Promise<{ imported: boolean; inAppNotified: number; push: PushDelivery }> {
   const none = { imported: false, inAppNotified: 0, push: emptyPushDelivery() };
-  const externalId = data.externalId as string;
-  const key = { workspaceId_source_externalId: { workspaceId: matter.workspaceId, source, externalId } };
-  if (await prisma.courtCommunication.findUnique({ where: key, select: { id: true } })) return none; // cheap duplicate fast-path
-
+  const key = { workspaceId_source_externalId: { workspaceId: matter.workspaceId, source, externalId: data.externalId as string } };
+  if (await prisma.courtCommunication.findUnique({ where: key, select: { id: true } })) return none;
   const recipients = notify ? await recipientsOnce() : [];
-  const committed = await prisma.$transaction(async tx => {
-    const create = await tx.courtCommunication.createMany({
-      data: [{ ...data, workspaceId: matter.workspaceId, matterId: matter.id, source }],
-      skipDuplicates: true,
-    });
-    if (create.count === 0) return null; // lost a race with a concurrent poll: that poll owns the notification
-    const communication = await tx.courtCommunication.findUniqueOrThrow({ where: key, select: { id: true } });
-    if (notify && recipients.length > 0) {
-      await tx.userNotification.createMany({
-        data: recipients.map(userId => ({
-          workspaceId: matter.workspaceId,
-          userId,
-          type: "COURT_UPDATE",
-          severity: "INFO",
-          title: COPY[notify].title,
-          body: COPY[notify].body,
-          entityType: "CourtCommunication",
-          entityId: communication.id,
-        })),
-      });
-    }
-    return communication.id;
-  });
+  const committed = await prisma.$transaction(tx => persistCommunication(tx, matter, source, data, notify, recipients));
   if (committed === null) return none;
-
-  const push = emptyPushDelivery();
-  if (notify) {
-    for (const userId of recipients) {
-      push.recipients += 1;
-      try {
-        const sent = await sendPushToUser(userId, {
-          title: COPY[notify].title,
-          body: "Abra a Caixa Jurídica para revisar a atualização.",
-          url: "/app/inbox",
-          tag: `court-update-${committed}`,
-        });
-        if (sent.skipped) {
-          if (sent.reason === "VAPID_NOT_CONFIGURED") push.skippedNoVapid += 1; else push.skippedNoSubscription += 1;
-        } else {
-          push.subscriptions += sent.attempted;
-          push.accepted += sent.sent;
-          push.failed += sent.failed;
-          push.removed += sent.removed;
-        }
-      } catch {
-        push.failed += 1; // the push layer must never undo or fail the ingestion
-      }
-    }
-  }
-  return { imported: true, inAppNotified: recipients.length, push };
+  return { imported: true, inAppNotified: recipients.length, push: await deliverPush(committed, notify, recipients) };
 }
 
 const once = <T,>(factory: () => Promise<T>) => {
@@ -188,90 +180,91 @@ const once = <T,>(factory: () => Promise<T>) => {
   return () => (value ??= factory());
 };
 
-function movementTime(movement: { dataHora?: string | null }) {
-  const parsed = movement.dataHora ? Date.parse(movement.dataHora) : NaN;
-  return Number.isNaN(parsed) ? null : parsed;
-}
+type DataJudObservation = { version: 1; initialHistoryIds: string[]; quietRecoveryIds: string[] };
 
-/** Newest movement timestamp already stored for this matter (from the preserved evidence), or null if unknown. */
-async function newestStoredMovementTime(matter: CourtPushMatter) {
-  const rows = await prisma.courtCommunication.findMany({
-    where: { workspaceId: matter.workspaceId, matterId: matter.id, source: "DATAJUD" },
-    select: { payload: true },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
-  let newest: number | null = null;
-  for (const row of rows) {
-    const payload = row.payload as { movement?: { dataHora?: string | null } } | null;
-    const time = payload?.movement ? movementTime(payload.movement) : null;
-    if (time !== null && (newest === null || time > newest)) newest = time;
-  }
-  return newest;
+function payloadObject(payload: Prisma.JsonValue | null): Prisma.JsonObject {
+  return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+}
+function observationFrom(payload: Prisma.JsonValue | null): DataJudObservation | null {
+  const value = payloadObject(payload).datajudObservation;
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.version !== 1) return null;
+  if (!Array.isArray(value.initialHistoryIds) || !value.initialHistoryIds.every(id => typeof id === "string")
+      || !Array.isArray(value.quietRecoveryIds) || !value.quietRecoveryIds.every(id => typeof id === "string")) return null;
+  return { version: 1, initialHistoryIds: value.initialHistoryIds as string[], quietRecoveryIds: value.quietRecoveryIds as string[] };
 }
 
 export async function syncMatterFromDataJud(matter: CourtPushMatter): Promise<CourtPushResult> {
   if (matter.secrecy) return skippedResult(matter.id, "secret-matter");
   if (!matter.number) return skippedResult(matter.id, "missing-number");
-
   const lookup = await fetchDataJudProcess(matter.number, matter.court);
   if (!lookup.process) return skippedResult(matter.id, "not-found");
-
-  const movements = orderedDataJudMovements(lookup.process.movimentos);
+  const process = lookup.process;
+  const movements = orderedDataJudMovements(process.movimentos);
   if (movements.length === 0) return skippedResult(matter.id, "no-movements");
-
-  const hasBaseline = await prisma.courtCommunication.count({
-    where: { workspaceId: matter.workspaceId, matterId: matter.id, source: "DATAJUD" },
-  }) > 0;
-
-  // Bootstrap: only the latest known movement, to avoid flooding the legal inbox with history.
-  // Later polls: only movements at or after the newest one we already hold. Older history is never back-filled
-  // (and therefore never announced); movements sharing the newest timestamp are kept so none is lost.
-  let candidates = movements.slice(-1);
-  if (hasBaseline) {
-    const baseline = await newestStoredMovementTime(matter);
-    if (baseline !== null) {
-      candidates = movements.filter(movement => {
-        const time = movementTime(movement);
-        return time !== null && time >= baseline;
-      }).slice(-50);
-    }
-  }
-
+  const observed = [...new Map(movements.map(movement => {
+    const identity = dataJudMovementIdentity(process.id, movement);
+    return [identity.externalId, { movement, ...identity }] as const;
+  })).values()];
   const recipientsOnce = once(() => authorizedRecipients(matter));
-  let imported = 0;
-  let inAppNotified = 0;
+
+  const batch = await prisma.$transaction(async tx => {
+    // Serialize baseline selection and writes for this tenant/matter, including
+    // overlapping first polls. Hash collisions only serialize unrelated scopes.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${JSON.stringify([matter.workspaceId, matter.id, "DATAJUD"])}))`;
+    const rows = await tx.courtCommunication.findMany({
+      where: { workspaceId: matter.workspaceId, matterId: matter.id, source: "DATAJUD" },
+      select: { id: true, externalId: true, payload: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    const known = new Set(rows.map(row => row.externalId));
+    const bootstrap = rows.length === 0;
+    let observation = rows.map(row => observationFrom(row.payload)).find(value => value !== null) ?? null;
+    if (!observation) {
+      observation = {
+        version: 1,
+        initialHistoryIds: bootstrap ? observed.slice(0, -1).map(item => item.externalId) : [],
+        // Older versions never saved the initial observation. Preserve unknown
+        // evidence quietly instead of guessing history from occurrence times.
+        quietRecoveryIds: bootstrap ? [] : observed.filter(item => !known.has(item.externalId)).map(item => item.externalId),
+      };
+      if (!bootstrap) {
+        const updated = await tx.courtCommunication.updateMany({
+          where: { id: rows[0].id, workspaceId: matter.workspaceId, matterId: matter.id, source: "DATAJUD" },
+          data: { payload: { ...payloadObject(rows[0].payload), datajudObservation: observation } as Prisma.InputJsonValue },
+        });
+        if (updated.count !== 1) throw new Error("DataJud observation anchor changed; retry the poll.");
+      }
+    }
+    const history = new Set(observation.initialHistoryIds);
+    const quiet = new Set(observation.quietRecoveryIds);
+    // Identity determines novelty; occurrence dates only order the work. Filter
+    // persisted identities BEFORE taking 50, so repeated polls drain the backlog.
+    const pending = observed.filter(item => !known.has(item.externalId) && !history.has(item.externalId));
+    const committed: { id: string; notify: Kind | null; recipients: string[] }[] = [];
+    for (const item of pending.slice(0, 50)) {
+      const { movement, externalId, contentHash } = item;
+      const notify = quiet.has(externalId) ? null : "movement";
+      const recipients = notify ? await recipientsOnce() : [];
+      const evidence = JSON.parse(JSON.stringify({
+        provider: "CNJ_DATAJUD_PUBLIC", alias: lookup.alias, datajudProcessId: process.id,
+        tribunal: process.tribunal ?? null, numeroProcesso: process.numeroProcesso ?? matter.number,
+        dataHoraUltimaAtualizacao: process.dataHoraUltimaAtualizacao ?? null, movement,
+        deadlineSafety: "NO_AUTOMATIC_DEADLINE",
+        ...(bootstrap ? { datajudObservation: observation } : {}),
+      })) as Prisma.InputJsonValue;
+      const id = await persistCommunication(tx, matter, "DATAJUD", {
+        externalId, contentHash, type: "PROCESS_MOVEMENT",
+        title: movement.nome?.trim() || (movement.codigo != null ? `Movimentação TPU ${movement.codigo}` : "Movimentação processual"),
+        body: dataJudMovementBody(movement), status: "NEW", requiresAction: false, payload: evidence,
+      }, notify, recipients);
+      if (id !== null) committed.push({ id, notify, recipients });
+    }
+    return { committed, truncated: pending.length > 50 };
+  });
+
   let push = emptyPushDelivery();
-
-  for (const movement of candidates) {
-    const { externalId, contentHash } = dataJudMovementIdentity(lookup.process.id, movement);
-    const evidence = JSON.parse(JSON.stringify({
-      provider: "CNJ_DATAJUD_PUBLIC",
-      alias: lookup.alias,
-      datajudProcessId: lookup.process.id,
-      tribunal: lookup.process.tribunal ?? null,
-      numeroProcesso: lookup.process.numeroProcesso ?? matter.number,
-      dataHoraUltimaAtualizacao: lookup.process.dataHoraUltimaAtualizacao ?? null,
-      movement,
-      deadlineSafety: "NO_AUTOMATIC_DEADLINE",
-    })) as Prisma.InputJsonValue;
-    const outcome = await recordCommunication(matter, "DATAJUD", {
-      externalId,
-      type: "PROCESS_MOVEMENT",
-      title: movement.nome?.trim() || (movement.codigo != null ? `Movimentação TPU ${movement.codigo}` : "Movimentação processual"),
-      body: dataJudMovementBody(movement),
-      contentHash,
-      status: "NEW",
-      requiresAction: false,
-      payload: evidence,
-    }, "movement", recipientsOnce);
-    if (!outcome.imported) continue;
-    imported += 1;
-    inAppNotified += outcome.inAppNotified;
-    push = addPushDelivery(push, outcome.push);
-  }
-
-  return { matterId: matter.id, imported, inAppNotified, push };
+  for (const item of batch.committed) push = addPushDelivery(push, await deliverPush(item.id, item.notify, item.recipients));
+  return { matterId: matter.id, imported: batch.committed.length,
+    inAppNotified: batch.committed.reduce((sum, item) => sum + item.recipients.length, 0), push, truncated: batch.truncated };
 }
 
 function publicationTime(publication: DjenPublication) {

@@ -11,6 +11,7 @@ const db = vi.hoisted(() => {
     },
     userNotification: { createMany: vi.fn() },
     $transaction: vi.fn(),
+    $executeRaw: vi.fn(async () => 1),
   };
   mock.$transaction.mockImplementation(async (fn: (tx: typeof mock) => unknown) => fn(mock));
   return mock;

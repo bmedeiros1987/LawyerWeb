@@ -167,6 +167,29 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("Court Push — integration on
     });
   });
 
+  describe("DataJud late arrival and backlog regressions", () => {
+    it("persists a newly available older movement, then deduplicates it", async () => {
+      const t = await makeTenant("late"); const number = nextNumber(); const matter = await makeMatter(t, number);
+      world.datajud.set(digits(number), [mov(0)]); await syncMatterFromDataJud(await load(matter.id));
+      world.datajud.set(digits(number), [mov(0), mov(10)]); await syncMatterFromDataJud(await load(matter.id));
+      world.datajud.set(digits(number), [mov(10), mov(5), mov(0)]);
+      expect((await syncMatterFromDataJud(await load(matter.id))).imported).toBe(1);
+      expect((await syncMatterFromDataJud(await load(matter.id))).imported).toBe(0);
+      expect(await comms(matter.id, "DATAJUD")).toBe(3); expect(await notes(t.owner)).toBe(3);
+    });
+    it("recovers 51 new identities in two bounded transactions without historical notifications", async () => {
+      const t = await makeTenant("overflow"); const number = nextNumber(); const matter = await makeMatter(t, number);
+      world.datajud.set(digits(number), movs(10)); await syncMatterFromDataJud(await load(matter.id));
+      world.datajud.set(digits(number), movs(61).reverse());
+      expect(await syncMatterFromDataJud(await load(matter.id))).toMatchObject({ imported: 50, truncated: true });
+      expect(await syncMatterFromDataJud(await load(matter.id))).toMatchObject({ imported: 1, truncated: false });
+      expect((await syncMatterFromDataJud(await load(matter.id))).imported).toBe(0);
+      expect(await comms(matter.id, "DATAJUD")).toBe(52); expect(await notes(t.owner)).toBe(52);
+      expect(await prisma.deadline.count({ where: { workspaceId: t.workspaceId } })).toBe(0);
+      expect(await prisma.matterMovement.count({ where: { matterId: matter.id } })).toBe(0);
+    });
+  });
+
   describe("DJEN ingestion (monitoring of already-registered matters)", () => {
     it("first activation preserves recent evidence but notifies only the newest; repeats are idempotent; a new publication notifies once", async () => {
       const t = await makeTenant("dn1"); const number = nextNumber();

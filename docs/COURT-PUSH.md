@@ -23,7 +23,15 @@ O conector:
 
 O DataJud fornece movimentações e dados processuais públicos. O conector identifica o endpoint do tribunal a partir do campo de tribunal ou da numeração CNJ quando o ramo permite.
 
-Na primeira consulta de um processo, apenas a movimentação mais recente é importada para evitar flood histórico. Nas consultas posteriores, o conector inspeciona as movimentações mais recentes e usa `workspaceId + source + externalId` para deduplicação.
+Na primeira consulta concluída com persistência para um processo, apenas a movimentação mais recente é importada e notificada. Seu payload preserva também as identidades do histórico observado nessa consulta. Esse conjunto é fixo: data de ocorrência não informa quando um movimento foi disponibilizado pelo tribunal.
+
+Nas consultas seguintes, o conector compara as identidades retornadas com o histórico inicial e as comunicações já persistidas no escritório/processo. Um item inédito é elegível mesmo com data antiga, ausente ou inválida. A deduplicação ocorre **antes** do limite de 50 itens por consulta, permitindo drenar o excedente nas próximas consultas enquanto ele continuar disponível na resposta da fonte. Não há corte pelo maior timestamp nem pela data dos últimos 200 registros.
+
+A seleção da referência inicial e a gravação do lote de até 50 comunicações/notificações ficam na mesma transação, serializada por escritório/processo com lock transacional PostgreSQL. Uma falha desfaz o lote inteiro; a próxima consulta reavalia as identidades não persistidas. Web Push continua sendo tentativa posterior ao commit, sem confirmação de entrega ou garantia de retry.
+
+Registros de versões anteriores não contêm as identidades do histórico inicial. Nesse caso, todos os itens desconhecidos da primeira resposta de recuperação são preservados como evidência, em lotes de até 50, **sem notificações**, porque não é possível distinguir retroativamente histórico de novidade. As identidades desse lote de recuperação ficam no payload existente; identidades observadas somente depois voltam ao fluxo normal de notificação. Nenhum prazo ou `MatterMovement` é criado.
+
+Limites: a referência depende das identidades presentes nas respostas efetivamente recebidas; uma fonte que omita ou remova itens ainda não persistidos não permite garantir recuperação completa. A consulta DataJud continua limitada a um registro de processo (`size: 1`), e a validação de múltiplos graus permanece pendente. A referência inicial pode crescer conforme o histórico retornado; não é um cursor de disponibilização fornecido pelo tribunal.
 
 A interface e os registros identificam o **CNJ/DataJud como fonte**. Os dados refletem as remessas dos tribunais e não devem ser tratados como garantia independente de precisão, integridade ou atualidade.
 
