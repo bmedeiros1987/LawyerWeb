@@ -23,7 +23,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: mblz_ci
-        ports: [5432:5432]
+        ports: ["127.0.0.1:5432:5432"]
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -37,7 +37,7 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       TOKEN_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       CRON_SECRET: ci-only-cron-secret
-      RUN_DB_TESTS: "1"
+      RUN_DB_TESTS: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,9 +49,20 @@ jobs:
         run: npm run db:validate
       - name: Typecheck
         run: npm run typecheck
+      - name: Provisioner safety tests (no database)
+        run: node --test .github/scripts/provision-test-db.test.mjs
+      - name: Provision exclusive test database
+        env:
+          CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node .github/scripts/provision-test-db.mjs provision
       - name: Prepare isolated test database
         run: npx prisma db push
       - name: Security regression tests
         run: npm test
       - name: Build
         run: npm run build
+      - name: Remove owned test database
+        if: always()
+        env:
+          CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node .github/scripts/provision-test-db.mjs cleanup

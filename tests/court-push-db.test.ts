@@ -1,3 +1,5 @@
+import { notificationFault } from "./helpers/notification-fault";
+import { assertDisposableDatabase, guardedDatabaseLifecycle } from "./helpers/disposable-db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
@@ -93,23 +95,22 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("Court Push — integration on
   let n = 1;
   const nextNumber = () => cnj(n++);
 
-  beforeAll(async () => {
+  const dbLifecycle = guardedDatabaseLifecycle();
+  const fault = notificationFault(prisma);
+  beforeAll(() => dbLifecycle.setup(async () => {
     vapid(false);
-    const url = new URL(process.env.DATABASE_URL ?? "postgresql://invalid");
-    if (!["localhost", "127.0.0.1"].includes(url.hostname) || !/(test|ci)/i.test(url.pathname)) throw new Error("Refusing to run outside an isolated local test database.");
-    await prisma.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION court_test_fail_notification() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'simulated notification failure'; END; $$ LANGUAGE plpgsql`);
-    await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS court_test_fail_notification ON "UserNotification"');
-    await prisma.$executeRawUnsafe('CREATE TRIGGER court_test_fail_notification BEFORE INSERT ON "UserNotification" FOR EACH ROW EXECUTE FUNCTION court_test_fail_notification()');
-    await prisma.$executeRawUnsafe('ALTER TABLE "UserNotification" DISABLE TRIGGER court_test_fail_notification');
-  });
-  afterAll(async () => {
-    await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS court_test_fail_notification ON "UserNotification"');
-    await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS court_test_fail_notification()');
-    for (const id of created.workspaces) await prisma.workspace.delete({ where: { id } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: created.users } } });
-    await prisma.$disconnect();
-    vi.unstubAllGlobals();
-  });
+    await fault.install();
+  }, () => prisma.$disconnect()));
+  afterAll(() => dbLifecycle.cleanup(async () => {
+    try {
+      await fault.remove();
+      await prisma.workspace.deleteMany({ where: { id: { in: created.workspaces } } });
+      await prisma.user.deleteMany({ where: { id: { in: created.users } } });
+    } finally {
+      await prisma.$disconnect();
+      vi.unstubAllGlobals();
+    }
+  }));
   beforeEach(() => {
     world.datajud.clear(); world.djen.clear(); installFetch();
     wp.sendNotification.mockReset(); wp.setVapidDetails.mockReset();
@@ -264,9 +265,9 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("Court Push — integration on
       const matter = await makeMatter(t, number);
       world.datajud.set(digits(number), movs(2));
       // Real fault injection: PostgreSQL itself rejects the notification insert while the trigger is enabled.
-      await prisma.$executeRawUnsafe('ALTER TABLE "UserNotification" ENABLE TRIGGER court_test_fail_notification');
+      await fault.enable(true);
       try { await syncMatterFromDataJud(await load(matter.id)).catch(() => undefined); }
-      finally { await prisma.$executeRawUnsafe('ALTER TABLE "UserNotification" DISABLE TRIGGER court_test_fail_notification'); }
+      finally { await fault.enable(false); }
       await syncMatterFromDataJud(await load(matter.id)).catch(() => undefined);
       expect(await notes(t.owner), "at-least-once: the notification must exist after a retry").toBe(1);
       expect(await comms(matter.id, "DATAJUD")).toBe(1);
@@ -373,10 +374,9 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("Court Push — integration on
     });
 
     beforeEach(async () => {
-      // The cron endpoint polls EVERY eligible matter in the database: make sure this is the isolated test DB, then start empty.
-      const url = new URL(process.env.DATABASE_URL ?? "postgresql://invalid");
-      if (!["localhost", "127.0.0.1"].includes(url.hostname) || !/(test|ci)/i.test(url.pathname)) throw new Error("Refusing to run cron tests outside an isolated local test database.");
-      await prisma.workspace.deleteMany({});
+      // Cron polls every eligible matter: clear only fixtures owned by this suite.
+      assertDisposableDatabase();
+      await prisma.workspace.deleteMany({ where: { id: { in: created.workspaces } } });
       created.workspaces.length = 0;
     });
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { sendPushToUser } from "@/lib/push/webpush";
+import { sendPushToUser, InvalidVapidConfigurationError } from "@/lib/push/webpush";
 
 // Self-test for the device: sends ONE generic push to the signed-in user's own subscriptions only.
 // It reports what the push service answered. It cannot prove the device displayed it; the person confirms that.
@@ -35,7 +35,10 @@ export async function POST() {
       failureStatusCodes: result.failureStatusCodes,
       note: "accepted = aceito pelo serviço de push do navegador; a exibição no aparelho só é confirmada por quem o está olhando.",
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof InvalidVapidConfigurationError) {
+      return NextResponse.json({ reason: "VAPID_INVALID", vapidConfigured: false, error: "A configuração VAPID do servidor é inválida; nenhum envio foi tentado." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Falha ao consultar as assinaturas de push." }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { guardedDatabaseLifecycle } from "./helpers/disposable-db";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 
 const session = vi.hoisted(() => ({ user: { id: "" } as { id: string } | undefined }));
@@ -21,8 +22,13 @@ async function user() {
 }
 
 describe.skipIf(process.env.RUN_DB_TESTS !== "1")("Push self-test endpoint (device proof helper)", () => {
+  const dbLifecycle = guardedDatabaseLifecycle();
+  beforeAll(() => dbLifecycle.setup(async () => {}));
   beforeEach(() => { wp.sendNotification.mockReset(); wp.setVapidDetails.mockReset(); vapid(false); });
-  afterAll(async () => { await prisma.user.deleteMany({ where: { id: { in: users } } }); await prisma.$disconnect(); });
+  afterAll(() => dbLifecycle.cleanup(async () => {
+    try { await prisma.user.deleteMany({ where: { id: { in: users } } }); }
+    finally { await prisma.$disconnect(); }
+  }));
 
   it("requires a session", async () => {
     session.user = undefined;

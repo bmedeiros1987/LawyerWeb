@@ -62,7 +62,7 @@ Nenhuma data de disponibilização do DJEN é tratada, por si só, como termo in
 
 ## Contadores e prova de entrega
 
-Os resultados (`POST /api/cron/court-push` e a atualização manual) separam três coisas que **não** são equivalentes:
+O resultado JSON de `POST /api/cron/court-push` separa três coisas que **não** são equivalentes. A atualização manual usa os mesmos contadores internamente, mas redireciona a tela apenas com totais de importação e indicadores de erro/limite; não expõe o diagnóstico completo de Web Push. Para o diagnóstico do aparelho sem ingestão, use `POST /api/push/test`:
 
 | Campo | Significa | Não significa |
 |---|---|---|
@@ -73,7 +73,7 @@ Os resultados (`POST /api/cron/court-push` e a atualização manual) separam tr�
 | `push.skippedNoSubscription` | push não tentado: o usuário não tem aparelho registrado | — |
 | `push.failed` / `push.removed` | recusado/erro; assinatura expirada (404/410) removida | — |
 
-O contador antigo `notified` foi removido: ele contava usuários com notificação *interna* criada e ignorava o resultado do Web Push, de modo que parecia prova de entrega mesmo com VAPID ausente ou com todas as tentativas recusadas. A resposta traz `pushNote` lembrando isso.
+O contador antigo `notified` foi removido: ele contava usuários com notificação *interna* criada e ignorava o resultado do Web Push, de modo que parecia prova de entrega mesmo com VAPID ausente ou com todas as tentativas recusadas. A resposta JSON do cron traz `pushNote` lembrando isso.
 
 A ingestão e a notificação interna são **uma única transação**: se a gravação da notificação falhar, nada é gravado e a próxima consulta tenta de novo (pelo menos uma vez). O Web Push é enviado **depois** do commit, é melhor-esforço e sua falha nunca desfaz a ingestão. Um destinatário que perdeu acesso ao processo (ou saiu do escritório) é simplesmente ignorado e não bloqueia os demais.
 
@@ -81,16 +81,16 @@ Só o aparelho prova entrega. Use o roteiro abaixo.
 
 ## Agendamento
 
-**Nada no repositório agenda a consulta aos tribunais.** Não há `render.yaml`, `vercel.json`, workflow de GitHub Actions nem outro job que chame `POST /api/cron/court-push`; o endpoint só existe. Sem um agendador externo, o MBLZ só consulta quando alguém clica em **Atualizar tribunais**. (O mesmo vale para `/api/cron/deadline-safety` e os crons do Google, que também dependem de agendador externo.)
+**Nada no repositório agenda a consulta aos tribunais.** Não há `render.yaml`, `vercel.json`, workflow de GitHub Actions nem outro job que chame `POST /api/cron/court-push`; o endpoint só existe. Não foi verificada a configuração externa. Sem um agendador externo, o MBLZ só consulta quando alguém clica em **Atualizar tribunais**. (O mesmo vale para `/api/cron/deadline-safety` e os crons do Google, que também dependem de agendador externo.)
 
 Configuração necessária, fora do código e sem custo definido aqui:
 - um agendador externo (cron do host, Render Cron Job, GitHub Actions agendado, etc.);
 - `POST https://<host>/api/cron/court-push` com `Authorization: Bearer <CRON_SECRET>` (o segredo já existente) a cada **15 minutos**;
 - o plano/serviço do agendador precisa ser aprovado separadamente.
 
-Rodízio: cada execução consulta no máximo **30 processos no DataJud e 5 no DJEN**. O ponto de partida é calculado por uma sequência de baixa discrepância (razão áurea) sobre o horário, então todos os processos são visitados com qualquer cadência de agendador (a fórmula anterior só funcionava com exatamente uma execução a cada 15 minutos e, com um agendador de hora em hora, nunca chegava aos processos 31 em diante).
+Rodízio: cada execução consulta no máximo **30 processos no DataJud e 5 no DJEN**. O ponto de partida usa uma sequência de baixa discrepância (razão áurea) sobre o horário. Os testes simulam cadências de 5 minutos a 24 horas; não comprovam um intervalo máximo entre visitas para qualquer população ou agenda. A fórmula anterior repetia o mesmo lote no cenário de 120 processos, lote de 30 e execução de hora em hora.
 
-Capacidade: com execuções a cada 15 minutos o DJEN cobre no máximo ~480 processos por dia (5 × 96). Como a janela consultada é **ontem + hoje**, um processo que fique mais de ~1 dia sem ser consultado pode ter publicações **não capturadas**. Acima de algumas centenas de processos ativos o DJEN deixa de cobrir todos a tempo com o limite atual; ajuste de lote/cadência é decisão operacional (respeitando o rate limit por IP).
+Capacidade: com execuções a cada 15 minutos há no máximo 480 posições de consulta DJEN por dia (5 × 96), não necessariamente 480 processos distintos, porque os lotes podem se sobrepor. Como a janela consultada é **ontem + hoje**, um processo que fique mais de ~1 dia sem ser consultado pode ter publicações **não capturadas**. Acima de algumas centenas de processos ativos o DJEN deixa de cobrir todos a tempo com o limite atual; ajuste de lote/cadência é decisão operacional (respeitando o rate limit por IP).
 
 ## Monitoramento × descoberta
 
@@ -112,7 +112,7 @@ Sem tocar em dados reais, sem cron e sem refresh.
 5. **Prova:** a notificação “MBLZ · teste de notificação” aparece no aparelho (tela bloqueada incluída). Tocar nela deve abrir `/app/integrations`. Registrar aparelho, sistema, horário e uma captura de tela.
 6. Só depois, para o push real dos tribunais: com o agendador configurado (ou um processo de teste combinado com o responsável), conferir no aparelho a notificação genérica “Nova movimentação de tribunal” / “Nova publicação oficial no DJEN” e que **não** traz número, partes ou conteúdo.
 
-Se o passo 4 disser *aceito* e nada aparecer: permissão do sistema, modo foco/economia de bateria ou PWA não instalado (iOS). *Aceito* sem exibição não é falha do MBLZ, mas também **não é entrega**.
+Se o passo 4 disser *aceito* e nada aparecer: permissão do sistema, modo foco/economia de bateria ou PWA não instalado (iOS). *Aceito* sem exibição **não prova entrega**; ainda é necessário investigar o aparelho e o processamento da notificação no aplicativo.
 
 ## Execução
 
@@ -129,7 +129,7 @@ Polling protegido:
 - usa lotes rotativos: DataJud até 30 e DJEN até 5 processos;
 - não introduz secret novo, migration ou plano pago.
 
-A existência do endpoint não significa que um agendador externo esteja configurado: **não está** (ver "Agendamento").
+A existência do endpoint não significa que um agendador externo esteja configurado: **não foi verificado** (ver "Agendamento").
 
 ## Domicílio Judicial Eletrônico
 
@@ -151,3 +151,9 @@ CI verde não prova:
 - entrega real de Web Push.
 
 Esses gates devem permanecer explicitamente pendentes até validação no ambiente apropriado.
+
+## Banco descartável dos testes
+
+As suítes DB exigem `RUN_DB_TESTS=1`, `DB_TEST_RUN_ID` (32 caracteres hexadecimais) e `DB_TEST_MANIFEST`, caminho de um JSON produzido pelo provisionador do banco exclusivo. O manifesto deve conter `runId`, `host`, `port`, `database`, `disposable: true`, `exclusive: true` e `expiresAt` (timestamp futuro em milissegundos). O banco deve se chamar `mblz_test_<runId>`, em localhost/127.0.0.1 com porta explícita, sem parâmetros na URL. Não gerar essa declaração para um banco existente cuja origem seja desconhecida. O manifesto atesta a responsabilidade do provisionador; não detecta dados reais. A função e o trigger de falha têm nomes aleatórios exclusivos e são criados juntos em uma transação: falha parcial desfaz o DDL. Setup incompleto não executa cleanup SQL. Se o resultado do commit for desconhecido por perda de conexão, o provisionador deve descartar a instância inteira; não tentar remover objetos por nome genérico. A limpeza de dados se limita aos IDs criados pela suíte.
+
+No CI, o job `Quality Gates` provisiona um banco novo no serviço `postgres:16` do próprio runner e gera o manifesto automaticamente após confirmar a criação e a ausência de objetos de aplicação. Não há adoção de banco existente. A porta é publicada apenas em `127.0.0.1`; o manifesto registra o container e a execução/ tentativa do Actions, sem credenciais. O guard global bloqueia todas as suítes DB antes de carregar seus módulos se a prova estiver ausente ou inválida. O passo final `always()` remove somente o banco registrado para aquela execução; o Actions descarta o serviço ao encerrar o job. Se o resultado de CREATE for desconhecido, não se tenta adivinhar propriedade: o descarte do serviço é a recuperação.

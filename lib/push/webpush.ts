@@ -5,13 +5,17 @@ function configured() {
   return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
 }
 
+export class InvalidVapidConfigurationError extends Error {
+  constructor() { super("Invalid VAPID configuration"); }
+}
+
 function configure() {
   if (!configured()) return false;
-  webpush.setVapidDetails(
+  try { webpush.setVapidDetails(
     process.env.VAPID_SUBJECT!,
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!,
-  );
+  ); } catch { throw new InvalidVapidConfigurationError(); }
   return true;
 }
 
@@ -49,8 +53,13 @@ export async function sendPushToUser(userId: string, payload: { title: string; b
     } catch (error: unknown) {
       const statusCode = (error as { statusCode?: number })?.statusCode;
       if (statusCode === 404 || statusCode === 410) {
-        await prisma.pushSubscription.delete({ where: { endpoint: sub.endpoint } }).catch(() => undefined);
-        removed += 1;
+        try {
+          await prisma.pushSubscription.delete({ where: { endpoint: sub.endpoint } });
+          removed += 1;
+        } catch {
+          failed += 1;
+          failureStatusCodes.push(statusCode);
+        }
       } else {
         failed += 1;
         if (typeof statusCode === "number") failureStatusCodes.push(statusCode);
