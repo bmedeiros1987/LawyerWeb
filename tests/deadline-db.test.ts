@@ -46,6 +46,15 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("Deadline Safety and indirect 
     const confirmed = await confirmDeadline(input);
     expect(confirmed.status).toBe("CONFIRMED");
     expect(confirmed.confirmedByUserId).toBe(users[0]);
+
+    const persisted = await prisma.deadline.findUniqueOrThrow({ where: { id: d.id } });
+    expect(persisted.confirmedAt).not.toBeNull();
+    expect(persisted.confirmedByUserId).toBe(users[0]);
+    expect(persisted.primaryResponsibleUserId).toBe(users[0]);
+    expect(persisted.reviewerUserId).toBe(users[1]);
+    expect(persisted.internalDueAt?.getTime()).toBe(input.internalDueAt.getTime());
+    expect(persisted.ruleSummary).toBe(input.ruleSummary);
+
     expect(await prisma.deadlineReminder.count({ where: { deadlineId: d.id } })).toBeGreaterThan(0);
     await completeDeadline({ deadlineId: d.id, workspaceId, userId: users[0] });
     await expect(confirmDeadline(input)).rejects.toThrow("candidato");
