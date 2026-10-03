@@ -289,3 +289,52 @@
 .viewport-popover .quick-create-head .icon-button{flex-shrink:0}
 
 .app-frame .viewport-popover{z-index:100}
+
+/* LawyerMind: consistent reading scale and accessible document workflows. */
+.lawyermind-wordmark{font-family:Fraunces,Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.035em}
+.lawyermind-side-brand{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px 10px 24px;color:var(--paper)}
+.lawyermind-side-brand>.lawyermind-wordmark{font-size:25px;line-height:1.2}
+.lawyermind-side-brand .side-brand-copy small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#B9C2CD}
+.quick-form fieldset{min-width:0;border:0;padding:0;margin:0;display:grid;gap:16px}
+.quick-form textarea{resize:vertical;min-height:88px;line-height:1.75}
+.quick-form button,.panel>details>summary{min-height:44px;touch-action:manipulation}
+.panel>p{max-width:75ch;font-size:14px;line-height:1.7;color:var(--secondary)}
+.panel>details>summary{display:flex;align-items:center;cursor:pointer;color:var(--gold);font-weight:600;font-size:14px}
+.panel>details[open]>summary{margin-bottom:16px}
+.secondary-button{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:10px 16px;color:var(--ink);cursor:pointer}
+button:disabled{cursor:wait;opacity:.65}
+.quick-form [role=status]{font-size:14px;line-height:1.6;color:var(--secondary);margin:0;padding:12px 14px;background:var(--paper);border-radius:8px}
+.lawyermind-login{min-height:100dvh;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);background:var(--paper)}
+.lawyermind-login .auth-visual{padding:clamp(32px,5vw,72px);background:radial-gradient(ellipse at 15% 100%,#25394C 0,transparent 55%),var(--navy);overflow:hidden;gap:56px}
+.lawyermind-login .auth-brand strong{font-size:36px;color:var(--paper)}
+.lawyermind-login .auth-brand span{margin-top:8px;font-size:12px;color:#C5CDD6;letter-spacing:.04em}
+.lawyermind-login .auth-copy .eyebrow{color:var(--gold-light);font-size:11px;letter-spacing:.17em}
+.lawyermind-login .auth-copy h1{font-family:Fraunces,Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(42px,4.8vw,72px);letter-spacing:-.035em;line-height:1.08;margin:24px 0}
+.lawyermind-login .auth-copy h1 em{font-weight:400;font-style:normal;color:#D8CCAE}
+.lawyermind-login .auth-copy p{max-width:390px;font-size:15px;line-height:1.8;color:#C5CDD6;margin:0}
+.auth-highlights{display:flex;gap:24px;padding-top:24px;border-top:1px solid #FFFFFF22;color:#D7DDE4;flex-wrap:wrap}
+.auth-highlights span{display:flex;gap:10px;align-items:center;font-size:12px}
+.auth-highlights svg{color:var(--gold-light)}
+.lawyermind-login .auth-panel{padding:64px 32px 100px;background:var(--paper)}
+.lawyermind-login .login-card{max-width:424px;width:100%;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
+.lawyermind-login .login-card>.eyebrow{font-size:11px;letter-spacing:.15em;color:var(--gold)}
+.lawyermind-login .login-card h2{font-family:Fraunces,Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(32px,3.3vw,46px);line-height:1.18;letter-spacing:-.035em;margin:18px 0}
+.lawyermind-login .login-card p{font-size:14px;line-height:1.75;color:var(--secondary)}
+.lawyermind-login .google-button{height:54px;border-radius:8px;background:var(--surface);border-color:#C9C4B9;color:var(--navy);font-size:14px;margin-top:30px;gap:12px;transition:background .15s,border-color .15s}
+.lawyermind-login .google-button:hover:not(:disabled){background:#FFFDF8;border-color:var(--gold)}
+.lawyermind-login .google-button>svg{margin-left:auto}.lawyermind-login .google-button{padding:0 18px}
+.lawyermind-login .login-card .login-provider-note{font-size:12px;line-height:1.65;margin:14px 0 28px}
+.lawyermind-login .login-meta{font-size:12px;line-height:1.7;color:var(--secondary);gap:12px;padding-top:24px;border-color:var(--border)}
+.lawyermind-login .login-meta svg{flex-shrink:0;color:var(--gold);margin-top:2px}
+.lawyermind-login .brand-credit{font-size:11px;color:var(--secondary);bottom:32px;left:24px;right:24px;text-align:center;line-height:1.6}
+.login-mobile-brand{display:none}.login-error{margin:20px 0;padding:16px;border:1px solid #D9B5AA;border-radius:8px;background:#F8ECE8;color:var(--danger);font-size:14px}
+.lawyermind-login .login-error p{color:var(--danger);font-size:13px;margin:6px 0 0}
+.lawyermind-login :is(button,a,input):focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+@media(min-width:761px) and (max-width:1080px){.lawyermind-side-brand{align-items:center;padding-inline:0}.lawyermind-side-brand>.lawyermind-wordmark{font-size:11px;letter-spacing:-.04em;writing-mode:vertical-rl;margin-bottom:8px}}
+@media(max-width:760px){
+ .lawyermind-login{grid-template-columns:1fr}.lawyermind-login .auth-visual{display:none}.lawyermind-login .auth-panel{padding:36px 24px 96px;min-height:100dvh;place-items:start center}
+ .lawyermind-login .login-card{padding-top:6vh}.login-mobile-brand{display:block;font-size:32px;color:var(--navy);margin-bottom:48px}
+ .lawyermind-login .login-card h2{font-size:38px}.lawyermind-login .login-card p{font-size:15px}.lawyermind-login .google-button{height:56px;font-size:15px}
+ .lawyermind-side-brand{display:none}.app-frame .quick-form :is(input,select,textarea){font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){.lawyermind-login .google-button{transition:none}}

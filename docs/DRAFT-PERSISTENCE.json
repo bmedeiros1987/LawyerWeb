@@ -1,0 +1,40 @@
+{
+  "feature": "Plain-text document templates and immutable draft revisions",
+  "status": "draft; synthetic-data validation required before release",
+  "storage": {
+    "template": "DocumentTemplate.variables: {format: lawyermind-template-v1, body}; category EDITOR_TEXT_V1",
+    "revision": "DocumentVersion.notes: {format: lawyermind-draft-v1, body, operationId}; source EDITOR_TEXT_V1",
+    "hash": "DocumentVersion.sha256 hashes exact UTF-8 body; not a digital signature",
+    "compatibility": "Legacy upload notes and storageKey are not interpreted or overwritten; no schema migration",
+    "migration_path": "Move namespaced envelopes to dedicated content/storage fields in a separately reviewed migration if the pilot grows"
+  },
+  "authorization": {
+    "policy": "Existing workspace membership and documents.view/documents.edit permissions; documentScope inherits matter and contract confidentiality",
+    "sharing": "Templates and drafts are shared with authorized members of the workspace, not private per-user vaults",
+    "account_boundary": "A user cannot supply another workspaceId without active membership; author comes from authenticated session"
+  },
+  "concurrency": {
+    "create": "Client operation UUID maps to deterministic workspace/user-scoped object ID; short scalar Workspace row lock serializes retries; different content with reused key returns 409",
+    "save": "Scalar LegalDocument row lock, expectedVersion comparison, unique (documentId,version), immutable inserts and atomic currentVersion update",
+    "retry": "Exact retry of latest successful save returns that revision without another audit event; an older retry after further edits conflicts without appending",
+    "review": "Status changes require expectedVersion and revalidate current version and signing evidence under the document lock"
+  },
+  "ui": {
+    "flow": "Documents > save text template > fill fields > open draft > review/edit > save > reopen",
+    "recovery": "Unsaved editor text is kept in tab memory, partitioned by authenticated user/workspace/document; never browser persistent storage. Link and tab-close prompts protect pending edits.",
+    "brand": "LawyerMind text name and approved credit; approved PNG symbol remains pending successful Library materialization"
+  },
+  "remaining": [
+    "Own email/password authentication with verified email ownership and password reset; Google path remains unchanged",
+    "Recover and reconcile the separate 70-test model engine before replacing this deliberately small text-only formatter",
+    "Materialize and inspect approved logo and VCL letterhead bytes before integrating them",
+    "Branded DOCX/PDF export",
+    "Full authenticated browser E2E and production-readiness review"
+  ],
+  "validation": {
+    "unit_and_route_mocks": "tests/document-draft-format.test.ts and tests/document-draft-api.test.ts",
+    "database": "tests/document-draft-db.test.ts; RUN_DB_TESTS=1 on isolated PostgreSQL only",
+    "local_limitation": "Prisma schema-engine checksum download returned HTTP 403; no checksum-ignore flag or alternate download bypass was used. Full generated-client typecheck/build/DB tests must pass on exact PR HEAD in CI.",
+    "synthetic_only": true
+  }
+}

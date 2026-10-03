@@ -8,6 +8,7 @@ import { requireActiveMembership } from "@/lib/workspace/context";
 
 const patchInput=z.object({
   workspaceId:z.string().optional(),
+  expectedVersion:z.number().int().min(1).optional(),
   name:z.string().trim().min(2).max(280).optional(),
   kind:z.enum(["CONTRACT","OPINION","POWER_OF_ATTORNEY","CERTIFICATE","CORPORATE_ACT","TRADEMARK_PATENT","PETITION","NOTICE","MINUTES","OTHER"]).optional(),
   status:z.enum(["DRAFT","IN_REVIEW","APPROVED","SIGNING","SIGNED","ARCHIVED"]).optional(),
@@ -59,16 +60,21 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
     if(!existing)return NextResponse.json({error:"Not found"},{status:404});
     if(existing.matterId&&parsed.matterId!==undefined&&parsed.matterId!==existing.matterId)return NextResponse.json({error:"O vínculo ao processo deve ser preservado."},{status:409});
     if(parsed.status==="SIGNING"||parsed.status==="SIGNED")await requirePermission(session.user.id,member.workspaceId,P.DOCUMENTS_SIGN);
-    if(parsed.status==="SIGNED"){
-      const signed=await prisma.signatureEnvelope.findFirst({where:{status:"SIGNED",signedAt:{not:null},documentVersion:{documentId:id,version:existing.currentVersion}}});
-      if(!signed)return NextResponse.json({error:"A versão atual ainda não possui assinatura concluída."},{status:409});
-    }
     if(parsed.matterId&&!(await canAccessMatter(session.user.id,member.workspaceId,parsed.matterId,P.MATTERS_VIEW)))return NextResponse.json({error:"Processo/assunto sem acesso."},{status:400});
     if(parsed.clientId&&!await prisma.client.findFirst({where:{id:parsed.clientId,workspaceId:member.workspaceId}}))return NextResponse.json({error:"Cliente inválido."},{status:400});
     if(parsed.templateId&&!await prisma.documentTemplate.findFirst({where:{id:parsed.templateId,workspaceId:member.workspaceId}}))return NextResponse.json({error:"Modelo inválido."},{status:400});
     if(parsed.letterheadId&&!await prisma.letterhead.findFirst({where:{id:parsed.letterheadId,workspaceId:member.workspaceId}}))return NextResponse.json({error:"Papel timbrado inválido."},{status:400});
-    const {workspaceId:_workspaceId,...changes}=parsed;
+    const {workspaceId:_workspaceId,expectedVersion,...changes}=parsed;
     const document=await prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "LegalDocument" WHERE id=${id} AND "workspaceId"=${member.workspaceId} FOR UPDATE`;
+      const current=await tx.legalDocument.findFirst({where:{id,AND:[documentScope(member)]}});
+      if(!current)throw Object.assign(new Error("Documento não encontrado."),{status:404});
+      if(parsed.status && expectedVersion!==current.currentVersion)throw Object.assign(new Error("O documento mudou. Reabra a versão atual antes de alterar o status."),{status:409});
+      if(current.matterId&&parsed.matterId!==undefined&&parsed.matterId!==current.matterId)throw Object.assign(new Error("O vínculo ao processo deve ser preservado."),{status:409});
+      if(parsed.status==="SIGNED"){
+        const signed=await tx.signatureEnvelope.findFirst({where:{status:"SIGNED",signedAt:{not:null},documentVersion:{documentId:id,version:current.currentVersion}}});
+        if(!signed)throw Object.assign(new Error("A versão atual ainda não possui assinatura concluída."),{status:409});
+      }
       const updated=await tx.legalDocument.update({where:{id},data:changes});
       await tx.activityLog.create({data:{
         workspaceId:member.workspaceId,userId:session.user.id,type:"DOCUMENT_UPDATED",

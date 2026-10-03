@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { P, canAccessMatter, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { DocumentStatusAction } from "@/components/legal-status-actions";
+import { DocumentDraftEditor } from "@/components/document-draft-editor";
 
 export const dynamic="force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
       <div className="matter-hero-meta">
         <div><span>Cliente</span><strong>{document.client?.name??"—"}</strong></div>
         <div><span>Versões com arquivo</span><strong>{document.versions.length}</strong></div>
-        <div><span>Status</span>{canEdit?<DocumentStatusAction id={document.id} workspaceId={member.workspaceId} status={document.status}/>:<strong>{document.status}</strong>}</div>
+        <div><span>Status</span>{canEdit?<DocumentStatusAction id={document.id} workspaceId={member.workspaceId} status={document.status} currentVersion={document.currentVersion}/>:<strong>{document.status}</strong>}</div>
       </div>
     </section>
 
@@ -53,6 +54,7 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
       <article className="metric-card"><div className="metric-icon"><FileCheck2 size={19}/></div><span>Contratos vinculados</span><strong>{document.contracts.length}</strong><small>usando este registro</small></article>
     </section>
 
+    <DocumentDraftEditor userId={session.user.id} documentId={document.id} workspaceId={member.workspaceId} canEdit={canEdit}/>
     <section className="contract-layout">
       <article className="panel panel-wide">
         <div className="panel-heading"><div><span className="eyebrow">Versões</span><h2>Histórico documental</h2></div></div>
