@@ -53,5 +53,7 @@ jobs:
         run: npx prisma db push
       - name: Security regression tests
         run: npm test
+      - name: Document editor browser regression
+        run: npm run test:browser
       - name: Build
         run: npm run build

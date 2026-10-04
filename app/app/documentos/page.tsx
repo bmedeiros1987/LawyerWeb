@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { QuickLegalDocumentForm } from "@/components/legal-documents-quick-create";
+import { DocumentTemplateWorkbench } from "@/components/document-template-workbench";
 
 export const dynamic="force-dynamic";
 
@@ -56,6 +57,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
 
     <form className="toolbar-card" action="/app/documentos" method="get"><div className="search-field"><Search size={17}/><input name="q" defaultValue={search} placeholder="Nome, tipo, processo ou cliente"/></div></form>
 
+    {canEdit && <DocumentTemplateWorkbench workspaceId={member.workspaceId}/>}
     <section className="document-grid">
       <article className="folder-card"><FolderOpen size={21}/><strong>Modelos do escritório</strong><span>{templateCount} modelos ativos</span></article>
       <article className="folder-card"><FolderOpen size={21}/><strong>Papel timbrado</strong><span>{letterheadCount} configurações</span></article>

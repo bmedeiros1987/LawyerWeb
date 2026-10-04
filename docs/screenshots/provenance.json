@@ -1,0 +1,11 @@
+{
+  "scope": "Login component visual previews, not authenticated application E2E",
+  "before": "JSX and CSS from 73220db6; auth lookup/action omitted only in isolated screenshot renderer",
+  "after": "LoginView and globals.css at 8471ef4; server action not executed",
+  "browser": "Installed Chromium 151, DevTools Protocol, isolated temporary profile",
+  "viewports": {"desktop": [1440,960], "mobile": [390,844]},
+  "horizontal_overflow": false,
+  "fonts": "Repository public/fonts served locally",
+  "data": "No real account, session, email, token or database",
+  "approved_symbol": "Not present: official Library materialization failed; text name is not a reconstructed logo"
+}
