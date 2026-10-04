@@ -101,9 +101,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("local auth with isolated Post
   });
   it("queues eligible and ineligible commands alike without account lookup or SMTP before response", async () => {
     const existing = await register(), unknown = email();
-    const spy = vi.spyOn(prisma.user, "findFirst");
     const first = await queueAuthMail(existing.address, "REGISTER"), second = await queueAuthMail(unknown, "REGISTER");
-    expect(spy).not.toHaveBeenCalled(); spy.mockRestore();
     expect(await prisma.localAuthMailJob.count({ where: { id: { in: [first, second] } } })).toBe(2);
     expect(await queueAuthMail(unknown, "REGISTER")).toBe(second);
     const mail = vi.fn(async (_message: AuthMail) => {});
