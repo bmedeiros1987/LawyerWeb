@@ -12,11 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { beginChallenge, finishChallenge } from "@/lib/local-auth/service";
 import type { AuthMail } from "@/lib/local-auth/mail";
 
-// Fail before database writes unless explicitly selected against the disposable CI database.
-const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid/invalid");
-if (process.env.RUN_PILOT_E2E !== "1" || !["localhost", "127.0.0.1"].includes(database.hostname) || database.pathname !== "/mblz_ci") {
-  throw new Error("Pilot E2E requires RUN_PILOT_E2E=1 and a loopback mblz_ci disposable database.");
-}
+// Connection guard runs in vitest.e2e.config.ts before this module or Prisma is imported.
 const root = process.cwd(), origin = "http://127.0.0.1:3137", output = resolve(root, "artifacts/pilot-e2e");
 const syntheticPassword = "Synthetic-only pilot password 2026";
 const users: { id: string; email: string }[] = [], workspaceIds: string[] = [];
