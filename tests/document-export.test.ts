@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { exportSavedVersion } from "@/lib/documents/export-format";
@@ -14,7 +15,14 @@ describe("saved document exports", () => {
   });
   it("creates an editable OOXML archive with literal XML-like text", async () => {
     const bytes = await exportSavedVersion(input('DOCUMENTO SINTÉTICO — SEM VALIDADE\nJoão & Marina <contrato>\nCláusula: obrigação e revisão.\n\nFim.'), "docx");
-    expect(Buffer.from(bytes).subarray(0, 2).toString()).toBe("PK");
+    const archive = await JSZip.loadAsync(bytes);
+    const xml = await archive.file("word/document.xml")!.async("string");
+    expect(xml).toContain("João &amp; Marina &lt;contrato&gt;");
+    expect(xml).toContain("Cláusula: obrigação e revisão.");
+    expect(xml).not.toContain("<contrato>");
+    expect(xml.match(/<w:p>/g)).toHaveLength(5);
+    expect(await archive.file("word/footer1.xml")!.async("string")).toContain("SHA-256");
+    expect(await archive.file("docProps/core.xml")!.async("string")).toContain("SHA-256 do texto salvo");
     if (process.env.EXPORT_SAMPLE_DIR) { await mkdir(process.env.EXPORT_SAMPLE_DIR, { recursive: true }); await writeFile(`${process.env.EXPORT_SAMPLE_DIR}/synthetic-v2.docx`, bytes); }
   });
   it("fails closed on changed hash, illegal XML, unsupported PDF glyphs or invalid versions", async () => {
