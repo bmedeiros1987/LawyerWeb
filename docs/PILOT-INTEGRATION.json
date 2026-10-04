@@ -22,5 +22,6 @@
     "If migration fails before activation, keep auth off and capture Prisma migration state. Do not issue migrate resolve or rerun partially applied SQL blindly; compare each created object against the approved migration and restore from the tested backup or perform a separately reviewed recovery.",
     "Any later index removal/table deletion/data restoration requires its own reviewed plan and approval, including consistency of users created after deployment."
   ],
-  "local_limit": "Prisma checksum download returned HTTP403; no ignore-checksum or alternative-download bypass. Full generated-client/database/E2E validation is performed in disposable CI where official install succeeds."
+  "local_limit": "Prisma checksum download returned HTTP403; no ignore-checksum or alternative-download bypass. Full generated-client/database/E2E validation is performed in disposable CI where official install succeeds.",
+  "migration_atomicity": "The unshipped draft auth migration now explicitly wraps DDL in BEGIN/COMMIT. A synthetic disposable-schema regression checks that duplicate legacy normalized emails roll back all new auth objects and preserve both users, then verifies the clean success path. No applied production migration was edited or executed."
 }
