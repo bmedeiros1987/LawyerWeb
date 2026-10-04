@@ -929,3 +929,13 @@ model AgentChannelEvent {
   @@unique([channelConnectionId,externalEventId])
   @@index([workspaceId,channel,receivedAt])
 }
+
+model LocalAuthMailJob {
+  id          String   @id
+  email       String
+  purpose     String
+  expiresAt   DateTime
+  availableAt DateTime @default(now())
+  attempts    Int      @default(0)
+  @@index([availableAt, expiresAt])
+}

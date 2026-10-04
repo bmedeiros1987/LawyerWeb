@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import * as crypto from "@/lib/local-auth/crypto";
 import { beginChallenge, finishChallenge, passwordLogin, readLocalSession, rateLimit } from "@/lib/local-auth/service";
 import { POST } from "@/app/api/auth/local/[action]/route";
+import { queueAuthMail, deliverAuthJob, drainAuthMail } from "@/lib/local-auth/outbox";
 import type { AuthMail, Purpose } from "@/lib/local-auth/mail";
 
 describe.skipIf(process.env.RUN_DB_TESTS !== "1")("local auth with isolated PostgreSQL and fake mail only", () => {
@@ -24,6 +25,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("local auth with isolated Post
   beforeAll(() => { vi.stubEnv("AUTH_LOCAL_ENABLED", "true"); vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000"); });
   beforeEach(async () => { await prisma.localAuthRateLimit.deleteMany(); });
   afterAll(async () => {
+    await prisma.localAuthMailJob.deleteMany({ where: { email: { in: emails } } });
     await prisma.localAuthChallenge.deleteMany({ where: { email: { in: emails } } });
     await prisma.user.deleteMany({ where: { id: { in: ids } } });
     await prisma.localAuthRateLimit.deleteMany(); vi.unstubAllEnvs(); await prisma.$disconnect();
@@ -97,4 +99,29 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("local auth with isolated Post
     await prisma.localSession.update({ where: { tokenHash: crypto.tokenHash(session.token) }, data: { expiresAt: new Date(0) } }); expect(await readLocalSession(session.token)).toBeNull();
     await rateLimit("synthetic", address, 1, 900); await expect(rateLimit("synthetic", address, 1, 900)).rejects.toMatchObject({ status: 429 });
   });
+  it("queues eligible and ineligible commands alike without account lookup or SMTP before response", async () => {
+    const existing = await register(), unknown = email();
+    const spy = vi.spyOn(prisma.user, "findFirst");
+    const first = await queueAuthMail(existing.address, "REGISTER"), second = await queueAuthMail(unknown, "REGISTER");
+    expect(spy).not.toHaveBeenCalled(); spy.mockRestore();
+    expect(await prisma.localAuthMailJob.count({ where: { id: { in: [first, second] } } })).toBe(2);
+    expect(await queueAuthMail(unknown, "REGISTER")).toBe(second);
+    const mail = vi.fn(async (_message: AuthMail) => {});
+    await Promise.all([deliverAuthJob(second, mail), deliverAuthJob(second, mail)]);
+    expect(mail).toHaveBeenCalledTimes(1);
+    await deliverAuthJob(first, mail); expect(mail).toHaveBeenCalledTimes(1);
+    expect(await prisma.localAuthMailJob.count({ where: { id: { in: [first, second] } } })).toBe(0);
+  });
+  it("retains failed deliveries durably, retries under lease, and cleans up expired requests", async () => {
+    const address = email(), id = await queueAuthMail(address, "REGISTER");
+    await deliverAuthJob(id, async () => { throw new Error("synthetic transport failure"); });
+    expect((await prisma.localAuthMailJob.findUniqueOrThrow({ where: { id } })).attempts).toBe(1);
+    expect(await prisma.localAuthChallenge.count({ where: { email: address } })).toBe(0);
+    const mail = vi.fn(async (_message: AuthMail) => {}); await deliverAuthJob(id, mail); expect(mail).not.toHaveBeenCalled();
+    await prisma.localAuthMailJob.update({ where: { id }, data: { availableAt: new Date(0) } });
+    await drainAuthMail(mail); expect(mail).toHaveBeenCalledTimes(1);
+    const expired = await queueAuthMail(email(), "RESET"); await prisma.localAuthMailJob.update({ where: { id: expired }, data: { expiresAt: new Date(0) } });
+    await drainAuthMail(mail); expect(await prisma.localAuthMailJob.findUnique({ where: { id: expired } })).toBeNull();
+  });
+
 });

@@ -18,8 +18,6 @@ export async function rateLimit(category: string, identity: string, limit: numbe
 
 export async function beginChallenge(emailInput: string, purpose: Purpose, deliver: AuthMailer) {
   const email = normalizeEmail(emailInput);
-  await rateLimit("mail-global", "global", 60, 3600);
-  await rateLimit("mail-address", email, 3, 900);
   const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, include: { localCredential: true } });
   if ((purpose === "REGISTER" && user) || (purpose === "RESET" && (!user?.localCredential || !user.emailVerified || user.localCredential.emailNormalized !== email))) return;
   const token = newToken(), digest = tokenHash(token), id = tokenHash(JSON.stringify([purpose, email]));
@@ -28,9 +26,9 @@ export async function beginChallenge(emailInput: string, purpose: Purpose, deliv
     update: { tokenHash: digest, userId: purpose === "RESET" ? user!.id : null, expiresAt: new Date(Date.now() + 15 * 60_000) },
   });
   try { await deliver({ email, purpose, token }); }
-  catch {
+  catch (error) {
     await prisma.localAuthChallenge.deleteMany({ where: { id, tokenHash: digest } });
-    // Same public response for eligible/unknown accounts and delivery failures; never log token/email.
+    throw error; // Worker retains the request for a bounded retry; never log token/email.
   }
 }
 

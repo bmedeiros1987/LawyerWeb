@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { once } from "node:events";
 const root = process.cwd();
-const chrome = process.env.CHROMIUM_PATH || ["/usr/bin/chromium", "/usr/bin/google-chrome"].find(existsSync);
+const chrome = process.env.CHROMIUM_PATH || ["/usr/bin/google-chrome", "/usr/bin/chromium"].find(existsSync);
 if (!chrome) throw new Error("Set CHROMIUM_PATH to an installed Chromium browser");
 const profile = await mkdtemp(join(tmpdir(), "lawyermind-browser-test-"));
 const server = await createServer({ root, configFile: false, esbuild: { jsx: "automatic" },
@@ -20,12 +20,13 @@ try {
   browser = spawn(chrome, ["--headless", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--no-first-run", `--user-data-dir=${profile}`, "--remote-debugging-port=0", "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
   let stderr = "";
   const debuggerUrl = await new Promise((yes, no) => {
-    const timeout = setTimeout(() => no(new Error("Browser startup timed out")), 15000);
+    const timeout = setTimeout(() => no(new Error(`Browser startup timed out (${chrome}): ${stderr.slice(-2000)}`)), 15000);
     browser.stderr.on("data", data => {
       stderr += data;
       const match = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/);
       if (match) { clearTimeout(timeout); yes(match[1]); }
     });
+    browser.on("exit", code => { clearTimeout(timeout); no(new Error(`Browser exited ${code} (${chrome}): ${stderr.slice(-2000)}`)); });
     browser.on("error", error => { clearTimeout(timeout); no(error); });
   });
   socket = new WebSocket(debuggerUrl);

@@ -1,6 +1,8 @@
+import { after } from "next/server";
+import { queueAuthMail, deliverAuthJob } from "@/lib/local-auth/outbox";
 import { NextRequest, NextResponse } from "next/server";
 import { authBody, authFailure, beginInput, finishInput, loginInput, privateHeaders } from "@/lib/local-auth/http";
-import { beginChallenge, finishChallenge, passwordLogin, revokeBrowserSessions, SESSION_SECONDS } from "@/lib/local-auth/service";
+import { finishChallenge, passwordLogin, revokeBrowserSessions, SESSION_SECONDS } from "@/lib/local-auth/service";
 import { configuredMailer } from "@/lib/local-auth/mail";
 import { googleCookieNames, localCookieName, localCookieOptions } from "@/lib/local-auth/cookies";
 
@@ -11,7 +13,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     if (action === "register" || action === "reset") {
       const input = beginInput.parse(body);
       const mailer = configuredMailer();
-      await beginChallenge(input.email, action === "register" ? "REGISTER" : "RESET", mailer);
+      const jobId = await queueAuthMail(input.email, action === "register" ? "REGISTER" : "RESET");
+      after(async () => { try { await deliverAuthJob(jobId, mailer); } catch { /* Durable job remains for authenticated retry. */ } });
       return NextResponse.json({ message: "Se o endereço for elegível, você receberá um link por e-mail. Verifique também a caixa de spam." }, { status: 202, headers: privateHeaders });
     }
     if (action === "verify") {
