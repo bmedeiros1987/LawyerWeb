@@ -54,7 +54,7 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
       <article className="metric-card"><div className="metric-icon"><FileCheck2 size={19}/></div><span>Contratos vinculados</span><strong>{document.contracts.length}</strong><small>usando este registro</small></article>
     </section>
 
-    <DocumentDraftEditor userId={session.user.id} documentId={document.id} workspaceId={member.workspaceId} canEdit={canEdit}/>
+    <DocumentDraftEditor userId={session.user.id} documentId={document.id} workspaceId={member.workspaceId} canEdit={canEdit} serverVersion={document.currentVersion} serverStatus={document.status}/>
     <section className="contract-layout">
       <article className="panel panel-wide">
         <div className="panel-heading"><div><span className="eyebrow">Versões</span><h2>Histórico documental</h2></div></div>

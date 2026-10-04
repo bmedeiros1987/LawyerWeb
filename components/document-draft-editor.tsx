@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 // Tab memory only, partitioned by authenticated user; never localStorage or a server write.
 const unsaved = new Map<string, { body: string; version: number }>();
 
-export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit }: { documentId: string; workspaceId: string; userId: string; canEdit: boolean }) {
+export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit, serverVersion, serverStatus }: { documentId: string; workspaceId: string; userId: string; canEdit: boolean; serverVersion: number; serverStatus: string }) {
   const router = useRouter();
   const recoveryKey = JSON.stringify([userId, workspaceId, documentId]);
   const [body, setBody] = useState("");
@@ -20,7 +20,7 @@ export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit }
   const operation = useDraftOperation();
   const url = `/api/documents/${encodeURIComponent(documentId)}/content?workspaceId=${encodeURIComponent(workspaceId)}`;
 
-  async function load(signal?: AbortSignal) {
+  async function load(signal?: AbortSignal, refreshControls = false) {
     setBusy(true); setMessage("");
     try {
       const response = await fetch(url, { cache: "no-store", signal });
@@ -29,6 +29,7 @@ export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit }
       const pending = unsaved.get(recoveryKey);
       setBody(pending?.body ?? data.body ?? ""); setVersion(pending?.version ?? data.version); setStatus(data.status); setDirty(Boolean(pending));
       if (pending) setMessage("Texto não salvo recuperado desta aba. Revise e salve antes de sair.");
+      if (refreshControls) router.refresh();
     } catch (error) {
       if (!signal?.aborted) { setVersion(null); setMessage(error instanceof Error ? error.message : "Falha ao abrir a minuta."); }
     } finally { if (!signal?.aborted) setBusy(false); }
@@ -38,7 +39,7 @@ export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit }
     const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
-  }, [url, recoveryKey]);
+  }, [url, recoveryKey, serverVersion, serverStatus]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -76,7 +77,7 @@ export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit }
         <textarea aria-label="Texto da minuta" rows={18} maxLength={MAX_DRAFT_TEXT} value={body} readOnly={!editable || busy || version === null} onChange={event => { setBody(event.target.value); setDirty(true); if (version !== null) unsaved.set(recoveryKey, { body: event.target.value, version }); }}/>
       </label>
       {editable && <button className="form-submit" type="button" disabled={busy || version === null || !dirty || !body.trim()} onClick={save}>{busy ? "Salvando…" : "Salvar nova versão"}</button>}
-      <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (!dirty || window.confirm("Descartar o texto não salvo e reabrir a versão salva?")) { unsaved.delete(recoveryKey); void load(); } }}>Reabrir versão salva</button>
+      <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (!dirty || window.confirm("Descartar o texto não salvo e reabrir a versão salva?")) { unsaved.delete(recoveryKey); void load(undefined, true); } }}>Reabrir versão salva</button>
       {message && <p role="status">{message}</p>}
     </div>
   </article>;
