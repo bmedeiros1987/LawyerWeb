@@ -1,3 +1,5 @@
+-- Draft migration: atomic DDL prevents partial auth objects if legacy duplicates reject the index.
+BEGIN;
 CREATE TABLE "LocalCredential" (
   "userId" TEXT NOT NULL PRIMARY KEY,
   "emailNormalized" TEXT NOT NULL,
@@ -44,3 +46,5 @@ CREATE TABLE "LocalAuthMailJob" (
   "attempts" INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX "LocalAuthMailJob_availableAt_expiresAt_idx" ON "LocalAuthMailJob"("availableAt", "expiresAt");
+
+COMMIT;
