@@ -1,3 +1,4 @@
+import { localAuthEnabled } from "@/lib/local-auth/mail";
 import { auth, signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { LoginView } from "@/components/login-view";
@@ -9,7 +10,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
   const session = await auth();
   if (session?.user) redirect("/app");
   const { error } = await searchParams;
-  return <LoginView error={loginErrorMessage(error)} action={async () => {
+  return <LoginView localEnabled={localAuthEnabled()} error={loginErrorMessage(error)} action={async () => {
     "use server";
     await signIn("google", { redirectTo: "/app" });
   }}/>;
