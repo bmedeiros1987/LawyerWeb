@@ -13,7 +13,7 @@ import { beginChallenge, finishChallenge } from "@/lib/local-auth/service";
 import type { AuthMail } from "@/lib/local-auth/mail";
 
 // Connection guard runs in vitest.e2e.config.ts before this module or Prisma is imported.
-const root = process.cwd(), origin = "http://127.0.0.1:3137", output = resolve(root, "artifacts/pilot-e2e");
+const root = process.cwd(), origin = "http://localhost:3137", output = resolve(root, "artifacts/pilot-e2e");
 const syntheticPassword = "Synthetic-only pilot password 2026";
 const users: { id: string; email: string }[] = [], workspaceIds: string[] = [];
 const evidence: { name: string; detail?: unknown }[] = [];
@@ -121,8 +121,9 @@ it("authenticates, creates a model, fills, reviews, versions, reopens and export
   await owner.getByLabel("Texto do modelo", { exact: true }).fill(template);
   const templateResponse = owner.waitForResponse(r => r.url().includes("/api/document-templates?") && r.request().method() === "POST");
   await owner.getByRole("button", { name: "Salvar modelo", exact: true }).click();
-  const savedTemplate = await templateResponse; expect(savedTemplate.status()).toBe(201);
-  const templateId = (await savedTemplate.json()).template.id;
+  const savedTemplate = await templateResponse; const templateResult = await savedTemplate.json();
+  expect(savedTemplate.status(), templateResult.error).toBe(201);
+  const templateId = templateResult.template.id;
   await owner.getByLabel("Nome do documento", { exact: true }).waitFor();
   await owner.reload();
   await owner.getByLabel("Modelo salvo", { exact: true }).selectOption(templateId);
