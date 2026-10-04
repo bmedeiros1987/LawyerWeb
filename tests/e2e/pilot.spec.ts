@@ -79,7 +79,7 @@ beforeAll(async () => {
     users.push({ id: userId, email });
   }
   report("two synthetic accounts confirmed through real registration service with in-memory fake mail");
-  const childEnv = { ...process.env, NODE_ENV: "development", AUTH_LOCAL_ENABLED: "true", NEXT_PUBLIC_APP_URL: origin,
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "development", AUTH_LOCAL_ENABLED: "true", NEXT_PUBLIC_APP_URL: origin,
     AUTH_SMTP_HOST: "", AUTH_SMTP_USER: "", AUTH_SMTP_PASSWORD: "", AUTH_MAIL_FROM: "", NEXT_TELEMETRY_DISABLED: "1" };
   server = spawn(process.execPath, [resolve(root, "node_modules/next/dist/bin/next"), "dev", "--hostname", "127.0.0.1", "--port", "3137"], { cwd: root, env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
   for (const stream of [server.stdout, server.stderr]) stream?.on("data", data => { log = (log + data.toString()).slice(-100_000); });
