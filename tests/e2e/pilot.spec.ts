@@ -149,20 +149,26 @@ it("authenticates, creates a model, fills, reviews, versions, reopens and export
   expect(await prisma.legalDocument.count({ where: { id: documentId, workspaceId } })).toBe(1);
   report("model saved/reloaded, fields filled literally and one draft created");
   const status = owner.getByRole("combobox", { name: "Status do documento ou contrato" });
-  await status.selectOption("IN_REVIEW");
-  await poll(() => status.inputValue()).toBe("IN_REVIEW");
+  async function selectStatus(next: string, expectedVersion: number) {
+    const patch = owner.waitForResponse(r => r.url() === `${origin}/api/documents/${documentId}` && r.request().method() === "PATCH");
+    const refreshed = owner.waitForResponse(async r => r.url().startsWith(`${origin}/api/documents/${documentId}/content?`) && r.request().method() === "GET" && r.status() === 200 && (await r.json()).status === next);
+    await status.selectOption(next);
+    const response = await patch; expect(response.status()).toBe(200); expect(response.request().postDataJSON().expectedVersion).toBe(expectedVersion);
+    await refreshed;
+    await poll(async () => (await prisma.legalDocument.findUniqueOrThrow({ where: { id: documentId } })).status).toBe(next);
+    await poll(() => status.inputValue()).toBe(next);
+    await poll(() => owner.getByRole("button", { name: "Reabrir versão salva", exact: true }).isEnabled()).toBe(true);
+    await poll(() => editor.getAttribute("readonly")).toBe(next === "APPROVED" ? "" : null);
+  }
+  await selectStatus("IN_REVIEW", 1);
   const version2 = `${initialBody}\nRevisão sintética salva, versão dois.`;
   await editor.fill(version2);
   expect(await owner.getByRole("button", { name: "Baixar PDF", exact: true }).isDisabled()).toBe(true);
   await owner.getByRole("button", { name: "Salvar nova versão", exact: true }).click();
   await poll(() => owner.locator(".matter-hero-main p").textContent()).toContain("versão 2");
   await poll(() => status.inputValue()).toBe("DRAFT");
-  await status.selectOption("APPROVED");
-  await poll(() => status.inputValue()).toBe("APPROVED");
-  await poll(() => editor.getAttribute("readonly")).not.toBeNull();
-  await status.selectOption("DRAFT");
-  await poll(() => status.inputValue()).toBe("DRAFT");
-  await poll(() => editor.getAttribute("readonly")).toBeNull();
+  await selectStatus("APPROVED", 2);
+  await selectStatus("DRAFT", 2);
   await owner.reload(); await poll(() => editor.inputValue()).toBe(version2);
   report("review then save v2; P2 regression: approved locks editor, draft unlocks it, reload preserves content");
   const otherTab = await ownerContext.newPage(); await otherTab.goto(documentUrl);
@@ -175,10 +181,7 @@ it("authenticates, creates a model, fills, reviews, versions, reopens and export
   await owner.getByRole("button", { name: "Reabrir versão salva", exact: true }).click();
   await poll(() => editor.inputValue()).toBe(version3);
   await poll(() => owner.locator(".matter-hero-main p").textContent()).toContain("versão 3");
-  const approval = owner.waitForResponse(r => r.url() === `${origin}/api/documents/${documentId}` && r.request().method() === "PATCH");
-  await status.selectOption("APPROVED");
-  const approvalResponse = await approval; expect(approvalResponse.status()).toBe(200); expect(approvalResponse.request().postDataJSON().expectedVersion).toBe(3);
-  await poll(() => editor.getAttribute("readonly")).not.toBeNull();
+  await selectStatus("APPROVED", 3);
   expect(failures).toEqual([]);
   report("P2 regression: cross-tab v3 reopen refreshes status control and approval sends expectedVersion=3, zero409");
   await otherTab.close();
