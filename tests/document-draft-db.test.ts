@@ -92,4 +92,22 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("document drafts with isolated
     expect((await setStatus(request, { params: Promise.resolve({ id: documentId }) })).status).toBe(409);
     expect((await prisma.legalDocument.findUniqueOrThrow({ where: { id: documentId } })).status).toBe("DRAFT");
   });
+  it("serializes a concurrent review approval against a content save", async () => {
+    session.user.id = author.userId;
+    const draft = await createDraft(author, templateId, "Approval race fixture", { cliente: "Pessoa fictícia" }, randomUUID());
+    const approval = new NextRequest("http://localhost/api/documents", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaceId: author.workspaceId, expectedVersion: 1, status: "APPROVED" }) });
+    const [save, status] = await Promise.all([
+      saveRevision(author, draft.id, 1, "Changed while review was open", randomUUID()).then(() => 201, error => error.status),
+      setStatus(approval, { params: Promise.resolve({ id: draft.id }) }).then(response => response.status),
+    ]);
+    const current = await prisma.legalDocument.findUniqueOrThrow({ where: { id: draft.id } });
+    if (save === 201) {
+      expect(status).toBe(409);
+      expect(current).toMatchObject({ currentVersion: 2, status: "DRAFT" });
+    } else {
+      expect(save).toBe(409); expect(status).toBe(200);
+      expect(current).toMatchObject({ currentVersion: 1, status: "APPROVED" });
+    }
+    expect(await prisma.documentVersion.count({ where: { documentId: draft.id } })).toBe(current.currentVersion);
+  });
 });
