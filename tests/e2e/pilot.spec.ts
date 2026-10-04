@@ -52,8 +52,10 @@ async function setup(page: Page, userId: string, suffix: string) {
   const response = page.waitForResponse(r => r.url().endsWith("/api/workspaces") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Criar meu workspace" }).click();
   const result = await response; expect(result.status()).toBe(201);
-  const workspaceId = (await result.json()).workspace.id; workspaceIds.push(workspaceId);
   await page.waitForURL(url => url.pathname === "/app");
+  // The UI performs a full navigation immediately after201; read committed membership, not an evicted response body.
+  const { workspaceId } = await prisma.workspaceMember.findFirstOrThrow({ where: { userId }, select: { workspaceId: true } });
+  workspaceIds.push(workspaceId);
   expect(await prisma.workspaceMember.count({ where: { userId, workspaceId } })).toBe(1);
   return workspaceId as string;
 }
@@ -147,8 +149,10 @@ it("authenticates, creates a model, fills, reviews, versions, reopens and export
   await poll(() => owner.locator(".matter-hero-main p").textContent()).toContain("versão 2");
   await poll(() => status.inputValue()).toBe("DRAFT");
   await status.selectOption("APPROVED");
+  await poll(() => status.inputValue()).toBe("APPROVED");
   await poll(() => editor.getAttribute("readonly")).not.toBeNull();
   await status.selectOption("DRAFT");
+  await poll(() => status.inputValue()).toBe("DRAFT");
   await poll(() => editor.getAttribute("readonly")).toBeNull();
   await owner.reload(); await poll(() => editor.inputValue()).toBe(version2);
   report("review then save v2; P2 regression: approved locks editor, draft unlocks it, reload preserves content");
