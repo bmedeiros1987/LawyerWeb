@@ -338,3 +338,15 @@ button:disabled{cursor:wait;opacity:.65}
  .lawyermind-side-brand{display:none}.app-frame .quick-form :is(input,select,textarea){font-size:16px}
 }
 @media(prefers-reduced-motion:reduce){.lawyermind-login .google-button{transition:none}}
+
+.local-auth { margin: 1.5rem 0; }
+.local-auth fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 1rem; min-width: 0; }
+.local-auth label { display: grid; gap: .4rem; font-weight: 600; }
+.local-auth input { width: 100%; min-width: 0; padding: .75rem; border: 1px solid #b5becb; border-radius: .5rem; background: white; color: #152b46; }
+.local-auth input:focus-visible, .local-auth button:focus-visible { outline: 3px solid #8a6d32; outline-offset: 3px; }
+.local-auth button { cursor: pointer; }
+.local-auth button:disabled { cursor: wait; opacity: .6; }
+.password-field { display: flex; gap: .5rem; }
+.password-field input { flex: 1; }
+.local-auth-links { display: flex; flex-wrap: wrap; gap: 1rem; }
+.local-auth-links button, .password-field button { background: none; border: 0; color: #284669; text-decoration: underline; padding: .25rem; }

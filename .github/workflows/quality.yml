@@ -49,8 +49,12 @@ jobs:
         run: npm run db:validate
       - name: Typecheck
         run: npm run typecheck
+      - name: Validate full migration chain on isolated database
+        run: npx prisma migrate deploy
       - name: Prepare isolated test database
         run: npx prisma db push
+      - name: Enforce normalized-email constraint in isolated database
+        run: npx prisma db execute --file prisma/constraints/user-email-casefold.sql
       - name: Security regression tests
         run: npm test
       - name: Document editor browser regression

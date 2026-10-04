@@ -83,6 +83,8 @@ model User {
   image String?
   accounts Account[]
   sessions Session[]
+  localCredential LocalCredential?
+  localSessions LocalSession[]
   calendarConnection GoogleCalendarConnection?
   calendarEvents LegalCalendarEvent[]
   gmailConnections GoogleGmailConnection[]
@@ -126,6 +128,43 @@ model VerificationToken {
   token String @unique
   expires DateTime
   @@unique([identifier,token])
+}
+
+model LocalCredential {
+  userId String @id
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  emailNormalized String @unique
+  passwordHash String @db.Text
+  verifiedAt DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model LocalSession {
+  tokenHash String @id
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LocalAuthChallenge {
+  id String @id
+  email String
+  purpose String
+  userId String?
+  tokenHash String @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+}
+
+model LocalAuthRateLimit {
+  id String @id
+  attempts Int
+  expiresAt DateTime
+  @@index([expiresAt])
 }
 
 model Workspace {
@@ -889,4 +928,14 @@ model AgentChannelEvent {
   metadata Json?
   @@unique([channelConnectionId,externalEventId])
   @@index([workspaceId,channel,receivedAt])
+}
+
+model LocalAuthMailJob {
+  id          String   @id
+  email       String
+  purpose     String
+  expiresAt   DateTime
+  availableAt DateTime @default(now())
+  attempts    Int      @default(0)
+  @@index([availableAt, expiresAt])
 }

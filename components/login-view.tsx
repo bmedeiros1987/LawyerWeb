@@ -1,5 +1,6 @@
 "use client";
 
+import { LocalAuthForm } from "./local-auth-form";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, FileText, Layers3, ShieldCheck } from "lucide-react";
 
@@ -12,7 +13,7 @@ function SignInButton() {
   </button>;
 }
 
-export function LoginView({ action, error }: { action: () => Promise<void>; error?: string }) {
+export function LoginView({ action, error, localEnabled = false }: { action: () => Promise<void>; error?: string; localEnabled?: boolean }) {
   return <main className="auth-page lawyermind-login">
     <section className="auth-visual" aria-label="LawyerMind">
       <div className="auth-brand"><div><strong className="lawyermind-wordmark">LawyerMind</strong><span>Seu trabalho jurídico, em ordem.</span></div></div>
@@ -25,8 +26,9 @@ export function LoginView({ action, error }: { action: () => Promise<void>; erro
         <span className="eyebrow">Bem-vindo de volta</span><h2 id="login-heading">Seu escritório.<br/>Tudo no lugar.</h2>
         <p>Entre para continuar seu trabalho com os documentos e processos do seu workspace.</p>
         {error && <div className="login-error" role="alert"><strong>Não foi possível entrar</strong><p>{error}</p></div>}
+        {localEnabled && <LocalAuthForm/>}
         <form action={action}><SignInButton/></form>
-        <p className="login-provider-note">O acesso por e-mail e senha ainda não está disponível. O acesso existente pelo Google permanece funcionando.</p>
+        {!localEnabled && <p className="login-provider-note">O acesso por e-mail e senha ainda não está disponível. O acesso existente pelo Google permanece funcionando.</p>}
         <div className="login-meta"><ShieldCheck size={19} aria-hidden="true"/><span>Entrar não conecta sua agenda. A permissão do Calendar é solicitada separadamente, se você optar por usá-lo.</span></div>
       </div>
       <footer className="brand-credit">Desenvolvido por MBLZ, uma empresa CrewCheck</footer>
