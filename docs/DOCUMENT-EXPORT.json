@@ -1,0 +1,11 @@
+{
+  "status": "draft export foundation; VCL letterhead not integrated",
+  "base": "PR49 at 80f81b1f4e4182b3e1067ce30388aa5290e8dff9, sibling of auth PR50",
+  "behavior": "Export explicitly selected immutable saved text version as editable DOCX or paginated A4 PDF. Verify full SHA256 before rendering; enforce documentScope and workspace permissions. No upload, public URL or third-party renderer. Unsaved editor changes disable download.",
+  "format": "Plain text paragraphs; literal markup remains text. No rich text, images, signatures or letterhead. Header/footer identify version and short source digest; this is not a digital signature. PDF expands tabs to four spaces, normalizes CRLF, wraps lines, embeds static Inter completely and rejects unsupported glyphs rather than dropping them. DOCX stores paragraphs with escaped OOXML.",
+  "bounds": "100000 source characters; 250 PDF pages; maximum two concurrent render operations per process with immediate503 when busy. No persistent export artifact, no mutation of saved versions.",
+  "font": "Default-axis static instance of repository Inter.ttf created with fontTools varLib.instancer (opsz14,wght400). Full embedding required: subset mode rendered missing glyphs despite successful text extraction. Inter OFL license retained. Pixel inspection confirmed fix.",
+  "samples": "docs/export-samples contains only synthetic text marked SEM VALIDADE; actual PDF and DOCX outputs plus Poppler raster of PDF page1. PDF Portuguese extraction and all DOCX XML parsed successfully. DOCX not visually rendered because LibreOffice absent.",
+  "blocked": "Approved VCL DOCX/PDF and LawyerMind logo could not be materialized through official Library helper. No reconstructed or substituted VCL asset is used. Integration and authenticated end-to-end pilot remain pending.",
+  "production": "No merge, deploy, migration, external send or publication performed. Review separately and keep draft."
+}

@@ -53,6 +53,20 @@ export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit, 
     return () => { window.removeEventListener("beforeunload", protect); document.removeEventListener("click", protectLink, true); };
   }, [dirty]);
 
+  async function download(format: "pdf" | "docx") {
+    if (!version || dirty || busy) return;
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch(`/api/documents/${encodeURIComponent(documentId)}/export?workspaceId=${encodeURIComponent(workspaceId)}&version=${version}&format=${format}`, { cache: "no-store" });
+      if (!response.ok) { const data = await response.json(); throw new Error(data.error ?? "Não foi possível exportar."); }
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a"); anchor.href = objectUrl; anchor.download = `documento-v${version}.${format}`;
+      document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+      setMessage(`Exportação da versão ${version} preparada. Confira o arquivo baixado.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Falha na exportação."); }
+    finally { setBusy(false); }
+  }
+
   async function save() {
     if (version === null) return;
     setBusy(true); setMessage("");
@@ -78,6 +92,8 @@ export function DocumentDraftEditor({ documentId, workspaceId, userId, canEdit, 
       </label>
       {editable && <button className="form-submit" type="button" disabled={busy || version === null || !dirty || !body.trim()} onClick={save}>{busy ? "Salvando…" : "Salvar nova versão"}</button>}
       <button type="button" className="secondary-button" disabled={busy} onClick={() => { if (!dirty || window.confirm("Descartar o texto não salvo e reabrir a versão salva?")) { unsaved.delete(recoveryKey); void load(undefined, true); } }}>Reabrir versão salva</button>
+      <div className="form-actions"><button type="button" className="secondary-button" disabled={busy || dirty || !version} onClick={() => void download("docx")}>Baixar DOCX</button><button type="button" className="secondary-button" disabled={busy || dirty || !version} onClick={() => void download("pdf")}>Baixar PDF</button></div>
+      <p>A exportação usa a versão salva, sem timbrado. {dirty ? "Salve ou descarte as alterações antes de baixar." : "Revise o arquivo antes de compartilhar."}</p>
       {message && <p role="status">{message}</p>}
     </div>
   </article>;
