@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -91,6 +91,14 @@ beforeAll(async () => {
   browser = await chromium.launch({ executablePath, headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
 });
 
+afterEach(async () => {
+  if (!browser) return;
+  let index = 0;
+  for (const value of browser.contexts()) for (const page of value.pages()) {
+    await screenshot(page, `diagnostic-${++index}`).catch(() => {});
+  }
+});
+
 afterAll(async () => {
   await browser?.close();
   if (server && server.exitCode === null) { server.kill("SIGTERM"); await Promise.race([new Promise<void>(resolve => server.once("exit", () => resolve())), sleep(5000)]); if (server.exitCode === null) server.kill("SIGKILL"); }
@@ -126,7 +134,7 @@ it("authenticates, creates a model, fills, reviews, versions, reopens and export
   const templateId = templateResult.template.id;
   await owner.getByLabel("Nome do documento", { exact: true }).waitFor();
   await owner.reload();
-  await owner.getByLabel("Modelo salvo", { exact: true }).selectOption(templateId);
+  await owner.getByLabel("Modelo salvo").selectOption(templateId);
   await owner.getByLabel("Nome do documento", { exact: true }).fill("Minuta sintética Marina");
   await owner.getByLabel("cliente", { exact: true }).fill("Pessoa Fictícia & Companhia");
   await owner.getByLabel("objeto", { exact: true }).fill("revisão <literal> de contrato fictício");
