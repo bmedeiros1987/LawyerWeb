@@ -114,7 +114,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("local auth with isolated Post
   });
   it("retains failed deliveries durably, retries under lease, and cleans up expired requests", async () => {
     const address = email(), id = await queueAuthMail(address, "REGISTER");
-    await deliverAuthJob(id, async () => { throw new Error("synthetic transport failure"); });
+    await expect(deliverAuthJob(id, async () => { throw new Error("synthetic transport failure"); })).rejects.toThrow("synthetic transport failure");
     expect((await prisma.localAuthMailJob.findUniqueOrThrow({ where: { id } })).attempts).toBe(1);
     expect(await prisma.localAuthChallenge.count({ where: { email: address } })).toBe(0);
     const mail = vi.fn(async (_message: AuthMail) => {}); await deliverAuthJob(id, mail); expect(mail).not.toHaveBeenCalled();

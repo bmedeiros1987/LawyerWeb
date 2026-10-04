@@ -26,8 +26,9 @@ export async function deliverAuthJob(id: string, deliver: AuthMailer) {
   try {
     await beginChallenge(job.email, job.purpose, deliver);
     await prisma.localAuthMailJob.deleteMany({ where: { id, availableAt: lease } });
-  } catch {
-    // Keep durable work for a bounded retry after the lease. Never log mail/tokens.
+  } catch (error) {
+    // Keep durable work for a bounded retry after the lease. Caller sanitizes failure.
+    throw error;
   }
 }
 
