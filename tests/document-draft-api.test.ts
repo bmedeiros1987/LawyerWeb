@@ -18,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: mocks.db }));
 import { GET as templates, POST as saveTemplate } from "@/app/api/document-templates/route";
 import { POST as createDraft } from "@/app/api/document-templates/[id]/drafts/route";
 import { GET as read, POST as save } from "@/app/api/documents/[id]/content/route";
+import { GET as exportFile } from "@/app/api/documents/[id]/export/route";
 import { PATCH as setStatus } from "@/app/api/documents/[id]/route";
 import { DRAFT_SOURCE, encodeRevision, encodeTemplate } from "@/lib/documents/draft-format";
 
@@ -179,4 +180,13 @@ describe("draft API authorization and immutable revisions", () => {
     expect((await saveTemplate(request({ operationId, workspaceId: "workspace-a", name: "Modelo", body: "{{eval()}}" }))).status).toBe(400);
     expect((await createDraft(request({ operationId, workspaceId: "workspace-a", name: "Minuta", values: {} }), context)).status).toBe(400);
   });
+  it("requires authentication and an explicit immutable version for export", async () => {
+    const path = "/api/documents/document-a/export?workspaceId=workspace-a&format=pdf";
+    mocks.session = null; expect((await exportFile(request(undefined, path + "&version=1"), context)).status).toBe(401);
+    mocks.session = { user: { id: "author-a" } }; expect((await exportFile(request(undefined, path), context)).status).toBe(400);
+    expect((await exportFile(request(undefined, path + "&version=0"), context)).status).toBe(400);
+    const corrupted = await exportFile(request(undefined, path + "&version=1"), context);
+    expect(corrupted.status).toBe(409); expect(corrupted.headers.get("cache-control")).toBe("private, no-store");
+  });
+
 });

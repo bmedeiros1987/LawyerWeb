@@ -8,6 +8,7 @@ import { createDraft, listTemplates, readDraft, saveRevision, saveTemplate } fro
 import { type Viewer } from "@/lib/authz/visibility";
 import { GET as readContent, POST as saveContent } from "@/app/api/documents/[id]/content/route";
 import { POST as createFromTemplate } from "@/app/api/document-templates/[id]/drafts/route";
+import { GET as exportFile } from "@/app/api/documents/[id]/export/route";
 import { PATCH as setStatus } from "@/app/api/documents/[id]/route";
 
 describe.skipIf(process.env.RUN_DB_TESTS !== "1")("document drafts with isolated PostgreSQL", () => {
@@ -110,4 +111,22 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("document drafts with isolated
     }
     expect(await prisma.documentVersion.count({ where: { documentId: draft.id } })).toBe(current.currentVersion);
   });
+  it("exports an exact saved version and denies foreign accounts and confidential documents", async () => {
+    const request = (workspaceId: string, version = 1) => new NextRequest(`http://localhost/api/documents/${documentId}/export?workspaceId=${workspaceId}&version=${version}&format=docx`);
+    const context = { params: Promise.resolve({ id: documentId }) };
+    session.user.id = stranger.userId;
+    expect((await exportFile(request(stranger.workspaceId), context)).status).toBe(404);
+    expect((await exportFile(request(author.workspaceId), context)).status).toBe(403);
+    session.user.id = colleague.userId;
+    expect((await exportFile(request(author.workspaceId), context)).status).toBe(404);
+    session.user.id = author.userId;
+    const response = await exportFile(request(author.workspaceId), context);
+    expect(response.status).toBe(200); expect(response.headers.get("x-document-version")).toBe("1");
+    expect(response.headers.get("x-document-sha256")).toBe((await readDraft(author, documentId, 1)).sha256);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("content-disposition")).toContain("documento-v1.docx");
+    expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    expect((await exportFile(request(author.workspaceId, 9999), context)).status).toBe(404);
+  });
+
 });
