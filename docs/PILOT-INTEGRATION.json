@@ -1,0 +1,26 @@
+{
+  "source_heads": {
+    "PR49": "80f81b1f4e4182b3e1067ce30388aa5290e8dff9",
+    "PR50": "f0a5b7bb6c6ca378261a81df9ee2eb5ce9739137",
+    "PR51": "e96cc7dbc834cd11d186cf4615860cb359856bb6"
+  },
+  "composition": "Local integration branch based on PR50 with PR51 combined; only package.json and package-lock.json conflicted. Dependency maps were united at their exact existing versions and lockfile regenerated with Node22. No remote PR merge or deployment.",
+  "e2e": "npm run test:pilot, explicit RUN_PILOT_E2E=1, loopback mblz_ci only. Real Next server, real database services and Chromium UI. Two synthetic verified accounts seeded through real registration service with fake in-memory mail; SMTP configuration forcibly empty in child server. AUTH_LOCAL_ENABLED=true only in isolated child process. Exercises password login, workspace UI, saved/reloaded model, field filling, review, v2 save/reopen, approval locks/unlocks, second-tab v3, reopen/approve expectedVersion3 with zero409, actual DOCX/PDF downloads, second-account denial, logout/relogin/reopen. Evidence is retained as CI artifact; no password/token trace is captured.",
+  "P2_regression": "The original 8f870602 editor failed APPROVED-to-DRAFT refresh in local Chromium. Fixed by PR49 HEAD80f81b1: serverVersion/serverStatus effect dependencies and router refresh on manual reopen. Both component regression and authenticated integration tests assert this behavior.",
+  "placeholders": "Text-only LawyerMind identity; screenshots annotated as synthetic and without approved logo or VCL letterhead. Export UI explicitly says sem timbrado. Supplied logo and timbrado are not delivered.",
+  "production_preflight_plan": [
+    "Obtain separate authorization and a named operator, maintenance window and verified backup/PITR restore point. Do not configure secrets or enable auth during code review.",
+    "Only after authorization, run scripts/preflight/local-auth-readonly.sql with a read-only role against the selected database. Inspect duplicate normalized-email group counts and existing schema; output contains group fingerprints rather than raw email addresses. This task has NOT executed it against production.",
+    "Any duplicate lower(btrim(email)), unexpected existing objects or schema drift blocks migration. A human must separately assess account ownership; never auto-merge users, normalize existing emails, activate legacy passwords or delete records.",
+    "Rehearse migration and restore on a separately authorized sanitized staging clone. Confirm Google login, flag-off paths, registration denial for existing users, session revocation and index behavior. Capture exact migration/schema revision.",
+    "Keep AUTH_LOCAL_ENABLED=false. Apply additive migration in a separately approved operation using npm run db:deploy, with snapshot/restore readiness and lock/statement timeout appropriate to measured table size. Do not run it implicitly during application start: start script now only invokes next start.",
+    "Enable only after separately approved SMTP secret configuration, canonical HTTPS origin, retry scheduler and staging delivery checks. No new credentials, scheduler or production changes were made here."
+  ],
+  "rollback_plan": [
+    "Disable AUTH_LOCAL_ENABLED to stop password authentication and queue processing; this is a planned emergency configuration action, not performed here. Existing Google authentication remains available; local-only users will temporarily lose access, so communicate via an approved operator channel.",
+    "Stop delivery retries and revert application release if necessary. Preserve additive auth tables, local users, sessions/audit evidence and unique index; do not use destructive down-migrations or automatically reconcile accounts.",
+    "If migration fails before activation, keep auth off and capture Prisma migration state. Do not issue migrate resolve or rerun partially applied SQL blindly; compare each created object against the approved migration and restore from the tested backup or perform a separately reviewed recovery.",
+    "Any later index removal/table deletion/data restoration requires its own reviewed plan and approval, including consistency of users created after deployment."
+  ],
+  "local_limit": "Prisma checksum download returned HTTP403; no ignore-checksum or alternative-download bypass. Full generated-client/database/E2E validation is performed in disposable CI where official install succeeds."
+}

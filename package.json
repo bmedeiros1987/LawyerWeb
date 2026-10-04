@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "prisma migrate deploy && next start",
+    "start": "next start",
     "typecheck": "prisma generate && tsc --noEmit",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
@@ -17,7 +17,8 @@
     "db:deploy": "prisma migrate deploy",
     "ci": "npm run db:validate && npm test && npm run typecheck && npm run build",
     "test": "vitest run",
-    "test:browser": "node scripts/document-editor-browser.mjs"
+    "test:browser": "node scripts/document-editor-browser.mjs",
+    "test:pilot": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.3",
@@ -47,6 +48,7 @@
     "@types/react-dom": "latest",
     "@types/web-push": "latest",
     "jszip": "3.10.2",
+    "playwright-core": "1.63.0",
     "prisma": "7.10.0",
     "typescript": "latest",
     "vitest": "^3.2.4"
