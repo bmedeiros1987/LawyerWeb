@@ -24,7 +24,7 @@
     "@prisma/client": "7.10.0",
     "dotenv": "latest",
     "google-auth-library": "latest",
-    "googleapis": "182.0.0",
+    "googleapis": "183.0.0",
     "lucide-react": "latest",
     "next": "16.3.8",
     "next-auth": "5.0.0-beta.32",
