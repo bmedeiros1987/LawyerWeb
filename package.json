@@ -42,6 +42,6 @@
     "@types/web-push": "latest",
     "prisma": "7.10.0",
     "typescript": "latest",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.3"
   }
 }
