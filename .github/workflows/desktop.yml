@@ -1,0 +1,194 @@
+name: Desktop (Tauri)
+
+# Builds the LawyerMind desktop installers on each OS, installs them on the
+# runner and runs the packaged app's synthetic self-test (PostgreSQL local,
+# cadastro, documentos, reinício, backup/restauração). Unsigned builds: no
+# signing or notarization credentials are used.
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "app/globals.css"
+      - "public/fonts/**"
+      - "public/brand/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            bundles: nsis
+          - name: macos-arm64
+            os: macos-latest
+            bundles: app,dmg
+          - name: linux-x64
+            os: ubuntu-24.04
+            bundles: deb,appimage
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb imagemagick webkit2gtk-driver python3-xlib iproute2
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare bundled PostgreSQL
+        run: npm run prepare:postgres
+
+      - name: UI typecheck
+        run: npm run ui:typecheck
+
+      - name: Core tests (real PostgreSQL)
+        run: cargo test -p lawyermind-core -- --test-threads=1
+
+      - name: No HTTP client in the core
+        run: |
+          if cargo tree -p lawyermind-core -e normal --prefix none | grep -E -i '^(reqwest|hyper|ureq|isahc|curl|attohttpc) '; then
+            echo "HTTP client found in lawyermind-core"; exit 1
+          fi
+          echo "lawyermind-core: nenhum cliente HTTP nas dependências."
+
+      - name: Build installers
+        run: npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Collect installers
+        run: |
+          mkdir -p ../dist-desktop
+          find target/release/bundle -maxdepth 2 -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} ../dist-desktop/ \;
+          ls -la ../dist-desktop
+          (cd ../dist-desktop && (sha256sum * 2>/dev/null || shasum -a 256 *)) | tee ../dist-desktop/SHA256SUMS.txt
+
+      # ---- install the produced installer and run the packaged self-test ----
+
+      - name: Install and self-test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: dist-desktop
+        run: |
+          $installer = Get-ChildItem -Filter *-setup.exe | Select-Object -First 1
+          Start-Process -Wait -FilePath $installer.FullName -ArgumentList '/S'
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\LawyerMind" -Filter *.exe -Recurse | Where-Object { $_.Name -notlike 'uninstall*' } | Select-Object -First 1
+          if (-not $exe) { Get-ChildItem "$env:LOCALAPPDATA" -Recurse -Depth 2 | Out-String | Write-Host; throw "app não instalado" }
+          "Instalado em: $($exe.FullName)" | Tee-Object -FilePath install-windows.txt
+          Get-AuthenticodeSignature $exe.FullName | Format-List | Out-String | Tee-Object -FilePath install-windows.txt -Append
+          $work = Join-Path $env:RUNNER_TEMP 'lm-selftest'
+          foreach ($phase in 'seed','verify') {
+            $report = Join-Path $PWD "selftest-windows-$phase.json"
+            $p = Start-Process -Wait -PassThru -FilePath $exe.FullName -ArgumentList '--self-test', $work, $report, $phase
+            Get-Content $report
+            if ($p.ExitCode -ne 0) { throw "self-test $phase falhou ($($p.ExitCode))" }
+          }
+
+      - name: Install and self-test (macOS)
+        if: runner.os == 'macOS'
+        working-directory: dist-desktop
+        run: |
+          dmg=$(ls *.dmg | head -1)
+          mnt=$(mktemp -d)
+          hdiutil attach "$dmg" -nobrowse -mountpoint "$mnt"
+          mkdir -p "$RUNNER_TEMP/Applications"
+          cp -R "$mnt"/*.app "$RUNNER_TEMP/Applications/"
+          hdiutil detach "$mnt"
+          app=$(ls -d "$RUNNER_TEMP"/Applications/*.app | head -1)
+          bin="$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)"
+          { echo "Instalado em: $app"; codesign -dv --verbose=2 "$app" 2>&1 || true; spctl -a -vv "$app" 2>&1 || true; } | tee install-macos.txt
+          for phase in seed verify; do
+            "$bin" --self-test "$RUNNER_TEMP/lm-selftest" "selftest-macos-$phase.json" "$phase"
+          done
+
+      - name: Install and self-test offline (Linux, no network namespace)
+        if: runner.os == 'Linux'
+        working-directory: dist-desktop
+        run: |
+          deb=$(ls *.deb | head -1)
+          sudo apt-get install -y "./$deb"
+          pkg=$(dpkg-deb -f "$deb" Package)
+          bin=$(dpkg -L "$pkg" | grep -E '^/usr/bin/' | head -1)
+          echo "Pacote $pkg instalado; binário: $bin" | tee install-linux.txt
+          work="$RUNNER_TEMP/lm-selftest"; mkdir -p "$work"
+          for phase in seed verify; do
+            # New network namespace with only loopback: proves no internet is needed.
+            sudo unshare --net -- sh -c "ip link set lo up && su $(whoami) -c '\"$bin\" --self-test \"$work\" \"$PWD/selftest-linux-$phase.json\" $phase'"
+          done
+
+      - name: GUI end-to-end through the interface, offline (Linux)
+        if: runner.os == 'Linux'
+        working-directory: dist-desktop
+        run: |
+          cargo install tauri-driver --locked
+          cat > "$RUNNER_TEMP/gui.sh" <<EOS
+          set -e
+          E="$PWD"
+          tauri-driver > "\$E/tauri-driver.log" 2>&1 & D=\$!; sleep 2
+          node "$GITHUB_WORKSPACE/desktop/scripts/e2e-linux.mjs" /usr/bin/lawyermind "\$E" create
+          node "$GITHUB_WORKSPACE/desktop/scripts/e2e-linux.mjs" /usr/bin/lawyermind "\$E" verify-warm
+          kill \$D; sleep 1
+          lawyermind & A=\$!; sleep 12
+          python3 "$GITHUB_WORKSPACE/desktop/scripts/close-window-linux.py"
+          for i in \$(seq 1 30); do kill -0 \$A 2>/dev/null || break; sleep 1; done
+          if kill -0 \$A 2>/dev/null; then echo "app não encerrou"; exit 1; fi
+          if test -f "\$HOME/.local/share/br.mblz.lawyermind/pgdata/postmaster.pid"; then echo "postgres não parou ao fechar a janela"; exit 1; fi
+          echo "fechar a janela encerrou o app e parou o PostgreSQL" | tee "\$E/close-window-linux.txt"
+          tauri-driver >> "\$E/tauri-driver.log" 2>&1 & D=\$!; sleep 2
+          node "$GITHUB_WORKSPACE/desktop/scripts/e2e-linux.mjs" /usr/bin/lawyermind "\$E" verify-cold
+          kill \$D
+          cp "\$HOME/.local/share/br.mblz.lawyermind/logs/app.log" "\$E/app-linux.log"
+          EOS
+          chmod +x "$RUNNER_TEMP/gui.sh"
+          me=$(whoami)
+          sudo unshare --net -- sh -c "ip link set lo up && su $me -c 'PATH=$PATH xvfb-run -a -s \"-screen 0 1440x900x24\" sh $RUNNER_TEMP/gui.sh'"
+
+      - name: GUI launch screenshot (Windows/macOS)
+        if: runner.os != 'Linux'
+        continue-on-error: true
+        working-directory: dist-desktop
+        run: |
+          case "$RUNNER_OS" in
+            Windows)
+              exe=$(find "$LOCALAPPDATA/LawyerMind" -maxdepth 1 -name '*.exe' ! -iname 'uninstall*' | head -1)
+              "$exe" & sleep 25
+              powershell -Command "Add-Type -AssemblyName System.Windows.Forms,System.Drawing; \$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; \$i=New-Object System.Drawing.Bitmap \$b.Width,\$b.Height; [System.Drawing.Graphics]::FromImage(\$i).CopyFromScreen(\$b.Location,[System.Drawing.Point]::Empty,\$b.Size); \$i.Save('gui-windows.png')" ;;
+            macOS)
+              open "$(ls -d "$RUNNER_TEMP"/Applications/*.app | head -1)"; sleep 25; screencapture -x gui-macos.png ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lawyermind-desktop-${{ matrix.name }}
+          path: dist-desktop/
+          if-no-files-found: warn
+          retention-days: 14

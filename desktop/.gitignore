@@ -1,0 +1,12 @@
+node_modules
+.cache
+target
+src-tauri/resources/postgres
+src-tauri/gen
+ui/.next
+ui/out
+ui/public/fonts
+ui/public/brand
+ui/app/mblz-globals.css
+ui/next-env.d.ts
+*.tsbuildinfo

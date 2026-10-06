@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Janela principal: apenas comandos do próprio app (sem acesso direto a arquivos, shell ou rede pelo JavaScript).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
