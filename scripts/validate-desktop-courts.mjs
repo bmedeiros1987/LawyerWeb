@@ -20,8 +20,16 @@ const port = await new Promise((resolve, reject) => {
 });
   execFileSync(path.join(binaries, "initdb"), ["-D", cluster, "-U", "court_fixture", "-A", "scram-sha-256", "--pwfile", passwd, "--no-locale", "--encoding=UTF8"], { stdio: "pipe" });
   fs.mkdirSync(state);
-  execFileSync(path.join(binaries, "pg_ctl"), ["-D", cluster, "-l", path.join(root, "postgres.log"),
-    "-o", "-h 127.0.0.1 -p " + port + " -c unix_socket_directories='' -c max_connections=30", "-w", "start"], { stdio: "pipe" });
+  // Settings go in postgresql.conf, as the app does (desktop/core/src/pg.rs): on
+  // Windows pg_ctl -o passes through cmd.exe, which keeps the quotes of ''.
+  fs.appendFileSync(path.join(cluster, "postgresql.conf"),
+    "\n# court validation\nlisten_addresses = '127.0.0.1'\nport = " + port + "\nunix_socket_directories = ''\nmax_connections = 30\n");
+  try {
+    execFileSync(path.join(binaries, "pg_ctl"), ["-D", cluster, "-l", path.join(root, "postgres.log"), "-w", "start"], { stdio: "pipe" });
+  } catch (error) {
+    try { console.error(fs.readFileSync(path.join(root, "postgres.log"), "utf8")); } catch {}
+    throw error;
+  }
   started = true;
   const base = new URL("postgresql://court_fixture:" + password + "@127.0.0.1:" + port + "/postgres");
   const client = new pg.Client({ connectionString: base.toString() });
