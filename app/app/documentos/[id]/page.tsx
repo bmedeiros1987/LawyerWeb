@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { P, canAccessMatter, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { DocumentStatusAction } from "@/components/legal-status-actions";
+import { DesktopDocumentFiles } from "@/components/desktop/document-files";
 
 export const dynamic="force-dynamic";
 
@@ -52,6 +53,8 @@ export default async function DocumentPage({params}:{params:Promise<{id:string}>
       <article className="metric-card"><div className="metric-icon"><PenTool size={19}/></div><span>Assinaturas</span><strong>{signed}</strong><small>evidências concluídas</small></article>
       <article className="metric-card"><div className="metric-icon"><FileCheck2 size={19}/></div><span>Contratos vinculados</span><strong>{document.contracts.length}</strong><small>usando este registro</small></article>
     </section>
+
+    {process.env.MBLZ_DESKTOP==="1"&&<DesktopDocumentFiles documentId={document.id} canEdit={canEdit} versions={document.versions.filter(v=>v.source==="DESKTOP_IMPORT").map(v=>({id:v.id,version:v.version,originalName:v.originalName,sha256:v.sha256,createdAt:v.createdAt.toISOString(),provenance:(()=>{try{return JSON.parse(v.notes??"{}")}catch{return {}}})()}))}/>}
 
     <section className="contract-layout">
       <article className="panel panel-wide">

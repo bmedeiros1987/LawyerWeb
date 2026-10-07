@@ -3,33 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "LawyerMind desktop (Tauri) — local-first, PostgreSQL local, sem servidor remoto.",
+  "description": "LawyerMind desktop (Tauri): PostgreSQL local + servidor Next.js de produ\u00e7\u00e3o empacotado; funciona offline.",
   "engines": {
     "node": ">=22 <23"
   },
   "scripts": {
     "prepare:postgres": "node scripts/prepare-postgres.mjs",
-    "ui:assets": "node scripts/sync-ui-assets.mjs",
-    "ui:build": "npm run ui:assets && next build ui",
-    "ui:dev": "npm run ui:assets && next dev ui --port 1420",
-    "ui:typecheck": "npm run ui:assets && tsc -p ui --noEmit",
+    "prepare:server": "node scripts/prepare-server.mjs",
+    "prepare:all": "npm run prepare:postgres && npm run prepare:server",
     "tauri": "tauri",
-    "dev": "npm run prepare:postgres && tauri dev",
-    "build": "npm run prepare:postgres && tauri build",
+    "build": "npm run prepare:all && tauri build",
     "test:core": "cargo test -p lawyermind-core -- --test-threads=1"
   },
-  "dependencies": {
-    "@tauri-apps/api": "2.12.1",
-    "lucide-react": "1.49.0",
-    "next": "16.3.8",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@tauri-apps/cli": "2.12.1",
-    "@types/node": "26.6.3",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "typescript": "7.0.2"
+    "@tauri-apps/cli": "2.12.1"
   }
 }

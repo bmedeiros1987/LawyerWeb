@@ -4,16 +4,12 @@ use std::path::PathBuf;
 pub enum Error {
     #[error("{0}")]
     Invalid(String),
-    #[error("Registro não encontrado: {0}")]
-    NotFound(String),
     #[error("PostgreSQL local: {0}")]
     Postgres(String),
     #[error("Banco de dados: {0}")]
     Db(#[from] postgres::Error),
     #[error("Arquivo {path}: {source}")]
     Io { path: PathBuf, source: std::io::Error },
-    #[error("Backup: {0}")]
-    Backup(String),
     #[error("JSON: {0}")]
     Json(#[from] serde_json::Error),
 }

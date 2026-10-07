@@ -32,6 +32,8 @@
     "react": "latest",
     "react-dom": "latest",
     "web-push": "latest",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1",
     "zod": "latest"
   },
   "devDependencies": {
@@ -40,6 +42,8 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@types/web-push": "latest",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
     "prisma": "7.10.0",
     "typescript": "latest",
     "vitest": "^3.2.4"

@@ -1,15 +1,11 @@
-//! LawyerMind desktop core.
+//! LawyerMind desktop core: the private PostgreSQL cluster of this installation.
 //!
-//! Everything runs on this computer: a private PostgreSQL cluster bound to
-//! 127.0.0.1, documents in a user-chosen folder, and file-based backups.
-//! This crate contains no HTTP client and makes no outbound network calls.
+//! The cluster lives in the OS application-data directory of the current user,
+//! listens only on 127.0.0.1 (random port, random SCRAM password) and is
+//! started/stopped with the bundled `pg_ctl`. Application logic (accounts,
+//! records, documents, backup) runs in the bundled Next.js server.
 
-pub mod backup;
-pub mod documents;
 pub mod error;
 pub mod pg;
-pub mod selftest;
-pub mod settings;
-pub mod store;
 
 pub use error::{Error, Result};

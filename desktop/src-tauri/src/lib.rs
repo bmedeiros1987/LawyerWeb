@@ -1,439 +1,258 @@
 //! LawyerMind desktop shell.
 //!
-//! The webview only renders the static UI (`ui/out`). Every operation goes
-//! through the commands below, which run in this process against the local
-//! PostgreSQL started from the bundled binaries. No command performs network
-//! requests.
+//! Startup: private PostgreSQL (bundled binaries, 127.0.0.1) → bundled Node.js
+//! running the production Next.js server (127.0.0.1, random port; it applies
+//! migrations before answering) → the window navigates to it. Shutdown: server,
+//! then PostgreSQL. Nothing here talks to the internet.
+
+mod server;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
-use lawyermind_core::backup::{self, BackupReport, Manifest, RestoreReport};
-use lawyermind_core::documents::{self, RootCheck};
 use lawyermind_core::pg::{LocalPostgres, PgPaths};
-use lawyermind_core::settings::Settings;
-use lawyermind_core::store::{ClientInput, MatterInput, Store};
 use serde::Serialize;
-use serde_json::Value;
-use tauri::{AppHandle, Manager, RunEvent, State};
+use server::{Server, ServerPaths};
+use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_opener::OpenerExt;
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-struct Running {
+pub struct Stack {
     pg: LocalPostgres,
-    store: Store,
+    server: Server,
+}
+
+pub struct Resources {
+    pub pg_bin: PathBuf,
+    pub node: PathBuf,
+    pub server_dir: PathBuf,
+    pub runtime_dir: PathBuf,
+}
+
+impl Resources {
+    pub fn at(root: &Path) -> Self {
+        let node = root.join("node").join(format!("node{}", std::env::consts::EXE_SUFFIX));
+        Resources {
+            pg_bin: root.join("postgres").join("bin"),
+            node,
+            server_dir: root.join("server"),
+            runtime_dir: root.join("runtime"),
+        }
+    }
+}
+
+/// Local diagnostic log (never transmitted): `<state_dir>/logs/app.log`.
+fn app_log(state_dir: &Path, msg: &str) {
+    use std::io::Write as _;
+    let dir = state_dir.join("logs");
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("app.log")) {
+        let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let _ = writeln!(f, "{ts} {msg}");
+    }
+}
+
+pub fn start_stack(res: &Resources, state_dir: &Path) -> Result<Stack, String> {
+    let t = Instant::now();
+    let pg = LocalPostgres::start(PgPaths { bin_dir: res.pg_bin.clone(), state_dir: state_dir.to_path_buf() }).map_err(|e| e.to_string())?;
+    app_log(state_dir, &format!("postgres pronto na porta {} ({} ms)", pg.port(), t.elapsed().as_millis()));
+    let paths = ServerPaths { node: res.node.clone(), server_dir: res.server_dir.clone(), state_dir: state_dir.to_path_buf() };
+    match Server::start(&paths, &pg.database_url(), APP_VERSION) {
+        Ok(server) => {
+            app_log(state_dir, &format!("servidor pronto em {} ({} ms)", server.url(), t.elapsed().as_millis()));
+            Ok(Stack { pg, server })
+        }
+        Err(e) => {
+            app_log(state_dir, &format!("falha ao iniciar servidor: {e}"));
+            let _ = pg.stop();
+            Err(e)
+        }
+    }
+}
+
+pub fn stop_stack(stack: Stack, state_dir: &Path) {
+    stack.server.stop();
+    match stack.pg.stop() {
+        Ok(()) => app_log(state_dir, "servidor e postgres parados"),
+        Err(e) => app_log(state_dir, &format!("falha ao parar postgres: {e}")),
+    }
+}
+
+// ---- app state & commands --------------------------------------------------
+
+#[derive(Default, Clone, Serialize)]
+struct Startup {
+    phase: String,
+    error: Option<String>,
+    url: Option<String>,
+    state_dir: Option<String>,
 }
 
 #[derive(Default)]
 struct Inner {
-    running: Option<Running>,
-    error: Option<String>,
+    startup: Startup,
+    stack: Option<Stack>,
     state_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Default)]
-pub struct AppState(Arc<Mutex<Inner>>);
-
-type CmdResult<T> = Result<T, String>;
-
-impl AppState {
-    fn with_store<T>(&self, f: impl FnOnce(&mut Store, &Path) -> lawyermind_core::Result<T>) -> CmdResult<T> {
-        let mut inner = self.0.lock().map_err(|_| "estado interno indisponível".to_string())?;
-        let state_dir = inner.state_dir.clone().ok_or("aplicativo ainda iniciando")?;
-        let not_ready = inner_error_message(&inner.error);
-        let running = inner.running.as_mut().ok_or(not_ready)?;
-        f(&mut running.store, &state_dir).map_err(|e| e.to_string())
-    }
-}
-
-fn inner_error_message(err: &Option<String>) -> String {
-    err.clone().unwrap_or_else(|| "o banco local ainda está iniciando".into())
-}
-
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> CmdResult<T> + Send + 'static) -> CmdResult<T> {
-    tauri::async_runtime::spawn_blocking(f)
-        .await
-        .map_err(|e| format!("falha interna: {e}"))?
-}
-
-fn documents_root(state_dir: &Path) -> lawyermind_core::Result<PathBuf> {
-    Settings::load(state_dir)?
-        .documents_root()
-        .ok_or_else(|| lawyermind_core::Error::Invalid("Escolha primeiro a pasta de documentos em Configurações.".into()))
-}
-
-// ---- status ---------------------------------------------------------------
-
-#[derive(Serialize)]
-struct Status {
-    ready: bool,
-    error: Option<String>,
-    app_version: &'static str,
-    postgres_version: Option<String>,
-    postgres_port: Option<u16>,
-    state_dir: Option<String>,
-    database_dir: Option<String>,
-    documents_root: Option<String>,
-    documents_check: Option<RootCheck>,
-    counts: Option<Value>,
-    schema_version: i32,
-}
+struct AppState(Arc<Mutex<Inner>>);
 
 #[tauri::command]
-async fn app_status(state: State<'_, AppState>) -> CmdResult<Status> {
-    let state = state.inner().clone();
-    blocking(move || {
-        let mut inner = state.0.lock().map_err(|_| "estado interno indisponível".to_string())?;
-        let state_dir = inner.state_dir.clone();
-        let error = inner.error.clone();
-        let mut status = Status {
-            ready: false,
-            error,
-            app_version: APP_VERSION,
-            postgres_version: None,
-            postgres_port: None,
-            state_dir: state_dir.as_ref().map(|p| p.display().to_string()),
-            database_dir: None,
-            documents_root: None,
-            documents_check: None,
-            counts: None,
-            schema_version: lawyermind_core::store::schema_version(),
-        };
-        if let (Some(running), Some(dir)) = (inner.running.as_mut(), state_dir) {
-            status.ready = true;
-            status.postgres_port = Some(running.pg.port());
-            status.database_dir = Some(running.pg.paths().data_dir().display().to_string());
-            status.postgres_version = running.store.server_version().ok();
-            status.counts = running.store.counts().ok();
-            if let Some(root) = Settings::load(&dir).ok().and_then(|s| s.documents_root()) {
-                status.documents_root = Some(root.display().to_string());
-                status.documents_check = documents::check_root(&mut running.store, &root).ok();
-            }
-        }
-        Ok(status)
-    })
-    .await
+fn startup_status(state: State<'_, AppState>) -> Startup {
+    state.0.lock().map(|i| i.startup.clone()).unwrap_or_default()
 }
 
-// ---- clients & matters ----------------------------------------------------
-
+// Native dialogs only return a path chosen by the user; the local server does
+// the reading/writing with its own checks (originals read-only, no overwrite
+// without confirmation).
 #[tauri::command]
-async fn list_clients(state: State<'_, AppState>, query: Option<String>, include_archived: bool) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.list_clients(query.as_deref(), include_archived))).await
-}
-
-#[tauri::command]
-async fn get_client(state: State<'_, AppState>, id: String) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.get_client(&id))).await
-}
-
-#[tauri::command]
-async fn create_client(state: State<'_, AppState>, input: ClientInput) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.create_client(&input))).await
-}
-
-#[tauri::command]
-async fn update_client(state: State<'_, AppState>, id: String, input: ClientInput) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.update_client(&id, &input))).await
-}
-
-#[tauri::command]
-async fn set_client_status(state: State<'_, AppState>, id: String, status: String) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.set_client_status(&id, &status))).await
-}
-
-#[tauri::command]
-async fn list_matters(
-    state: State<'_, AppState>,
-    client_id: Option<String>,
-    query: Option<String>,
-    include_archived: bool,
-) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.list_matters(client_id.as_deref(), query.as_deref(), include_archived))).await
-}
-
-#[tauri::command]
-async fn get_matter(state: State<'_, AppState>, id: String) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.get_matter(&id))).await
-}
-
-#[tauri::command]
-async fn create_matter(state: State<'_, AppState>, input: MatterInput) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.create_matter(&input))).await
-}
-
-#[tauri::command]
-async fn update_matter(state: State<'_, AppState>, id: String, input: MatterInput) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.update_matter(&id, &input))).await
-}
-
-#[tauri::command]
-async fn set_matter_status(state: State<'_, AppState>, id: String, status: String) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.set_matter_status(&id, &status))).await
-}
-
-// ---- documents ------------------------------------------------------------
-
-#[tauri::command]
-async fn list_documents(state: State<'_, AppState>, client_id: Option<String>, matter_id: Option<String>) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| st.list_documents(client_id.as_deref(), matter_id.as_deref()))).await
-}
-
-#[tauri::command]
-async fn import_document(
-    state: State<'_, AppState>,
-    source: String,
-    client_id: String,
-    matter_id: Option<String>,
-    name: Option<String>,
-) -> CmdResult<Value> {
-    let s = state.inner().clone();
-    blocking(move || {
-        s.with_store(|st, dir| {
-            let root = documents_root(dir)?;
-            documents::import_document(st, &root, Path::new(&source), &client_id, matter_id.as_deref(), name.as_deref())
-        })
-    })
-    .await
-}
-
-fn document_file(state: &AppState, id: &str) -> CmdResult<PathBuf> {
-    state.with_store(|st, dir| {
-        let root = documents_root(dir)?;
-        documents::document_path(st, &root, id)
-    })
-}
-
-#[tauri::command]
-async fn open_document(app: AppHandle, state: State<'_, AppState>, id: String) -> CmdResult<()> {
-    let s = state.inner().clone();
-    let path = blocking(move || document_file(&s, &id)).await?;
-    app.opener()
-        .open_path(path.display().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn reveal_document(app: AppHandle, state: State<'_, AppState>, id: String) -> CmdResult<()> {
-    let s = state.inner().clone();
-    let path = blocking(move || document_file(&s, &id)).await?;
-    app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn check_documents_root(state: State<'_, AppState>, path: String) -> CmdResult<RootCheck> {
-    let s = state.inner().clone();
-    blocking(move || s.with_store(|st, _| documents::check_root(st, Path::new(&path)))).await
-}
-
-/// Sets (or relocates) the documents folder on this machine. Refuses a folder
-/// where registered documents are missing unless `force` is true.
-#[tauri::command]
-async fn set_documents_root(state: State<'_, AppState>, path: String, force: bool) -> CmdResult<RootCheck> {
-    let s = state.inner().clone();
-    blocking(move || {
-        s.with_store(|st, dir| {
-            let root = PathBuf::from(&path);
-            if !root.is_dir() {
-                return Err(lawyermind_core::Error::Invalid(format!("Pasta inexistente: {path}")));
-            }
-            if root.starts_with(dir) {
-                return Err(lawyermind_core::Error::Invalid(
-                    "A pasta de documentos não pode ficar dentro da pasta interna do banco.".into(),
-                ));
-            }
-            let check = documents::check_root(st, &root)?;
-            if check.missing > 0 && !force {
-                return Err(lawyermind_core::Error::Invalid(format!(
-                    "{} de {} documento(s) não foram encontrados nesta pasta.",
-                    check.missing, check.total
-                )));
-            }
-            let mut settings = Settings::load(dir)?;
-            settings.documents_root = Some(root.display().to_string());
-            settings.save(dir)?;
-            Ok(check)
-        })
-    })
-    .await
-}
-
-// ---- backup ---------------------------------------------------------------
-
-#[tauri::command]
-async fn create_backup(state: State<'_, AppState>, dest: String, include_documents: bool) -> CmdResult<BackupReport> {
-    let s = state.inner().clone();
-    blocking(move || {
-        s.with_store(|st, dir| {
-            let root = Settings::load(dir)?.documents_root();
-            let mut dest = PathBuf::from(&dest);
-            if dest.extension().and_then(|e| e.to_str()) != Some(backup::EXTENSION) {
-                let name = format!("{}.{}", dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), backup::EXTENSION);
-                dest.set_file_name(name);
-            }
-            backup::create_backup(st, root.as_deref(), &dest, include_documents, APP_VERSION)
-        })
-    })
-    .await
-}
-
-#[tauri::command]
-async fn verify_backup(path: String) -> CmdResult<Manifest> {
-    blocking(move || backup::verify_backup(Path::new(&path)).map_err(|e| e.to_string())).await
-}
-
-#[tauri::command]
-async fn restore_backup(state: State<'_, AppState>, path: String, documents_target: Option<String>) -> CmdResult<RestoreReport> {
-    let s = state.inner().clone();
-    blocking(move || {
-        s.with_store(|st, dir| {
-            let target = documents_target.map(PathBuf::from);
-            if let Some(t) = &target {
-                if t.starts_with(dir) {
-                    return Err(lawyermind_core::Error::Invalid(
-                        "Os documentos não podem ser restaurados dentro da pasta interna do banco.".into(),
-                    ));
-                }
-            }
-            let report = backup::restore_backup(st, Path::new(&path), target.as_deref(), &dir.join("backups"), APP_VERSION)?;
-            if let Some(root) = &report.documents_root {
-                let mut settings = Settings::load(dir)?;
-                settings.documents_root = Some(root.clone());
-                settings.save(dir)?;
-            }
-            Ok(report)
-        })
-    })
-    .await
-}
-
-// ---- native dialogs (run in Rust, so the webview has no file-system access) --
-
-#[tauri::command]
-async fn pick_folder(app: AppHandle, title: String) -> CmdResult<Option<String>> {
-    blocking(move || Ok(app.dialog().file().set_title(title).blocking_pick_folder().map(|p| p.to_string()))).await
-}
-
-#[tauri::command]
-async fn pick_file(app: AppHandle, title: String, backup_only: bool) -> CmdResult<Option<String>> {
-    blocking(move || {
+async fn pick_file(app: AppHandle, title: String, backup_only: bool) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
         let mut d = app.dialog().file().set_title(title);
         if backup_only {
-            d = d.add_filter("Backup LawyerMind", &[backup::EXTENSION]);
+            d = d.add_filter("Backup LawyerMind", &["lawyermind-backup"]);
         }
-        Ok(d.blocking_pick_file().map(|p| p.to_string()))
+        d.blocking_pick_file().map(|p| p.to_string())
     })
     .await
+    .ok()
+    .flatten()
 }
 
 #[tauri::command]
-async fn pick_backup_destination(app: AppHandle, default_name: String) -> CmdResult<Option<String>> {
-    blocking(move || {
-        Ok(app
-            .dialog()
-            .file()
-            .set_title("Salvar backup")
-            .set_file_name(default_name)
-            .add_filter("Backup LawyerMind", &[backup::EXTENSION])
-            .blocking_save_file()
-            .map(|p| p.to_string()))
+async fn pick_folder(app: AppHandle, title: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || app.dialog().file().set_title(title).blocking_pick_folder().map(|p| p.to_string()))
+        .await
+        .ok()
+        .flatten()
+}
+
+#[tauri::command]
+async fn pick_save(app: AppHandle, title: String, default_name: String, backup_only: bool) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut d = app.dialog().file().set_title(title).set_file_name(default_name);
+        if backup_only {
+            d = d.add_filter("Backup LawyerMind", &["lawyermind-backup"]);
+        }
+        d.blocking_save_file().map(|p| p.to_string())
     })
     .await
+    .ok()
+    .flatten()
 }
 
-// ---- lifecycle ------------------------------------------------------------
+// ---- self-test (packaged app, no window) -----------------------------------
 
-fn start_database(state: AppState, bin_dir: PathBuf, state_dir: PathBuf) {
-    std::thread::spawn(move || {
-        let result = (|| -> lawyermind_core::Result<Running> {
-            let pg = LocalPostgres::start(PgPaths { bin_dir, state_dir: state_dir.clone() })?;
-            let mut store = Store::new(pg.connect()?);
-            store.migrate()?;
-            Ok(Running { pg, store })
-        })();
-        if let Ok(mut inner) = state.0.lock() {
-            match result {
-                Ok(r) => {
-                    app_log(Some(&state_dir), &format!("postgres pronto na porta {}", r.pg.port()));
-                    inner.running = Some(r)
-                }
-                Err(e) => {
-                    app_log(Some(&state_dir), &format!("falha ao iniciar postgres: {e}"));
-                    inner.error = Some(e.to_string())
-                }
-            }
-        }
-    });
+#[derive(Serialize)]
+struct ShellStep {
+    id: String,
+    name: String,
+    ok: bool,
+    detail: String,
 }
 
-/// Local diagnostic log (never transmitted): `<state_dir>/logs/app.log`.
-fn app_log(state_dir: Option<&Path>, msg: &str) {
-    use std::io::Write as _;
-    let Some(dir) = state_dir else { return };
-    let dir = dir.join("logs");
-    let _ = std::fs::create_dir_all(&dir);
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("app.log")) {
-        let _ = writeln!(f, "{} {msg}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0));
-    }
-}
-
-fn stop_database(state: &AppState) {
-    let mut inner = match state.0.lock() {
-        Ok(g) => g,
-        Err(poisoned) => poisoned.into_inner(),
-    };
-    let dir = inner.state_dir.clone();
-    if let Some(running) = inner.running.take() {
-        drop(running.store);
-        match running.pg.stop() {
-            Ok(()) => app_log(dir.as_deref(), "postgres parado"),
-            Err(e) => app_log(dir.as_deref(), &format!("falha ao parar postgres: {e}")),
-        }
-    }
-}
-
-/// `--self-test <work_dir> <report.json> [full|seed|verify]`: runs the synthetic
-/// end-to-end test with the PostgreSQL bundled in this installation, without
-/// opening a window, and writes a JSON report. Returns the process exit code.
+/// `--self-test <state-dir> <work-dir> <report-dir> <seed|verify>`: starts the
+/// same stack as the app from the installed resources, runs the synthetic
+/// acceptance script with the bundled Node, then shuts the stack down.
 fn self_test(context: &tauri::Context<tauri::Wry>, args: &[String]) -> i32 {
-    let work = args.get(2).map(PathBuf::from);
-    let report_path = args.get(3).map(PathBuf::from);
-    let phase = args.get(4).cloned().unwrap_or_else(|| "full".into());
-    let (Some(work), Some(report_path)) = (work, report_path) else {
-        eprintln!("uso: lawyermind --self-test <pasta-de-trabalho> <relatorio.json> [full|seed|verify]");
+    let (Some(state), Some(work), Some(report_dir), Some(phase)) = (args.get(2), args.get(3), args.get(4), args.get(5)) else {
+        eprintln!("uso: lawyermind --self-test <pasta-de-estado> <pasta-de-trabalho> <pasta-de-relatorio> <seed|verify>");
         return 2;
     };
+    let (state, work, report_dir) = (PathBuf::from(state), PathBuf::from(work), PathBuf::from(report_dir));
+    let _ = std::fs::create_dir_all(&work);
+    let _ = std::fs::create_dir_all(&report_dir);
+    let mut steps: Vec<ShellStep> = Vec::new();
+    let mut push = |id: &str, name: &str, r: Result<String, String>| {
+        let ok = r.is_ok();
+        steps.push(ShellStep { id: id.into(), name: name.into(), ok, detail: r.unwrap_or_else(|e| e) });
+        ok
+    };
+
     let resources = match tauri::utils::platform::resource_dir(context.package_info(), &tauri::Env::default()) {
-        Ok(dir) => dir,
+        Ok(dir) => Resources::at(&dir),
         Err(e) => {
-            let _ = std::fs::write(&report_path, format!("{{\"ok\":false,\"error\":\"resource_dir: {e}\"}}"));
-            return 1;
+            push("S00", "localizar recursos instalados", Err(e.to_string()));
+            return write_shell_report(&report_dir, phase, steps);
         }
     };
-    let bin_dir = resources.join("postgres").join("bin");
-    let report = lawyermind_core::selftest::run(&bin_dir, &work, &phase, APP_VERSION);
-    let json = serde_json::to_string_pretty(&report).unwrap_or_default();
-    let _ = std::fs::write(&report_path, &json);
-    println!("{json}");
-    if report.ok {
-        0
-    } else {
-        1
+    push("S00", "recursos instalados (PostgreSQL, Node.js, servidor)", {
+        let missing: Vec<String> = [&resources.pg_bin, &resources.node, &resources.server_dir.join("server.js")]
+            .iter().filter(|p| !p.exists()).map(|p| p.display().to_string()).collect();
+        if missing.is_empty() { Ok(format!("{}", resources.server_dir.display())) } else { Err(format!("ausentes: {missing:?}")) }
+    });
+
+    if phase == "seed" {
+        let synced = work.join("Google Drive").join("LawyerMind-banco");
+        push("S01", "banco ativo em pasta sincronizada é recusado", match LocalPostgres::start(PgPaths { bin_dir: resources.pg_bin.clone(), state_dir: synced.clone() }) {
+            Ok(pg) => { let _ = pg.stop(); Err("o banco iniciou dentro de \"Google Drive\"".into()) }
+            Err(e) if e.to_string().contains("sincronizada") && !synced.join("pgdata").exists() => Ok(e.to_string()),
+            Err(e) => Err(format!("erro inesperado: {e}")),
+        });
     }
+
+    let t = Instant::now();
+    let stack = match start_stack(&resources, &state) {
+        Ok(s) => s,
+        Err(e) => {
+            push("S02", "inicialização: PostgreSQL local + migrações + servidor", Err(e));
+            return write_shell_report(&report_dir, phase, steps);
+        }
+    };
+    push("S02", "inicialização: PostgreSQL local + migrações + servidor", Ok(format!("{} em {} ms", stack.server.url(), t.elapsed().as_millis())));
+    push("S03", "PostgreSQL escuta só em 127.0.0.1", (|| {
+        let mut c = stack.pg.connect().map_err(|e| e.to_string())?;
+        let listen: String = c.query_one("show listen_addresses", &[]).map_err(|e| e.to_string())?.get(0);
+        let version: String = c.query_one("show server_version", &[]).map_err(|e| e.to_string())?.get(0);
+        let pw: String = c.query_one("select setting from pg_settings where name = 'password_encryption'", &[]).map_err(|e| e.to_string())?.get(0);
+        if listen == "127.0.0.1" { Ok(format!("PostgreSQL {version}, listen_addresses={listen}, senha {pw}")) } else { Err(listen) }
+    })());
+
+    let script = resources.runtime_dir.join("selftest.mjs");
+    let report = report_dir.join(format!("selftest-{phase}.json"));
+    let output = std::process::Command::new(&resources.node)
+        .arg(&script)
+        .env("LM_BASE_URL", stack.server.url())
+        .env("LM_WORK", &work)
+        .env("LM_STATE", &state)
+        .env("LM_PHASE", phase)
+        .env("LM_REPORT", &report)
+        .output();
+    let run = match output {
+        Ok(o) => {
+            let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+            let _ = std::fs::write(report_dir.join(format!("selftest-{phase}.log")), &text);
+            if o.status.success() { Ok(text.lines().last().unwrap_or_default().to_string()) } else { Err(text.lines().filter(|l| l.starts_with("FAIL")).collect::<Vec<_>>().join("; ")) }
+        }
+        Err(e) => Err(format!("não foi possível executar o roteiro: {e}")),
+    };
+    push("S04", &format!("roteiro de aceite ({phase})"), run);
+
+    let data_dir = stack.pg.paths().data_dir();
+    stop_stack(stack, &state);
+    push("S05", "encerramento limpo (servidor e PostgreSQL parados)", if data_dir.join("postmaster.pid").exists() { Err("postmaster.pid ainda existe".into()) } else { Ok("postmaster.pid removido".into()) });
+    let _ = std::fs::copy(state.join("logs").join("server.log"), report_dir.join(format!("server-{phase}.log")));
+    let _ = std::fs::copy(state.join("logs").join("app.log"), report_dir.join(format!("app-{phase}.log")));
+    write_shell_report(&report_dir, phase, steps)
 }
+
+fn write_shell_report(dir: &Path, phase: &str, steps: Vec<ShellStep>) -> i32 {
+    let ok = !steps.is_empty() && steps.iter().all(|s| s.ok);
+    let report = serde_json::json!({
+        "ok": ok, "phase": phase, "app_version": APP_VERSION,
+        "os": std::env::consts::OS, "arch": std::env::consts::ARCH, "steps": steps,
+    });
+    let text = serde_json::to_string_pretty(&report).unwrap_or_default();
+    let _ = std::fs::write(dir.join(format!("shell-{phase}.json")), &text);
+    println!("{text}");
+    if ok { 0 } else { 1 }
+}
+
+// ---- app --------------------------------------------------------------------
 
 pub fn run() {
     let context = tauri::generate_context!();
@@ -443,6 +262,7 @@ pub fn run() {
     }
 
     let state = AppState::default();
+    let server_port = Arc::new(AtomicU16::new(0));
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
@@ -451,58 +271,68 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
         .manage(state.clone())
         .setup({
             let state = state.clone();
+            let server_port = server_port.clone();
             move |app| {
                 let state_dir = app.path().app_local_data_dir()?;
-                let bin_dir = app.path().resource_dir()?.join("postgres").join("bin");
-                if let Ok(mut inner) = state.0.lock() {
-                    inner.state_dir = Some(state_dir.clone());
+                let resources = Resources::at(&app.path().resource_dir()?);
+                if let Ok(mut i) = state.0.lock() {
+                    i.state_dir = Some(state_dir.clone());
+                    i.startup = Startup { phase: "Iniciando o banco local…".into(), state_dir: Some(state_dir.display().to_string()), ..Default::default() };
                 }
-                start_database(state, bin_dir, state_dir);
+                // Only the splash screen (bundled) and the local server may be shown.
+                let allowed = server_port.clone();
+                let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                    .title("LawyerMind")
+                    .inner_size(1360.0, 860.0)
+                    .min_inner_size(1000.0, 680.0)
+                    .center()
+                    .on_navigation(move |url| {
+                        let port = allowed.load(Ordering::SeqCst);
+                        let local_app = matches!(url.scheme(), "tauri") || url.host_str() == Some("tauri.localhost");
+                        let server = url.scheme() == "http" && url.host_str() == Some("127.0.0.1") && port != 0 && url.port() == Some(port);
+                        local_app || server
+                    })
+                    .build()?;
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let result = start_stack(&resources, &state_dir);
+                    let mut i = match state.0.lock() { Ok(i) => i, Err(p) => p.into_inner() };
+                    match result {
+                        Ok(stack) => {
+                            let url = stack.server.url();
+                            server_port.store(stack.server.port, Ordering::SeqCst);
+                            i.startup.url = Some(url.clone());
+                            i.startup.phase = "Pronto".into();
+                            i.stack = Some(stack);
+                            drop(i);
+                            if let Ok(u) = format!("{url}/login").parse() {
+                                let _ = window.navigate(u);
+                            }
+                        }
+                        Err(e) => {
+                            i.startup.error = Some(e);
+                            i.startup.phase = "Erro".into();
+                        }
+                    }
+                    let _ = handle;
+                });
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            app_status,
-            list_clients,
-            get_client,
-            create_client,
-            update_client,
-            set_client_status,
-            list_matters,
-            get_matter,
-            create_matter,
-            update_matter,
-            set_matter_status,
-            list_documents,
-            import_document,
-            open_document,
-            reveal_document,
-            check_documents_root,
-            set_documents_root,
-            create_backup,
-            verify_backup,
-            restore_backup,
-            pick_folder,
-            pick_file,
-            pick_backup_destination,
-        ])
+        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save])
         .build(context)
         .expect("falha ao iniciar o LawyerMind");
 
-    app.run(move |_handle, event| match event {
-        RunEvent::ExitRequested { .. } => {
-            let dir = state.0.lock().ok().and_then(|i| i.state_dir.clone());
-            app_log(dir.as_deref(), "saída solicitada");
+    app.run(move |_handle, event| {
+        if let RunEvent::Exit = event {
+            let mut i = match state.0.lock() { Ok(i) => i, Err(p) => p.into_inner() };
+            if let (Some(stack), Some(dir)) = (i.stack.take(), i.state_dir.clone()) {
+                app_log(&dir, "encerrando: parando servidor e postgres");
+                stop_stack(stack, &dir);
+            }
         }
-        RunEvent::Exit => {
-            let dir = state.0.lock().ok().and_then(|i| i.state_dir.clone());
-            app_log(dir.as_deref(), "encerrando: parando postgres");
-            stop_database(&state);
-        }
-        _ => {}
     });
 }

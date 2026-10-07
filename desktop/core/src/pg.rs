@@ -59,40 +59,56 @@ pub struct LocalPostgres {
     password: String,
 }
 
-/// Folder names used by sync clients. The active database directory must never
-/// live inside one of them: a sync client copying files under a running
-/// PostgreSQL corrupts the cluster.
+/// Folder names used by sync clients (kept in sync with lib/desktop/sync.ts).
+/// The active database directory must never live inside one of them: a sync
+/// client copying files under a running PostgreSQL corrupts the cluster.
+/// Detection is by path; a sync client on an arbitrary folder name, a network
+/// share or a virtual drive without a recognizable name is not detected.
 const SYNC_MARKERS: &[&str] = &[
-    "google drive",
-    "googledrive",
-    "my drive",
-    "meu drive",
-    "onedrive",
-    "dropbox",
-    "icloud drive",
-    "icloud",
-    "mobile documents",
-    "cloudstorage",
-    "box sync",
-    "pcloud",
-    "mega",
-    "nextcloud",
-    "owncloud",
-    "syncthing",
+    "google drive", "googledrive", "my drive", "meu drive", "shared drives", "drives compartilhados",
+    "onedrive", "dropbox", "icloud drive", "icloud", "icloud~", "mobile documents", "cloudstorage",
+    "box", "box sync", "pcloud", "pcloud drive", "mega", "megasync", "nextcloud", "owncloud", "syncthing", "sync",
 ];
 
-/// Returns the offending path component when `path` looks like it is inside a
-/// file-sync folder.
-pub fn sync_folder_marker(path: &Path) -> Option<String> {
+fn marker_in(path: &Path) -> Option<String> {
     for component in path.components() {
         let name = component.as_os_str().to_string_lossy().to_lowercase();
         for marker in SYNC_MARKERS {
-            if name == *marker || name.starts_with(&format!("{marker}-")) || name.starts_with(&format!("{marker} ")) {
+            if name == *marker
+                || name.starts_with(&format!("{marker}-"))
+                || name.starts_with(&format!("{marker} "))
+                || name.starts_with(&format!("{marker}_"))
+            {
                 return Some(component.as_os_str().to_string_lossy().into_owned());
             }
         }
     }
     None
+}
+
+/// Returns the offending folder when `path` looks like it is inside a file-sync folder.
+pub fn sync_folder_marker(path: &Path) -> Option<String> {
+    let mut candidates = vec![path.to_path_buf()];
+    // Resolve symlinks/junctions of the deepest existing ancestor.
+    let mut probe = path.to_path_buf();
+    while !probe.exists() {
+        match probe.parent() {
+            Some(p) => probe = p.to_path_buf(),
+            None => break,
+        }
+    }
+    if let Ok(real) = fs::canonicalize(&probe) {
+        candidates.push(real);
+    }
+    for root_var in ["OneDrive", "OneDriveCommercial", "OneDriveConsumer"] {
+        if let Some(root) = std::env::var_os(root_var).filter(|v| !v.is_empty()) {
+            let root = PathBuf::from(root);
+            if candidates.iter().any(|c| c.starts_with(&root)) {
+                return Some(root.display().to_string());
+            }
+        }
+    }
+    candidates.iter().find_map(|c| marker_in(c))
 }
 
 pub fn guard_not_synced(path: &Path) -> Result<()> {
@@ -292,6 +308,12 @@ impl LocalPostgres {
         self.port
     }
 
+    /// Connection URL for the bundled application server (loopback only).
+    /// The password is alphanumeric, so it needs no URL escaping.
+    pub fn database_url(&self) -> String {
+        format!("postgresql://{DB_USER}:{}@127.0.0.1:{}/{DB_NAME}", self.password, self.port)
+    }
+
     pub fn paths(&self) -> &PgPaths {
         &self.paths
     }
@@ -348,7 +370,9 @@ mod tests {
         assert!(sync_folder_marker(Path::new("C:/Users/a/OneDrive - Escritorio/LawyerMind")).is_some());
         assert!(sync_folder_marker(Path::new("/home/a/Dropbox/db")).is_some());
         assert!(sync_folder_marker(Path::new("G:/Meu Drive/db")).is_some());
+        assert!(sync_folder_marker(Path::new("G:/Drives compartilhados/x")).is_some());
         assert!(sync_folder_marker(Path::new("/home/a/.local/share/br.mblz.lawyermind")).is_none());
+        assert!(sync_folder_marker(Path::new("/Users/a/Library/Application Support/br.mblz.lawyermind")).is_none());
         assert!(sync_folder_marker(Path::new("C:/Users/a/AppData/Local/br.mblz.lawyermind")).is_none());
     }
 }
