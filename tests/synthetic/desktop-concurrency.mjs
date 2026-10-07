@@ -20,7 +20,7 @@ const query = async (strings, ...v) => {
 const execute = async (strings, ...v) => {
   const sql = strings.join('?');
   if (sql.includes('set password_hash') && sql.includes('recovery_hash =')) {
-    if (account.recovery_hash !== v[3]) return 0;
+    if (sql.includes('and recovery_hash =') && account.recovery_hash !== v[3]) return 0;
     account.password_hash = v[0]; account.recovery_hash = v[1]; return 1;
   }
   if (sql.includes('set failed_attempts = 0')) return 1;
