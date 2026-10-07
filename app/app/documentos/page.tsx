@@ -57,6 +57,8 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
 
     {canEdit&&process.env.MBLZ_DESKTOP==="1"&&<DesktopImportPanel clients={clients.map(c=>({id:c.id,label:c.name}))} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))}/>}
 
+    {canEdit&&process.env.MBLZ_DESKTOP==="1"&&<Link className="button" href="/app/documentos/revisao-piloto">Revisar contrato na mesma tela · piloto simulado</Link>}
+
     <form className="toolbar-card" action="/app/documentos" method="get"><div className="search-field"><Search size={17}/><input name="q" defaultValue={search} placeholder="Nome, tipo, processo ou cliente"/></div></form>
 
     <section className="document-grid">

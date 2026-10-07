@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 // Desktop documents: originals are read-only, work happens on a copy.
 //
 // - Import is always explicit (the user picks a file). The original — on the
@@ -24,7 +25,7 @@ import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { prisma } from "@/lib/prisma";
 import { desktopStateDir, DesktopError } from "./env";
-import { containedPath, ensureContainedDir, isInside, openContained, realDir, realPathLoose, safeName } from "./paths";
+import { containedPath, ensureContainedDir, fsyncDir, isInside, openContained, realDir, realPathLoose, safeName } from "./paths";
 import { documentsRoot, setDocumentsRoot } from "./settings";
 import { withStoreLock } from "./lock";
 import { syncMarker } from "./sync";
@@ -39,8 +40,8 @@ const MIME: Record<string, string> = {
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".eml": "message/rfc822",
 };
 
-export async function ensureWorkingRoot(): Promise<string> {
-  const root = await documentsRoot();
+export async function ensureWorkingRoot(client?: PoolClient): Promise<string> {
+  const root = await documentsRoot(client);
   const marker = syncMarker(root);
   if (marker) throw new DesktopError(`A pasta de cópias de trabalho está em pasta sincronizada ("${marker}"). Relocalize-a para uma pasta local em Computador.`, 409, "synced");
   fs.mkdirSync(root, { recursive: true });
@@ -52,14 +53,20 @@ type ImportInput = {
   clientId?: string | null; matterId?: string | null; documentId?: string | null; name?: string | null; kind?: string | null;
 };
 
-export function importDocument(input: ImportInput) {
-  return withStoreLock("shared", () => importLocked(input));
+export async function importDocument(input: ImportInput) {
+  const r = await withStoreLock("shared", client => importLocked(input, client));
+  // Text for content search; failures are recorded in the index, never fail the import.
+  try {
+    const { indexVersion } = await import("./textindex");
+    await indexVersion({ id: r.versionId, storageKey: r.storageKey, originalName: path.basename(input.sourcePath) }, await documentsRoot());
+  } catch (e) { console.error("[desktop] índice após importar:", (e as Error).message); }
+  return r;
 }
 
-async function importLocked(input: ImportInput) {
+async function importLocked(input: ImportInput, client: PoolClient) {
   const source = input.sourcePath;
   if (!source || !path.isAbsolute(source)) throw new DesktopError("Escolha o arquivo a importar.", 400);
-  const root = await ensureWorkingRoot();
+  const root = await ensureWorkingRoot(client);
   const realSource = realPathLoose(source);
   if (isInside(root, realSource)) throw new DesktopError("Este arquivo já é uma cópia de trabalho do LawyerMind.", 400);
   if (isInside(realPathLoose(desktopStateDir()), realSource)) throw new DesktopError("Escolha um arquivo fora da pasta de dados do LawyerMind.", 400);
@@ -93,6 +100,7 @@ async function importLocked(input: ImportInput) {
     originalInSyncFolder: syncMarker(source), importedAt: new Date().toISOString(), originalTreatedAsReadOnly: true,
   };
 
+  let placed: string | null = null;
   try {
     return await prisma.$transaction(async tx => {
       if (input.clientId && !(await tx.client.findFirst({ where: { id: input.clientId, workspaceId: input.workspaceId } }))) throw new DesktopError("Cliente não encontrado neste workspace.", 404);
@@ -100,8 +108,9 @@ async function importLocked(input: ImportInput) {
       let documentId = input.documentId ?? null;
       let version = 1;
       if (documentId) {
-        const doc = await tx.legalDocument.findFirst({ where: { id: documentId, workspaceId: input.workspaceId } });
-        if (!doc) throw new DesktopError("Documento não encontrado.", 404);
+        // Row lock: concurrent imports of new versions of the same document get consecutive numbers.
+        const locked = await tx.$queryRaw<{ id: string }[]>`select id from "LegalDocument" where id = ${documentId} and "workspaceId" = ${input.workspaceId} for update`;
+        if (!locked.length) throw new DesktopError("Documento não encontrado.", 404);
         const last = await tx.documentVersion.aggregate({ where: { documentId }, _max: { version: true } });
         version = (last._max.version ?? 0) + 1;
         await tx.legalDocument.update({ where: { id: documentId }, data: { currentVersion: version } });
@@ -127,8 +136,13 @@ async function importLocked(input: ImportInput) {
       ensureContainedDir(root, key.split("/").slice(0, -1).join("/"));
       const dest = containedPath(root, key, "absent");
       fs.renameSync(tmp, dest);
+      fsyncDir(path.dirname(dest));
+      placed = dest; // removed again if the transaction does not commit
       return { documentId, versionId: created.id, version, storageKey: key, sha256: digest, size, originalInSyncFolder: provenance.originalInSyncFolder };
     });
+  } catch (e) {
+    if (placed) fs.rmSync(placed, { force: true });
+    throw e;
   } finally { fs.rmSync(tmp, { force: true }); }
 }
 

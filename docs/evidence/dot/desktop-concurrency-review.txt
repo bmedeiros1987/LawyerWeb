@@ -1,0 +1,54 @@
+Base / PR60 HEAD checked again at 2026-10-07T04:36:32Z: b065c47aef0d991c3736b53d30a93267eec96b44
+Isolated branch: codex/desktop-concurrency. No push, merge, deployment, app launch or Gatekeeper changes.
+AGENTS.md and .agents/skills absent in the checked revision.
+
+Changes:
+- Recovery key consumed with conditional UPDATE; password change and session deletion are one transaction.
+- Login locks account row, rechecks verified hash and lockout, then creates session atomically with resets.
+- All password update paths delete sessions in the same transaction; self-change additionally checks old hash.
+- Import uses advisory-lock connection for documentsRoot instead of acquiring a seventh pool connection.
+
+Reproduction (Node >=24, from repository root):
+node tests/synthetic/desktop-concurrency.mjs
+To reproduce baseline failures, export original auth/lock/settings/documents from the base commit to a disposable directory maintaining lib/desktop paths. Run:
+SOURCE_ROOT=/path/to/baseline CASE=recovery node tests/synthetic/desktop-concurrency.mjs
+SOURCE_ROOT=/path/to/baseline CASE=login node tests/synthetic/desktop-concurrency.mjs
+SOURCE_ROOT=/path/to/baseline CASE=pool node tests/synthetic/desktop-concurrency.mjs
+Patched: three PASS. Baseline: three exit 1. Logs adjacent.
+Tests execute production auth, lock and settings functions after TypeScript stripping. Scrypt is replaced with a fast deterministic hash; Prisma/pg are transactional/pool doubles. The import-to-client wiring is asserted statically. They do not prove real PostgreSQL behavior or exercise six complete imports.
+No real DB, documents, Drive originals, or credentials used.
+Follow-up validation:
+- Used ChatGPT's existing Node v24.21.0 (project requests Node >=22 <23, so this is not the supported production runtime).
+- Registry network probe fails DNS resolution. No escalation or network bypass requested.
+- Extracted 292 exact package-lock packages from existing npm cache into isolated node_modules, verifying SHA integrity. Platform-inapplicable optional packages excluded. No install hooks run. Five applicable packages missing: @types/yauzl, @types/yazl, buffer-crc32, yauzl, yazl. This is an incomplete offline dependency reconstruction, NOT npm ci.
+- Prisma generation PASSED with existing cached schema engine selected via PRISMA_SCHEMA_ENGINE_BINARY. First attempt failed trying to update read-only cache timestamps; explicit engine path avoided touching the cache. No engine downloaded, signature altered, or new permissions acquired.
+- Typecheck WAS EXECUTED after generation and FAILED: missing ZIP modules/types plus four implicit-any errors in backup callbacks resulting from absent declarations. No diagnostics in changed production files or the new test suite. This is not a full typecheck pass.
+- Vitest real-module suite WAS ATTEMPTED and BLOCKED before collecting tests: dlopen rejected Rollup native addon because ChatGPT Node and addon have different Team IDs. No signing, entitlement, quarantine, or Gatekeeper changes made.
+- Real PostgreSQL suite NOT RUN: only found PostgreSQL binaries inside installed unsigned LawyerMind.app, and postgres carries com.apple.quarantine. Did not execute any installed LawyerMind binary or runtime. No disposable DB was started.
+- Build NOT RUN: incomplete dependencies and native-addon signature barrier; prerequisite validation incomplete. Do not report a build pass.
+- git diff --check PASSED.
+
+Critical test review:
+- Original mjs test reads current production files, removes imports/exports/type annotations and injects doubles with new Function. It executes current function bodies, not independently reimplemented login/recovery algorithms. However, it does NOT exercise native module imports, import resolution, true scrypt, SQL driver/Prisma semantics, PostgreSQL row locking, or the full importDocument path. Six-connection test runs real lock/settings bodies and checks document wiring statically. A double throws immediately on pool exhaustion; real pool would queue/hang.
+- Corrected SQL double so the baseline unconditional UPDATE actually updates the fake account; the previous double applied comparison even to the old unconditional query. Re-ran baseline: recovery allows two successes; login fails rejection assertion; pool requests seventh client. Re-ran patched: all 3 PASS. This correction does not change production patch.
+- Added tests/desktop-concurrency.test.ts: imports the real auth/documents modules through Vitest without rewriting their source. DB and scrypt are substituted. Covers 6 cases: recovery race; stale login against recovery, self-change and owner-reset; rollback of reset on session deletion failure; six full imports through real filesystem pipeline with disposable source bytes and copy hashes.
+- New 6-case suite is PREPARED BUT UNEXECUTED due to the native signature block. Typecheck found no errors in it after one corrected mock type. Needs run under project-supported Node 22 with complete dependencies before approval.
+- SQL doubles serialize transactions themselves; they do not prove actual SQL locking/isolation behavior. Existing PostgreSQL negative store test should also run with a dedicated disposable DB.
+
+Transfer commands for an authorized environment with Node 22 and full dependencies:
+npm ci --no-audit --no-fund
+npm run db:generate -- --config prisma7.config.ts
+npm run typecheck
+npm test -- tests/desktop-concurrency.test.ts
+RUN_DB_TESTS=1 DATABASE_URL=<disposable-admin-database-url> npm test -- tests/desktop-store-db.test.ts
+npm run build
+The DB test creates/drops a dedicated random database using the supplied disposable administrator URL; never use a real database URL.
+No push, merge, deployment, package installation on Mac, app launch, Drive writes, new credentials/permissions/costs, or concurrent Claude branch changes.
+
+Backup/restore consistency and durability review before commit:
+- Backup takes database REPEATABLE READ snapshot, then reads files sequentially. Store lock covers cooperating app imports/restore/relocation, not external editors.
+- Per-file size and mtime checks detect some writes while the open handle is read. They cannot guarantee a common-time snapshot across multiple files, detect path replacement after opening an inode, or rule out a write after the per-file check. Hash verifies archived bytes, not correspondence to a single external-editor state. Existing negative test covers appending during a read only.
+- Backup fsyncs partial archive then renames it, but does not fsync parent directory. Power-loss durability of final name is not established.
+- Restore verifies archive, writes temporary documents and renames them, then commits DB plus documents root atomically. Extracted files and directory entries are not fsynced before DB commit. A crash/power loss can leave DB committed without durable document bytes/names. DB rollback also leaves newly extracted files at the target.
+- Existing target files with matching hashes are reused; an external editor can change them after check and before commit. No lock enforces editor quiescence. Safety backup is database-only; does not establish recovery of subsequently externally modified document copies.
+These are remaining findings, not fixed or claimed safe here. No broad redesign performed. Need dedicated crash-injection and external-editor tests before claiming snapshot consistency or power-loss durability. Restrict validation to disposable stores.

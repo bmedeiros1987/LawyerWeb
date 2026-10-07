@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "local-server",
-  "description": "Páginas do servidor local (somente 127.0.0.1): seletores de arquivo nativos e status. Sem acesso direto a arquivos, shell ou rede.",
+  "description": "Páginas do servidor local (somente 127.0.0.1): seletores de arquivo nativos, status e nome do sistema operacional. Sem acesso direto a arquivos, shell ou rede.",
   "windows": ["main"],
   "remote": { "urls": ["http://127.0.0.1:*"] },
-  "permissions": ["core:event:default", "allow-startup-status", "allow-pick-file", "allow-pick-folder", "allow-pick-save"]
+  "permissions": ["core:event:default", "allow-startup-status", "allow-pick-file", "allow-pick-folder", "allow-pick-save", "allow-desktop-platform"]
 }

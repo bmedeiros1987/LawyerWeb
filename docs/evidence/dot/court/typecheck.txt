@@ -1,0 +1,9 @@
+
+> lawyerweb@0.1.0 typecheck
+> prisma generate && tsc --noEmit
+
+Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (7.10.0) to ./generated/prisma in 204ms

@@ -330,6 +330,64 @@ async function seed() {
     expect(ok.status === 200, `após remover a junção o documento volta a abrir: ${ok.status}`);
     return `recusas: ${results.join(", ")}`;
   });
+
+  await step("D24", "busca real: cadastros e conteúdo do arquivo, com trecho; arquivos não lidos aparecem como não pesquisados", async () => {
+    const notas = path.join(drive, "Notas da reunião.txt"); fs.writeFileSync(notas, "Cliente pediu revisão da cláusula de foro e da multa rescisória."); fs.chmodSync(notas, 0o444);
+    const imp = await owner.post("/api/desktop/documents/import", { sourcePath: notas, matterId: memo.matterId, name: "Notas da reunião" });
+    expect(imp.status === 201, `import ${imp.status}`);
+    const reg = await owner.get(`/api/search?q=${encodeURIComponent("Sintético Editado")}`);
+    expect(reg.status === 200 && reg.json.hits.some(h => h.kind === "clients" && h.id === memo.clientId), `cadastros: ${reg.text.slice(0, 200)}`);
+    const c = await owner.get(`/api/search?q=${encodeURIComponent("clausula de foro")}&kinds=content`);
+    const hit = c.json?.hits?.[0];
+    expect(c.status === 200 && hit?.title === "Notas da reunião" && /cláusula de foro/i.test(hit.excerpt?.match ?? ""), `conteúdo: ${c.text.slice(0, 300)}`);
+    expect(c.json.index.notSearched.some(n => n.status === "error" || n.status === "unsupported"), "o arquivo de teste sem formato válido deveria aparecer como não pesquisado");
+    const foreign = await other.get(`/api/search?q=${encodeURIComponent("clausula de foro")}&kinds=content`);
+    expect(foreign.status === 200 && foreign.json.hits.length === 0, "outra conta encontrou conteúdo do workspace A");
+    return `${c.json.index.indexed} de ${c.json.index.total} arquivos pesquisados no conteúdo`;
+  });
+
+  await step("D25", "preferências de leitura (tema, densidade, tamanho) salvas na conta", async () => {
+    const r = await owner.req("PUT", "/api/preferences", { fontScale: 130, density: "compact", theme: "dark" });
+    expect(r.status === 200, `salvar ${r.status} ${r.text.slice(0, 200)}`);
+    const bad = await owner.req("PUT", "/api/preferences", { fontScale: 500, density: "x", theme: "neon" });
+    expect(bad.status === 400, `valor inválido aceito (${bad.status})`);
+    const page = await owner.get("/app/configuracoes");
+    expect(page.status === 200 && page.text.includes('data-theme="dark"') && page.text.includes('data-density="compact"'), "atributos não aplicados à página");
+  });
+
+  await step("D26", "verificação de atualizações: somente leitura, sem rede não afirma estar atualizado", async () => {
+    const g = await owner.get("/api/desktop/updates");
+    expect(g.status === 200 && g.json?.status === "not-checked", `estado inicial ${g.status} ${g.text.slice(0, 160)}`);
+    const r = await owner.req("POST", "/api/desktop/updates", { action: "check" });
+    expect(r.status === 200, `consulta ${r.status} ${r.text.slice(0, 160)}`);
+    expect(["offline", "error", "rate-limited", "no-release", "current", "update-available", "platform-unavailable", "unknown-installed"].includes(r.json.status), `estado ${r.json.status}`);
+    if (r.json.status === "offline") expect(/não confirma/.test(r.json.message), "sem rede, a mensagem não pode sugerir que está atualizado");
+    const bad = await owner.req("POST", "/api/desktop/updates", { action: "install" });
+    expect(bad.status === 400, `ação desconhecida aceita (${bad.status})`);
+    return `${r.json.status}: ${r.json.message}`;
+  });
+
+  await step("D27", "revisão de documentos: piloto marcado como simulado, provedor de IA desconectado", async () => {
+    const page = await owner.get("/app/documentos/revisao-piloto");
+    expect(page.status === 200 && page.text.includes("PILOTO SIMULADO"), `página do piloto ${page.status}`);
+    const st = await owner.get("/api/desktop/review-pilot");
+    expect(st.status === 200 && st.json.connected === false && st.json.enabled === false, "provedor deveria estar desconectado");
+    const real = await owner.req("POST", "/api/desktop/review-pilot", { action: "provider", consent: true });
+    expect(real.status === 503 && real.json.code === "provider-disconnected", `pedido de revisão real ${real.status}`);
+    const none = await other.req("POST", "/api/desktop/review-pilot", { action: "provider", consent: true });
+    expect(none.status === 403 || none.status === 503, `outra conta ${none.status}`);
+  });
+
+  await step("D28", "captura judicial desativada: sem rede, sem comunicações, sem aviso no aparelho", async () => {
+    const g = await owner.get(`/api/desktop/courts/${memo.matterId}`);
+    expect(g.status === 200 && g.json.mode === "manual-disabled" && g.json.networkEnabled === false, `estado ${g.status} ${g.text.slice(0, 160)}`);
+    const r = await owner.req("POST", `/api/desktop/courts/${memo.matterId}`, { source: "DATAJUD" });
+    expect(r.status === 200 && r.json.networkEnabled === false && r.json.imported === 0 && r.json.deviceDelivery === "not-attempted", `consulta ${r.status} ${r.text.slice(0, 160)}`);
+    expect(r.json.skipped === true || (r.json.state?.status === "unavailable" && r.json.state?.lastSuccess == null), "uma fonte desativada não pode registrar sucesso");
+    const foreign = await other.get(`/api/desktop/courts/${memo.matterId}`);
+    expect(foreign.status === 404, `processo de outro escritório visível (${foreign.status})`);
+    return r.json.skipped ? "processo inelegível (sem número ou sigiloso)" : `DataJud: ${r.json.state.reason}`;
+  });
 }
 
 async function verify() {
@@ -354,6 +412,11 @@ async function verify() {
   await step("P04", "isolamento continua após reinício", async () => {
     const list = await other.get("/api/clients");
     expect(list.status === 200 && list.json.clients.some(x => x.id === memo.clientB) && !list.json.clients.some(x => x.id === memo.clientId), "isolamento");
+  });
+
+  await step("P11", "preferências de leitura continuam após fechar e reabrir o app", async () => {
+    const r = await owner.get("/api/preferences");
+    expect(r.status === 200 && r.json.theme === "dark" && r.json.density === "compact" && r.json.fontScale === 130, `preferências: ${r.text.slice(0, 200)}`);
   });
 
   await step("P05", "restauração: verifica, salva backup de segurança, não sobrescreve, desfaz alterações posteriores", async () => {

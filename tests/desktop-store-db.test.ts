@@ -185,11 +185,11 @@ describe.skipIf(!RUN)("desktop working-copy store (negative cases)", () => {
   it("d) backup and restore wait for imports (store lock) and give up with 'busy'", async () => {
     const c = await m.pool().connect();
     try {
-      await c.query("select pg_advisory_lock_shared(7311)"); // an import in progress
+      await c.query("select pg_advisory_lock_shared(7312)"); // an import in progress
       await rejects(m.createBackup({ dest: path.join(work, "ocupado"), includeDocuments: true, lockTimeoutMs: 600 }), "busy");
       await rejects(m.restoreBackup({ file: path.join(work, "antes-de-cliente.lawyermind-backup"), documentsTarget: path.join(work, "r2"), lockTimeoutMs: 600 }), "busy");
       expect(fs.existsSync(path.join(work, "ocupado.lawyermind-backup"))).toBe(false);
       expect(fs.existsSync(path.join(work, "r2"))).toBe(false);
-    } finally { await c.query("select pg_advisory_unlock_shared(7311)"); c.release(); }
+    } finally { await c.query("select pg_advisory_unlock_shared(7312)"); c.release(); }
   });
 });

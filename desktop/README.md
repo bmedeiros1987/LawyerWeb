@@ -121,6 +121,37 @@ avisa sobre sincronização parcial e conflitos entre computadores.
   **relocalização é explícita** (Computador → Relocalizar pasta): o app confere os arquivos antes de
   aplicar e nunca move pastas sozinho.
 
+## Busca
+
+O botão **Buscar em tudo**, a lupa da barra superior e o atalho **Ctrl+K** (Windows/Linux) ou
+**⌘K** (Mac) abrem a busca. A página `/app/busca` mostra todos os resultados.
+
+- **O que é pesquisado:** clientes, processos e assuntos, documentos cadastrados e, no app desktop, o
+  **texto das cópias de trabalho**. Tudo passa pelas mesmas permissões das listas: perfil, workspace e
+  processos sigilosos.
+- **No conteúdo:** cada resultado indica o documento, a versão, a página (em PDF) e o trecho
+  encontrado. Acentos e maiúsculas são ignorados.
+- **Arquivos lidos:** DOCX e ODT (corpo, cabeçalhos, rodapés e notas), PDF com texto, TXT, MD, CSV e
+  EML.
+- **O que não é pesquisado aparece como não pesquisado:**
+  - arquivo ainda não indexado ou alterado depois da última leitura;
+  - PDF digitalizado sem texto (precisa de OCR, que ainda não existe no app);
+  - `.doc` antigo e outros formatos;
+  - erro de leitura.
+- **Índice:** é refeito sozinho quando a cópia muda. Não entra no backup e é recriado depois de uma
+  restauração.
+
+## Preferências de leitura
+
+Em **conta → Preferências de leitura**:
+
+- **tamanho do texto:** 90, 100, 115 ou 130%;
+- **densidade:** confortável ou compacta;
+- **tema:** claro, escuro ou igual ao sistema.
+
+A mudança vale na hora, fica salva na conta (vale em todas as telas e depois de reiniciar) e pode ser
+desfeita com **Restaurar padrão**. O zoom do sistema (Ctrl/⌘ e +) continua funcionando junto.
+
 ## Backup e restauração
 
 Em **Computador → Backup** (somente a conta proprietária), o backup é um arquivo `.lawyermind-backup`
@@ -245,14 +276,18 @@ fica em `.github/workflows/desktop.yml`.
   loopback) e recusa de pasta sincronizada. Não rode como root: o PostgreSQL recusa.
 - **`npx vitest run tests/desktop-local.test.ts`:** regras de pasta sincronizada, caminhos e detecção
   de SQL destrutivo.
+- **`RUN_DB_TESTS=1 npx vitest run tests/desktop-concurrency-db.test.ts tests/search-db.test.ts`:**
+  concorrência (tentativas de login em paralelo, chave de recuperação usada duas vezes, importações
+  simultâneas) e busca com permissões.
 - **`RUN_DB_TESTS=1 npx vitest run tests/desktop-store-db.test.ts`:** testes negativos com PostgreSQL
   real, num banco descartável: leitura sem `documents.edit`, links simbólicos/junções/hard links,
   restauração que falha antes do commit, backup com arquivo alterado durante a leitura e trava.
 - **`lawyermind --self-test <estado> <trabalho> <relatórios> seed|verify`:** roteiro de aceite do app
   **instalado**, com dados fictícios (`runtime/selftest.mjs`):
-  - `seed` cobre os passos D01–D23: loopback, autenticação, cadastro e edição, documentos e originais,
-    exportação, isolamento, backup, abertura para edição/leitura e recusa de links e junções;
-  - `verify` roda num novo processo e cobre P01–P10: persistência, restauração, relocalização,
-    bloqueio, recuperação e restauração recusada em destino com junção.
+  - `seed` cobre os passos D01–D25: loopback, autenticação, cadastro e edição, documentos e originais,
+    exportação, isolamento, backup, abertura para edição/leitura, recusa de links e junções, busca
+    (cadastros e conteúdo) e preferências de leitura;
+  - `verify` roda num novo processo e cobre P01–P11: persistência, preferências, restauração,
+    relocalização, bloqueio, recuperação e restauração recusada em destino com junção.
 - **`scripts/e2e-gui.mjs`:** interface via WebDriver. Funciona no Linux e no Windows; não há suporte a
   WebDriver para o WKWebView do macOS.

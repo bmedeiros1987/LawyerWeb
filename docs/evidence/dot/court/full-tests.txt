@@ -1,0 +1,25 @@
+
+> lawyerweb@0.1.0 test
+> vitest run
+
+
+ RUN  v3.2.4 /Users/marinamoura/Documents/Codex/2026-10-07/task-4/LawyerWeb-clean
+
+ ↓ tests/desktop-court-store-db.test.ts (11 tests | 11 skipped)
+ ✓ tests/desktop-local.test.ts (20 tests) 131ms
+ ✓ tests/desktop-court-route.test.ts (5 tests) 8ms
+ ✓ tests/worklog.test.ts (6 tests) 3ms
+ ✓ tests/deadline-presentation.test.ts (19 tests) 3ms
+ ✓ tests/whatsapp-agent.test.ts (3 tests) 2ms
+ ✓ tests/openclaw-connection-state.test.ts (9 tests) 2ms
+ ✓ tests/email-agent-draft.test.ts (2 tests) 2ms
+ ✓ tests/openclaw-agent-target.test.ts (2 tests) 1ms
+ ↓ tests/deadline-db.test.ts (5 tests | 5 skipped)
+ ↓ tests/desktop-store-db.test.ts (10 tests | 10 skipped)
+ ↓ tests/process-records-db.test.ts (6 tests | 6 skipped)
+ ↓ tests/visibility-db.test.ts (6 tests | 6 skipped)
+
+ Test Files  8 passed | 5 skipped (13)
+      Tests  66 passed | 38 skipped (104)
+   Start at  08:46:01
+   Duration  2.26s (transform 226ms, setup 0ms, collect 687ms, tests 152ms, environment 1ms, prepare 397ms)

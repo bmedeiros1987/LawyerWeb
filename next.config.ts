@@ -11,6 +11,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // pdfjs loads its worker file next to itself at runtime: keep it as a Node package (not bundled).
+  serverExternalPackages: ["pdfjs-dist"],
   // Desktop builds (desktop/scripts/build-server.mjs) package a self-contained
   // production server; the web/Render build is unchanged.
   ...(process.env.MBLZ_DESKTOP_BUILD === "1" ? {

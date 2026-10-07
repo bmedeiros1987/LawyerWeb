@@ -103,6 +103,18 @@ struct Inner {
 #[derive(Clone, Default)]
 struct AppState(Arc<Mutex<Inner>>);
 
+// Narrow platform metadata only (labels and keys of shortcuts): no shell, HTTP,
+// filesystem or credentials.
+#[tauri::command]
+fn desktop_platform() -> &'static str {
+    match std::env::consts::OS {
+        "windows" => "windows",
+        "macos" => "macos",
+        "linux" => "linux",
+        _ => "unknown",
+    }
+}
+
 #[tauri::command]
 fn startup_status(state: State<'_, AppState>) -> Startup {
     state.0.lock().map(|i| i.startup.clone()).unwrap_or_default()
@@ -337,7 +349,7 @@ pub fn run() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save])
+        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform])
         .build(context)
         .expect("falha ao iniciar o LawyerMind");
 

@@ -122,3 +122,16 @@ export function safeName(raw: string, max = 80): string {
   if (/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/.test(stem)) s = "_" + s;
   return s;
 }
+
+/** Flushes a file's bytes to disk. */
+export function fsyncFile(file: string) {
+  const fd = fs.openSync(file, "r+");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+
+/** Flushes a folder entry (a rename) to disk. Windows cannot open folders for this; NTFS journals the rename. */
+export function fsyncDir(dir: string) {
+  if (process.platform === "win32") return;
+  const fd = fs.openSync(dir, "r");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
