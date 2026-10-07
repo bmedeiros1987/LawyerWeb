@@ -331,7 +331,8 @@ async function restoreLocked(opts: RestoreOptions): Promise<RestoreReport> {
     await c.query("begin");
     try {
       await c.query("set local session_replication_role = replica");
-      await c.query(`truncate ${[...tables, "desktop.local_session"].map(ref).join(", ")}`);
+      // The text index is derived from the working copies: cleared and rebuilt on the next search.
+      await c.query(`truncate ${[...tables, "desktop.local_session", "desktop.document_text"].map(ref).join(", ")}`);
       for (const t of tables) {
         await c.query(`insert into ${ref(t)} select * from json_populate_recordset(null::${ref(t)}, $1::json)`, [data.get(t) ?? "[]"]);
       }

@@ -330,6 +330,30 @@ async function seed() {
     expect(ok.status === 200, `após remover a junção o documento volta a abrir: ${ok.status}`);
     return `recusas: ${results.join(", ")}`;
   });
+
+  await step("D24", "busca real: cadastros e conteúdo do arquivo, com trecho; arquivos não lidos aparecem como não pesquisados", async () => {
+    const notas = path.join(drive, "Notas da reunião.txt"); fs.writeFileSync(notas, "Cliente pediu revisão da cláusula de foro e da multa rescisória."); fs.chmodSync(notas, 0o444);
+    const imp = await owner.post("/api/desktop/documents/import", { sourcePath: notas, matterId: memo.matterId, name: "Notas da reunião" });
+    expect(imp.status === 201, `import ${imp.status}`);
+    const reg = await owner.get(`/api/search?q=${encodeURIComponent("Sintético Editado")}`);
+    expect(reg.status === 200 && reg.json.hits.some(h => h.kind === "clients" && h.id === memo.clientId), `cadastros: ${reg.text.slice(0, 200)}`);
+    const c = await owner.get(`/api/search?q=${encodeURIComponent("clausula de foro")}&kinds=content`);
+    const hit = c.json?.hits?.[0];
+    expect(c.status === 200 && hit?.title === "Notas da reunião" && /cláusula de foro/i.test(hit.excerpt?.match ?? ""), `conteúdo: ${c.text.slice(0, 300)}`);
+    expect(c.json.index.notSearched.some(n => n.status === "error" || n.status === "unsupported"), "o arquivo de teste sem formato válido deveria aparecer como não pesquisado");
+    const foreign = await other.get(`/api/search?q=${encodeURIComponent("clausula de foro")}&kinds=content`);
+    expect(foreign.status === 200 && foreign.json.hits.length === 0, "outra conta encontrou conteúdo do workspace A");
+    return `${c.json.index.indexed} de ${c.json.index.total} arquivos pesquisados no conteúdo`;
+  });
+
+  await step("D25", "preferências de leitura (tema, densidade, tamanho) salvas na conta", async () => {
+    const r = await owner.req("PUT", "/api/preferences", { fontScale: 130, density: "compact", theme: "dark" });
+    expect(r.status === 200, `salvar ${r.status} ${r.text.slice(0, 200)}`);
+    const bad = await owner.req("PUT", "/api/preferences", { fontScale: 500, density: "x", theme: "neon" });
+    expect(bad.status === 400, `valor inválido aceito (${bad.status})`);
+    const page = await owner.get("/app/preferencias");
+    expect(page.status === 200 && page.text.includes('data-theme="dark"') && page.text.includes('data-density="compact"'), "atributos não aplicados à página");
+  });
 }
 
 async function verify() {
@@ -354,6 +378,11 @@ async function verify() {
   await step("P04", "isolamento continua após reinício", async () => {
     const list = await other.get("/api/clients");
     expect(list.status === 200 && list.json.clients.some(x => x.id === memo.clientB) && !list.json.clients.some(x => x.id === memo.clientId), "isolamento");
+  });
+
+  await step("P11", "preferências de leitura continuam após fechar e reabrir o app", async () => {
+    const r = await owner.get("/api/preferences");
+    expect(r.status === 200 && r.json.theme === "dark" && r.json.density === "compact" && r.json.fontScale === 130, `preferências: ${r.text.slice(0, 200)}`);
   });
 
   await step("P05", "restauração: verifica, salva backup de segurança, não sobrescreve, desfaz alterações posteriores", async () => {

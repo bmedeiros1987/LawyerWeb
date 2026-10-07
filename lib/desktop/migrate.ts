@@ -36,6 +36,20 @@ create table if not exists desktop.local_session (
   created_at timestamptz not null default now()
 );
 create index if not exists local_session_user on desktop.local_session (user_id);
+create table if not exists desktop.document_text (
+  version_id text primary key references public."DocumentVersion"(id) on delete cascade,
+  sha256 text not null,
+  size bigint not null,
+  mtime_ms double precision not null,
+  status text not null,
+  note text,
+  pages integer,
+  content text not null default '',
+  folded text not null default '',
+  tsv tsvector generated always as (to_tsvector('portuguese', folded)) stored,
+  indexed_at timestamptz not null default now()
+);
+create index if not exists document_text_tsv on desktop.document_text using gin (tsv);
 create table if not exists desktop.local_setting (
   key text primary key,
   value text not null,

@@ -28,6 +28,7 @@
     "lucide-react": "latest",
     "next": "16.3.8",
     "next-auth": "5.0.0-beta.32",
+    "pdfjs-dist": "6.4.299",
     "pg": "latest",
     "react": "latest",
     "react-dom": "latest",

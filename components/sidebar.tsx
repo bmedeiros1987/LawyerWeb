@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { openSearch } from "@/components/search/search-dialog";
+import { shortcutLabel } from "@/lib/ui/platform";
 import { BellRing, BriefcaseBusiness, HardDrive, CalendarDays, ContactRound, FileStack, Landmark, LayoutDashboard, PlugZap, Search, ShieldCheck, Sparkles, UsersRound, ScrollText, Clock3, Gauge, ListTodo, MoreHorizontal } from "lucide-react";
 
 const primary=[
@@ -32,6 +34,8 @@ function Item({href,label,Icon}:{href:string;label:string;Icon:ComponentType<{si
 
 export function Sidebar({desktop=false}:{desktop?:boolean}){
   const more = useRef<HTMLDetailsElement>(null);
+  const [shortcut, setShortcut] = useState("Ctrl+K");
+  useEffect(() => setShortcut(shortcutLabel("k")), []);
   const pathname = usePathname();
   useEffect(() => { if (more.current) more.current.open = false; }, [pathname]);
   useEffect(() => {
@@ -50,7 +54,7 @@ export function Sidebar({desktop=false}:{desktop?:boolean}){
   }, []);
   return <aside className="sidebar">
     <Link href="/app" className="side-brand"><img className="mblz-mark lawyermind-mark" src="/brand/lawyermind-symbol-cream.png" alt="LawyerMind"/><span className="side-brand-copy"><strong>LawyerMind</strong><small>Gestão jurídica</small></span></Link>
-    <button className="command-button"><Search size={16}/><span>Buscar em tudo</span><kbd>⌘ K</kbd></button>
+    <button type="button" className="command-button" onClick={openSearch} title={`Buscar em tudo (${shortcut})`}><Search size={16}/><span>Buscar em tudo</span><kbd aria-hidden>{shortcut}</kbd></button>
     <nav className="side-nav" aria-label="Navegação principal">
       <div className="side-section-title">Trabalho</div>
       <div className="side-group">{primary.map(([href,label,Icon])=><Item key={href} href={href} label={label} Icon={Icon}/>)}{desktop&&<Item href="/app/computador" label="Computador" Icon={HardDrive}/>}</div>

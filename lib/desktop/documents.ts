@@ -52,8 +52,14 @@ type ImportInput = {
   clientId?: string | null; matterId?: string | null; documentId?: string | null; name?: string | null; kind?: string | null;
 };
 
-export function importDocument(input: ImportInput) {
-  return withStoreLock("shared", () => importLocked(input));
+export async function importDocument(input: ImportInput) {
+  const r = await withStoreLock("shared", () => importLocked(input));
+  // Text for content search; failures are recorded in the index, never fail the import.
+  try {
+    const { indexVersion } = await import("./textindex");
+    await indexVersion({ id: r.versionId, storageKey: r.storageKey, originalName: path.basename(input.sourcePath) }, await documentsRoot());
+  } catch (e) { console.error("[desktop] índice após importar:", (e as Error).message); }
+  return r;
 }
 
 async function importLocked(input: ImportInput) {

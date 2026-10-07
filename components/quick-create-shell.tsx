@@ -49,7 +49,10 @@ export function QuickCreateShell({title,summary,children}:{title:string;summary:
     window.addEventListener("resize",schedule);window.addEventListener("scroll",schedule,true);
     viewport?.addEventListener("resize",schedule);viewport?.addEventListener("scroll",schedule);
     document.addEventListener("keydown",escape);
-    return()=>{observer.disconnect();if(frame!==undefined)cancelAnimationFrame(frame);root?.removeEventListener("toggle",schedule);window.removeEventListener("resize",schedule);window.removeEventListener("scroll",schedule,true);viewport?.removeEventListener("resize",schedule);viewport?.removeEventListener("scroll",schedule);document.removeEventListener("keydown",escape);};
+    // "Novo ▸ Cliente/Processo/…" links point at "#novo": open this form and focus its first field.
+    const openFromHash=()=>{if(window.location.hash==="#novo"&&root&&!root.open){root.open=true;requestAnimationFrame(()=>content.current?.querySelector<HTMLElement>("input,select,textarea")?.focus());history.replaceState(null,"",window.location.pathname+window.location.search);}};
+    openFromHash();window.addEventListener("hashchange",openFromHash);
+    return()=>{window.removeEventListener("hashchange",openFromHash);observer.disconnect();if(frame!==undefined)cancelAnimationFrame(frame);root?.removeEventListener("toggle",schedule);window.removeEventListener("resize",schedule);window.removeEventListener("scroll",schedule,true);viewport?.removeEventListener("resize",schedule);viewport?.removeEventListener("scroll",schedule);document.removeEventListener("keydown",escape);};
   },[]);
   return <details ref={details} className="quick-create">
     <summary className="new-button">{summary}</summary>
