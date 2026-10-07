@@ -231,6 +231,15 @@ jobs:
           }
           $d = Start-Process -PassThru -FilePath tauri-driver -ArgumentList '--native-driver', $driver -RedirectStandardOutput "$env:EV\tauri-driver.log" -RedirectStandardError "$env:EV\tauri-driver.err"
           Start-Sleep 3
+          # Diagnostics: which processes (and command lines) exist while the driver starts the app.
+          $watch = Start-Job -ArgumentList "$env:EV\webdriver-processes.txt" -ScriptBlock {
+            param($out)
+            for ($i = 0; $i -lt 90; $i++) {
+              Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'lawyermind|msedgewebview2|msedgedriver|node' } |
+                ForEach-Object { "$(Get-Date -Format o) $($_.ProcessId) $($_.Name) $($_.CommandLine)" } | Add-Content $out
+              Start-Sleep 2
+            }
+          }
           try {
             node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV first
             if ($LASTEXITCODE -ne 0) { throw "e2e first falhou" }
@@ -238,7 +247,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "e2e reopen falhou" }
           } finally {
             Stop-Process $d -ErrorAction SilentlyContinue
-            Get-Content "$env:EV\tauri-driver.err" -ErrorAction SilentlyContinue | Select-Object -Last 40
+            Stop-Job $watch -ErrorAction SilentlyContinue
+            Write-Host "--- tauri-driver"; Get-Content "$env:EV\tauri-driver.err","$env:EV\tauri-driver.log" -ErrorAction SilentlyContinue | Select-Object -Last 40 | Write-Host
+            Write-Host "--- processos"; Get-Content "$env:EV\webdriver-processes.txt" -ErrorAction SilentlyContinue | Sort-Object -Unique | Select-Object -Last 60 | Write-Host
+            Write-Host "--- app.log"; Get-Content (Join-Path $data 'logs\app.log') -ErrorAction SilentlyContinue | Select-Object -Last 30 | Write-Host
           }
 
       # ------------------------------------------------------------------ macOS
