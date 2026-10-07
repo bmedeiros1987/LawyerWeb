@@ -98,6 +98,32 @@ describe.skipIf(!RUN)("global search", () => {
     expect(kinds(o, "content").map((h: any) => h.title)).toEqual(["Memorando da fusão"]);
   });
 
+  // Cases ported from the dot settings patch (search-rbac.ts), here against the real database.
+  it("confidential matter: visible to a limited member only with an explicit grant", async () => {
+    const ws = limited.workspaceId;
+    const u = await prisma.user.create({ data: { name: "Assistente com acesso" } });
+    const m = await prisma.workspaceMember.create({ data: { workspaceId: ws, userId: u.id, roleId: limited.roleId } });
+    await prisma.matterAccess.create({ data: { matterId: ids.secret, memberId: m.id } });
+    const granted = await memberOf(u.id, ws);
+    const r = await search.globalSearch(granted, "fusão", { kinds: ["matters", "documents"] });
+    expect(r.hits.map((h: any) => h.title).sort()).toEqual(["Assunto sigiloso de fusão", "Memorando da fusão"]);
+    expect((await search.globalSearch(limited, "fusão", { kinds: ["matters", "documents"] })).hits).toEqual([]);
+  });
+
+  it("a document linked only through a contract to a confidential matter stays hidden", async () => {
+    const doc = await prisma.legalDocument.create({ data: { workspaceId: limited.workspaceId, name: "Anexo do acordo de acionistas", kind: "Contrato" } });
+    await prisma.contract.create({ data: { workspaceId: limited.workspaceId, matterId: ids.secret, documentId: doc.id, title: "Acordo de acionistas", contractType: "Societário" } });
+    expect((await search.globalSearch(limited, "acionistas", { kinds: ["documents"] })).hits).toEqual([]);
+    expect((await search.globalSearch(owner, "acionistas", { kinds: ["documents"] })).hits.map((h: any) => h.title)).toEqual(["Anexo do acordo de acionistas"]);
+  });
+
+  it("a suspended member finds nothing, even with every permission", async () => {
+    const suspended = { ...owner, status: "SUSPENDED" };
+    const r = await search.globalSearch(suspended, "construtora");
+    expect(r.hits).toEqual([]);
+    expect((await search.globalSearch(suspended, "multa", { kinds: ["content"] })).hits).toEqual([]);
+  });
+
   it("never returns another workspace's data", async () => {
     const r = await search.globalSearch(other, "construtora");
     expect(r.hits.map((h: any) => h.title)).toEqual(["Construtora do Outro Escritório"]);

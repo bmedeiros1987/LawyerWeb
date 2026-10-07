@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { DisplayPreferences } from "@/lib/ui/preferences";
 import { DEFAULT_PREFERENCES } from "@/lib/ui/preferences-defaults";
 
-const SIZES = [[90, "Menor (90%)"], [100, "Padrão (100%)"], [115, "Grande (115%)"], [130, "Muito grande (130%)"]] as const;
+const SIZES = [[100, "Padrão (100%)"], [115, "Grande (115%)"], [130, "Muito grande (130%)"], [150, "Máximo (150%)"]] as const;
 const DENSITY = [["comfortable", "Confortável"], ["compact", "Compacta"]] as const;
 const THEME = [["system", "Igual ao sistema"], ["light", "Claro"], ["dark", "Escuro"]] as const;
 

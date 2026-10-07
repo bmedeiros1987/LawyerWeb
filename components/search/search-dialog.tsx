@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, BriefcaseBusiness, ContactRound, FileSearch, FileText, Loader2, Search, X } from "lucide-react";
 import type { SearchHit, SearchKind, SearchResult } from "@/lib/search/global";
-import { isMacPlatform, primaryModifier, shortcutLabel } from "@/lib/ui/platform";
+import { detectMac, isMacPlatform, primaryModifier, shortcutLabel } from "@/lib/ui/platform";
 
 export const OPEN_SEARCH_EVENT = "lawyermind:open-search";
 export const openSearch = () => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
@@ -37,7 +37,11 @@ export function SearchDialog() {
   const [state, setState] = useState<{ status: "idle" | "loading" | "done" | "error"; result?: SearchResult; error?: string }>({ status: "idle" });
   const [active, setActive] = useState(0);
   const [mac, setMac] = useState(false);
-  useEffect(() => setMac(isMacPlatform()), []);
+  const macRef = useRef(false);
+  useEffect(() => {
+    macRef.current = isMacPlatform(); setMac(macRef.current);
+    detectMac().then(m => { macRef.current = m; setMac(m); });
+  }, []);
 
   const open = useCallback(() => {
     const d = dialog.current; if (!d) return;
@@ -48,7 +52,7 @@ export function SearchDialog() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "k" && primaryModifier(e)) { e.preventDefault(); open(); }
+      if (e.key.toLowerCase() === "k" && !e.repeat && !e.shiftKey && primaryModifier(e, macRef.current)) { e.preventDefault(); open(); }
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener(OPEN_SEARCH_EVENT, open);

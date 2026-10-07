@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import { openSearch } from "@/components/search/search-dialog";
-import { shortcutLabel } from "@/lib/ui/platform";
+import { detectMac, shortcutLabel } from "@/lib/ui/platform";
 
 const NEW_ITEMS = [
   ["/app/clientes#novo", "Cliente"],
@@ -18,7 +18,7 @@ export function TopbarActions() {
   const menu = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
   const [shortcut, setShortcut] = useState("Ctrl+K");
-  useEffect(() => setShortcut(shortcutLabel("k")), []);
+  useEffect(() => { setShortcut(shortcutLabel("k")); detectMac().then(mac => setShortcut(shortcutLabel("k", mac))); }, []);
   useEffect(() => { if (menu.current) menu.current.open = false; }, [pathname]);
   return <>
     <button type="button" className="icon-button" onClick={openSearch} aria-label="Buscar em tudo" title={`Buscar em tudo (${shortcut})`}><Search size={18}/></button>

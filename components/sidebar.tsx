@@ -3,8 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { openSearch } from "@/components/search/search-dialog";
-import { shortcutLabel } from "@/lib/ui/platform";
-import { BellRing, BriefcaseBusiness, HardDrive, CalendarDays, ContactRound, FileStack, Landmark, LayoutDashboard, PlugZap, Search, ShieldCheck, Sparkles, UsersRound, ScrollText, Clock3, Gauge, ListTodo, MoreHorizontal } from "lucide-react";
+import { detectMac, shortcutLabel } from "@/lib/ui/platform";
+import { BellRing, BriefcaseBusiness, HardDrive, CalendarDays, ContactRound, FileStack, Landmark, LayoutDashboard, PlugZap, Search, ShieldCheck, Sparkles, UsersRound, ScrollText, Clock3, Gauge, ListTodo, MoreHorizontal, Settings } from "lucide-react";
 
 const primary=[
   ["/app","Início",LayoutDashboard],
@@ -24,6 +24,7 @@ const secondary=[
   ["/app/relatorios","Relatórios",Gauge],
   ["/app/inteligencia","Intelligence",Sparkles],
   ["/app/integrations","Integrações",PlugZap],
+  ["/app/configuracoes","Configurações",Settings],
 ] as const;
 
 function Item({href,label,Icon}:{href:string;label:string;Icon:ComponentType<{size?:number;strokeWidth?:number}>}){
@@ -35,7 +36,7 @@ function Item({href,label,Icon}:{href:string;label:string;Icon:ComponentType<{si
 export function Sidebar({desktop=false}:{desktop?:boolean}){
   const more = useRef<HTMLDetailsElement>(null);
   const [shortcut, setShortcut] = useState("Ctrl+K");
-  useEffect(() => setShortcut(shortcutLabel("k")), []);
+  useEffect(() => { setShortcut(shortcutLabel("k")); detectMac().then(mac => setShortcut(shortcutLabel("k", mac))); }, []);
   const pathname = usePathname();
   useEffect(() => { if (more.current) more.current.open = false; }, [pathname]);
   useEffect(() => {

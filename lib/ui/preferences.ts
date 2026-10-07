@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-export const FONT_SCALES = [90, 100, 115, 130] as const;
+export const FONT_SCALES = [100, 115, 130, 150] as const;
 export const DENSITIES = ["comfortable", "compact"] as const;
 export const THEMES = ["system", "light", "dark"] as const;
 
@@ -12,13 +12,14 @@ import { DEFAULT_PREFERENCES } from "./preferences-defaults";
 export { DEFAULT_PREFERENCES };
 
 export const preferencesInput = z.object({
-  fontScale: z.union([z.literal(90), z.literal(100), z.literal(115), z.literal(130)]),
+  fontScale: z.union([z.literal(100), z.literal(115), z.literal(130), z.literal(150)]),
   density: z.enum(DENSITIES),
   theme: z.enum(THEMES),
 }).strict();
 
 function coerce(row: { fontScale: number; density: string; theme: string } | null): DisplayPreferences {
-  const p = preferencesInput.safeParse(row ? { fontScale: row.fontScale, density: row.density, theme: row.theme } : null);
+  // 90 % was offered before the minimum became the 16 px base; it reads as 100 %.
+  const p = preferencesInput.safeParse(row ? { fontScale: row.fontScale === 90 ? 100 : row.fontScale, density: row.density, theme: row.theme } : null);
   return p.success ? p.data : DEFAULT_PREFERENCES;
 }
 

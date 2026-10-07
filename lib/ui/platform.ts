@@ -15,3 +15,19 @@ export function primaryModifier(e: { metaKey: boolean; ctrlKey: boolean; altKey:
 export function shortcutLabel(key: string, mac = isMacPlatform()): string {
   return mac ? `⌘${key.toUpperCase()}` : `Ctrl+${key.toUpperCase()}`;
 }
+
+type Invoke = (cmd: string) => Promise<unknown>;
+let native: Promise<string | null> | undefined;
+/** The desktop shell reports the real OS (Tauri `desktop_platform`); on the web this is null. */
+export function nativePlatform(): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  const invoke = (window as unknown as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
+  if (!invoke) return Promise.resolve(null);
+  return native ??= invoke("desktop_platform").then(p => (p === "macos" || p === "windows" || p === "linux" ? p : null), () => null);
+}
+
+/** Mac or not: the desktop shell decides when present, otherwise the browser's report. */
+export async function detectMac(): Promise<boolean> {
+  const p = await nativePlatform();
+  return p ? p === "macos" : isMacPlatform();
+}

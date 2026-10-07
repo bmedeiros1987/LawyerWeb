@@ -351,8 +351,20 @@ async function seed() {
     expect(r.status === 200, `salvar ${r.status} ${r.text.slice(0, 200)}`);
     const bad = await owner.req("PUT", "/api/preferences", { fontScale: 500, density: "x", theme: "neon" });
     expect(bad.status === 400, `valor inválido aceito (${bad.status})`);
-    const page = await owner.get("/app/preferencias");
+    const page = await owner.get("/app/configuracoes");
     expect(page.status === 200 && page.text.includes('data-theme="dark"') && page.text.includes('data-density="compact"'), "atributos não aplicados à página");
+  });
+
+  await step("D26", "verificação de atualizações: somente leitura, sem rede não afirma estar atualizado", async () => {
+    const g = await owner.get("/api/desktop/updates");
+    expect(g.status === 200 && g.json?.status === "not-checked", `estado inicial ${g.status} ${g.text.slice(0, 160)}`);
+    const r = await owner.req("POST", "/api/desktop/updates", { action: "check" });
+    expect(r.status === 200, `consulta ${r.status} ${r.text.slice(0, 160)}`);
+    expect(["offline", "error", "rate-limited", "no-release", "current", "update-available", "platform-unavailable", "unknown-installed"].includes(r.json.status), `estado ${r.json.status}`);
+    if (r.json.status === "offline") expect(/não confirma/.test(r.json.message), "sem rede, a mensagem não pode sugerir que está atualizado");
+    const bad = await owner.req("POST", "/api/desktop/updates", { action: "install" });
+    expect(bad.status === 400, `ação desconhecida aceita (${bad.status})`);
+    return `${r.json.status}: ${r.json.message}`;
   });
 }
 
