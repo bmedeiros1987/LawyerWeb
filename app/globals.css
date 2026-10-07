@@ -219,7 +219,7 @@
 .side-link.active{background:var(--elevated);box-shadow:inset 2px 0 var(--gold);color:#fff}
 .side-link:hover,.side-more>summary:hover{background:var(--elevated)}
 .side-more-menu{background:var(--navy);border-color:#344255;border-radius:8px}
-.side-more-menu>.side-link:first-child{display:none}
+@media(min-width:761px){.side-more-menu>.side-link:first-child{display:none}}
 .side-system-status strong{font-size:11px}.side-system-status span{font-size:10px;color:#A9B3C2}.side-system-status i{background:var(--gold-light)}
 .topbar{height:65px;padding:0 28px;background:var(--paper);border-bottom:1px solid var(--border);backdrop-filter:none}
 .topbar-title strong{font-size:14px}.eyebrow{font-size:10px;line-height:1.5;letter-spacing:.12em;color:var(--muted);font-weight:600}
