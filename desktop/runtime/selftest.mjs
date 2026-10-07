@@ -366,6 +366,17 @@ async function seed() {
     expect(bad.status === 400, `ação desconhecida aceita (${bad.status})`);
     return `${r.json.status}: ${r.json.message}`;
   });
+
+  await step("D27", "revisão de documentos: piloto marcado como simulado, provedor de IA desconectado", async () => {
+    const page = await owner.get("/app/documentos/revisao-piloto");
+    expect(page.status === 200 && page.text.includes("PILOTO SIMULADO"), `página do piloto ${page.status}`);
+    const st = await owner.get("/api/desktop/review-pilot");
+    expect(st.status === 200 && st.json.connected === false && st.json.enabled === false, "provedor deveria estar desconectado");
+    const real = await owner.req("POST", "/api/desktop/review-pilot", { action: "provider", consent: true });
+    expect(real.status === 503 && real.json.code === "provider-disconnected", `pedido de revisão real ${real.status}`);
+    const none = await other.req("POST", "/api/desktop/review-pilot", { action: "provider", consent: true });
+    expect(none.status === 403 || none.status === 503, `outra conta ${none.status}`);
+  });
 }
 
 async function verify() {
