@@ -289,7 +289,17 @@ pub fn run() {
                 }
                 // Only the splash screen (bundled) and the local server may be shown.
                 let allowed = server_port.clone();
-                let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                #[allow(unused_mut)]
+                let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
+                // Tauri passes its own WebView2 browser arguments through the API, which
+                // replaces WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS. Keep the standard WebView2
+                // behaviour of that variable (used by msedgedriver for the WebDriver test)
+                // by appending it to Tauri's defaults. It is not set in normal use.
+                #[cfg(windows)]
+                if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+                    builder = builder.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection {extra}"));
+                }
+                let window = builder
                     .title("LawyerMind")
                     .inner_size(1360.0, 860.0)
                     .min_inner_size(1000.0, 680.0)
