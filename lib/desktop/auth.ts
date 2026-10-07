@@ -141,11 +141,16 @@ export async function login(emailInput: string, password: string): Promise<{ tok
   if (!acc || !ok) throw new DesktopError("E-mail ou senha incorretos.", 401);
   const token = crypto.randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600_000);
-  await prisma.$transaction([
-    prisma.$executeRaw`update desktop.local_account set failed_attempts = 0, locked_until = null, updated_at = now() where user_id = ${acc.user_id}`,
-    prisma.$executeRaw`delete from desktop.local_session where expires_at < now()`,
-    prisma.$executeRaw`insert into desktop.local_session (token_hash, user_id, expires_at) values (${sha256(token)}, ${acc.user_id}, ${expiresAt})`,
-  ]);
+  await prisma.$transaction(async tx => {
+    // Serialize session creation with every password reset. A verifier that
+    // started before a reset must not create a session with its stale hash.
+    const current = await tx.$queryRaw<AccountRow[]>`select user_id, password_hash, locked_until from desktop.local_account where user_id = ${acc.user_id} for update`;
+    // The lock was already decided by reserveAttempt; this attempt holds a slot.
+    if (!current[0] || current[0].password_hash !== acc.password_hash) throw new DesktopError("E-mail ou senha incorretos.", 401);
+    await tx.$executeRaw`update desktop.local_account set failed_attempts = 0, locked_until = null, updated_at = now() where user_id = ${acc.user_id}`;
+    await tx.$executeRaw`delete from desktop.local_session where expires_at < now()`;
+    await tx.$executeRaw`insert into desktop.local_session (token_hash, user_id, expires_at) values (${sha256(token)}, ${acc.user_id}, ${expiresAt})`;
+  });
   return { token, expiresAt };
 }
 
@@ -177,8 +182,11 @@ export async function changePassword(userId: string, current: string, next: stri
   const rows = await prisma.$queryRaw<{ h: string }[]>`select password_hash as h from desktop.local_account where user_id = ${userId}`;
   if (!rows[0] || !(await verifyPassword(current, rows[0].h))) throw new DesktopError("Senha atual incorreta.", 401);
   const h = await hashPassword(next);
-  await prisma.$executeRaw`update desktop.local_account set password_hash = ${h}, updated_at = now() where user_id = ${userId}`;
-  await revokeAllSessions(userId);
+  await prisma.$transaction(async tx => {
+    const n = await tx.$executeRaw`update desktop.local_account set password_hash = ${h}, updated_at = now() where user_id = ${userId} and password_hash = ${rows[0].h}`;
+    if (!n) throw new DesktopError("Senha atual incorreta.", 401);
+    await tx.$executeRaw`delete from desktop.local_session where user_id = ${userId}`;
+  });
 }
 
 /** Owner resets the password of another local account (e.g. a colleague forgot it). */
@@ -186,9 +194,11 @@ export async function ownerResetPassword(ownerId: string, targetUserId: string, 
   await requireOwner(ownerId);
   if (ownerId === targetUserId) throw new DesktopError("Para a sua própria senha, use Alterar senha.", 400);
   const h = await hashPassword(next);
-  const n = await prisma.$executeRaw`update desktop.local_account set password_hash = ${h}, failed_attempts = 0, locked_until = null, updated_at = now() where user_id = ${targetUserId} and not is_owner`;
-  if (!n) throw new DesktopError("Conta não encontrada.", 404);
-  await revokeAllSessions(targetUserId);
+  await prisma.$transaction(async tx => {
+    const n = await tx.$executeRaw`update desktop.local_account set password_hash = ${h}, failed_attempts = 0, locked_until = null, updated_at = now() where user_id = ${targetUserId} and not is_owner`;
+    if (!n) throw new DesktopError("Conta não encontrada.", 404);
+    await tx.$executeRaw`delete from desktop.local_session where user_id = ${targetUserId}`;
+  });
 }
 
 /** Owner forgot the password: the recovery key shown at setup resets it and is rotated. */
@@ -197,15 +207,18 @@ export async function recoverOwner(emailInput: string, recoveryKey: string, next
   const key = recoveryKey.trim().toUpperCase();
   const rows = await prisma.$queryRaw<{ user_id: string; recovery_hash: string | null }[]>`select user_id, recovery_hash from desktop.local_account where email_normalized = ${email} and is_owner`;
   const expected = rows[0]?.recovery_hash ?? sha256("no-account");
-  const ok = rows[0] && crypto.timingSafeEqual(Buffer.from(sha256(key)), Buffer.from(expected));
+  const ok = rows[0]?.recovery_hash && crypto.timingSafeEqual(Buffer.from(sha256(key)), Buffer.from(expected));
   if (!ok) { await verifyPassword(next, null); throw new DesktopError("E-mail ou chave de recuperação incorretos.", 401); }
   const h = await hashPassword(next);
   const rotated = newRecoveryKey();
-  // Consumes the key only if it is still the current one (one winner under concurrency).
-  const n = await prisma.$executeRaw`update desktop.local_account set password_hash = ${h}, recovery_hash = ${sha256(rotated)}, failed_attempts = 0, locked_until = null, updated_at = now()
-    where user_id = ${rows[0].user_id} and recovery_hash = ${sha256(key)}`;
-  if (n !== 1) throw new DesktopError("Esta chave de recuperação já foi usada. Use a chave nova exibida na recuperação.", 409);
-  await revokeAllSessions(rows[0].user_id);
+  await prisma.$transaction(async tx => {
+    // Compare-and-swap consumes the key only if it is still the current one
+    // (one winner under concurrency); sessions are revoked in the same transaction.
+    const n = await tx.$executeRaw`update desktop.local_account set password_hash = ${h}, recovery_hash = ${sha256(rotated)}, failed_attempts = 0, locked_until = null, updated_at = now()
+      where user_id = ${rows[0].user_id} and recovery_hash = ${sha256(key)}`;
+    if (n !== 1) throw new DesktopError("Esta chave de recuperação já foi usada. Use a chave nova exibida na recuperação.", 409);
+    await tx.$executeRaw`delete from desktop.local_session where user_id = ${rows[0].user_id}`;
+  });
   return { recoveryKey: rotated };
 }
 

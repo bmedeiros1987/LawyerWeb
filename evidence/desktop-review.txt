@@ -1,0 +1,28 @@
+Base / PR60 HEAD checked twice: b065c47aef0d991c3736b53d30a93267eec96b44
+Isolated branch: codex/desktop-concurrency. No push, merge, deployment, app launch or Gatekeeper changes.
+AGENTS.md and .agents/skills absent in the checked revision.
+
+Changes:
+- Recovery key consumed with conditional UPDATE; password change and session deletion are one transaction.
+- Login locks account row, rechecks verified hash and lockout, then creates session atomically with resets.
+- All password update paths delete sessions in the same transaction; self-change additionally checks old hash.
+- Import uses advisory-lock connection for documentsRoot instead of acquiring a seventh pool connection.
+
+Reproduction (Node >=24, from repository root):
+node tests/synthetic/desktop-concurrency.mjs
+To reproduce baseline failures, export original auth/lock/settings/documents from the base commit to a disposable directory maintaining lib/desktop paths. Run:
+SOURCE_ROOT=/path/to/baseline CASE=recovery node tests/synthetic/desktop-concurrency.mjs
+SOURCE_ROOT=/path/to/baseline CASE=login node tests/synthetic/desktop-concurrency.mjs
+SOURCE_ROOT=/path/to/baseline CASE=pool node tests/synthetic/desktop-concurrency.mjs
+Patched: three PASS. Baseline: three exit 1. Logs adjacent.
+Tests execute production auth, lock and settings functions after TypeScript stripping. Scrypt is replaced with a fast deterministic hash; Prisma/pg are transactional/pool doubles. The import-to-client wiring is asserted statically. They do not prove real PostgreSQL behavior or exercise six complete imports.
+No real DB, documents, Drive originals, or credentials used.
+git diff --check passed. Full Vitest, real-PostgreSQL suite, typecheck and builds NOT run: npm/dependencies not available in this checkout; bundled dependency loader says this session is unsupported. Used ChatGPT's existing Node v24.21.0; no installed LawyerMind executable or its runtime was executed.
+
+Backup/restore consistency and durability review before commit:
+- Backup takes database REPEATABLE READ snapshot, then reads files sequentially. Store lock covers cooperating app imports/restore/relocation, not external editors.
+- Per-file size and mtime checks detect some writes while the open handle is read. They cannot guarantee a common-time snapshot across multiple files, detect path replacement after opening an inode, or rule out a write after the per-file check. Hash verifies archived bytes, not correspondence to a single external-editor state. Existing negative test covers appending during a read only.
+- Backup fsyncs partial archive then renames it, but does not fsync parent directory. Power-loss durability of final name is not established.
+- Restore verifies archive, writes temporary documents and renames them, then commits DB plus documents root atomically. Extracted files and directory entries are not fsynced before DB commit. A crash/power loss can leave DB committed without durable document bytes/names. DB rollback also leaves newly extracted files at the target.
+- Existing target files with matching hashes are reused; an external editor can change them after check and before commit. No lock enforces editor quiescence. Safety backup is database-only; does not establish recovery of subsequently externally modified document copies.
+These are remaining findings, not fixed or claimed safe here. No broad redesign performed. Need dedicated crash-injection and external-editor tests before claiming snapshot consistency or power-loss durability. Restrict validation to disposable stores.

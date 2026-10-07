@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 // Desktop documents: originals are read-only, work happens on a copy.
 //
 // - Import is always explicit (the user picks a file). The original — on the
@@ -39,8 +40,8 @@ const MIME: Record<string, string> = {
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".eml": "message/rfc822",
 };
 
-export async function ensureWorkingRoot(): Promise<string> {
-  const root = await documentsRoot();
+export async function ensureWorkingRoot(client?: PoolClient): Promise<string> {
+  const root = await documentsRoot(client);
   const marker = syncMarker(root);
   if (marker) throw new DesktopError(`A pasta de cópias de trabalho está em pasta sincronizada ("${marker}"). Relocalize-a para uma pasta local em Computador.`, 409, "synced");
   fs.mkdirSync(root, { recursive: true });
@@ -53,7 +54,7 @@ type ImportInput = {
 };
 
 export async function importDocument(input: ImportInput) {
-  const r = await withStoreLock("shared", () => importLocked(input));
+  const r = await withStoreLock("shared", client => importLocked(input, client));
   // Text for content search; failures are recorded in the index, never fail the import.
   try {
     const { indexVersion } = await import("./textindex");
@@ -62,10 +63,10 @@ export async function importDocument(input: ImportInput) {
   return r;
 }
 
-async function importLocked(input: ImportInput) {
+async function importLocked(input: ImportInput, client: PoolClient) {
   const source = input.sourcePath;
   if (!source || !path.isAbsolute(source)) throw new DesktopError("Escolha o arquivo a importar.", 400);
-  const root = await ensureWorkingRoot();
+  const root = await ensureWorkingRoot(client);
   const realSource = realPathLoose(source);
   if (isInside(root, realSource)) throw new DesktopError("Este arquivo já é uma cópia de trabalho do LawyerMind.", 400);
   if (isInside(realPathLoose(desktopStateDir()), realSource)) throw new DesktopError("Escolha um arquivo fora da pasta de dados do LawyerMind.", 400);
