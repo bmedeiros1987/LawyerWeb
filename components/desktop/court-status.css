@@ -1,0 +1,7 @@
+.desktop-court-status { font-size: 1rem; line-height: 1.5; }
+.desktop-court-status p { margin: 12px 0; }
+.desktop-court-sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 24px; margin: 16px 0; }
+.desktop-court-sources section { min-width: 0; border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 16px; }
+.desktop-court-status .detail-list dt, .desktop-court-status .detail-list dd { font-size: .9375rem; overflow-wrap: anywhere; }
+.desktop-court-status .desktop-secondary { font-size: .9375rem; line-height: 1.5; white-space: normal; height: auto; min-height: 44px; }
+.desktop-court-status .desktop-secondary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
