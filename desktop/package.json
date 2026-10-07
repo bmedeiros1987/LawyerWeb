@@ -1,0 +1,22 @@
+{
+  "name": "lawyermind-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LawyerMind desktop (Tauri): PostgreSQL local + servidor Next.js de produ\u00e7\u00e3o empacotado; funciona offline.",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "prepare:postgres": "node scripts/prepare-postgres.mjs",
+    "prepare:server": "node scripts/prepare-server.mjs",
+    "prepare:all": "npm run prepare:postgres && npm run prepare:server",
+    "tauri": "tauri",
+    "build": "npm run prepare:all && tauri build",
+    "test:core": "cargo test -p lawyermind-core -- --test-threads=1"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1"
+  }
+}

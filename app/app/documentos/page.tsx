@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
 import { QuickLegalDocumentForm } from "@/components/legal-documents-quick-create";
+import { DesktopImportPanel } from "@/components/desktop/document-import";
 
 export const dynamic="force-dynamic";
 
@@ -50,9 +51,11 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   ]);
 
   return <div className="page-stack">
-    <section className="page-header"><div><span className="eyebrow">MBLZ Files</span><h1>Documentos jurídicos</h1><p>Contratos, pareceres, procurações, certidões, atos societários, petições e seus vínculos.</p></div>
+    <section className="page-header"><div><span className="eyebrow">LawyerMind Files</span><h1>Documentos jurídicos</h1><p>Contratos, pareceres, procurações, certidões, atos societários, petições e seus vínculos.</p></div>
       {canEdit&&<QuickLegalDocumentForm workspaceId={member.workspaceId} clients={clients} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))}/>}
     </section>
+
+    {canEdit&&process.env.MBLZ_DESKTOP==="1"&&<DesktopImportPanel clients={clients.map(c=>({id:c.id,label:c.name}))} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))}/>}
 
     <form className="toolbar-card" action="/app/documentos" method="get"><div className="search-field"><Search size={17}/><input name="q" defaultValue={search} placeholder="Nome, tipo, processo ou cliente"/></div></form>
 

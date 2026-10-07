@@ -1,0 +1,9 @@
+node_modules
+.cache
+target
+src-tauri/resources/postgres
+src-tauri/resources/node
+src-tauri/resources/server
+src-tauri/resources/runtime
+src-tauri/gen
+*.tsbuildinfo

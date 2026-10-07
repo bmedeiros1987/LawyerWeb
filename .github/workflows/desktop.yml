@@ -1,0 +1,302 @@
+name: Desktop (Tauri)
+
+# Builds the LawyerMind desktop installers natively on each OS, installs them on
+# the runner and tests the INSTALLED app with synthetic data:
+#   - packaged acceptance self-test (local PostgreSQL + bundled Next.js server)
+#     with outbound network blocked (Linux: network namespace; Windows:
+#     outbound firewall rules per executable; macOS: sandbox-exec deny network);
+#   - GUI through WebDriver where supported (Linux, Windows) or launch +
+#     screenshot + graceful quit (macOS);
+#   - uninstall keeps user data; reinstall finds it.
+# Unsigned builds: no signing/notarization credentials are used.
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "lib/desktop/**"
+      - "app/**"
+      - "components/**"
+      - "prisma/**"
+      - "auth.ts"
+      - "proxy.ts"
+      - "instrumentation.ts"
+      - "next.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            bundles: nsis
+          - name: macos-arm64
+            os: macos-latest
+            bundles: app,dmg
+          - name: linux-x64
+            os: ubuntu-24.04
+            bundles: deb
+    defaults:
+      run:
+        shell: bash
+    env:
+      EV: ${{ github.workspace }}/evidence
+      NEXT_TELEMETRY_DISABLED: "1"
+      # The code commit (PR head), not GitHub's temporary merge commit.
+      CODE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Linux build/test dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf xvfb webkit2gtk-driver python3-xlib iproute2
+
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix desktop ci --no-audit --no-fund
+          mkdir -p "$EV"
+          { echo "commit=$CODE_SHA"; echo "ci_merge_commit=$GITHUB_SHA"; echo "ref=$GITHUB_REF"; echo "runner=${{ matrix.os }}"; echo "node=$(node -v)"; rustc -V; } | tee "$EV/build-info.txt"
+
+      - name: Bundled PostgreSQL
+        working-directory: desktop
+        run: npm run prepare:postgres
+
+      - name: Core tests (real PostgreSQL)
+        working-directory: desktop
+        run: cargo test -p lawyermind-core -- --test-threads=1 2>&1 | tee "$EV/core-tests.txt"
+
+      - name: Production server (Next.js standalone) + Node runtime
+        working-directory: desktop
+        run: npm run prepare:server 2>&1 | tail -20 | tee "$EV/prepare-server.txt"
+
+      - name: Build installer
+        working-directory: desktop
+        run: npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Collect installer and checksums
+        run: |
+          mkdir -p dist-desktop
+          find desktop/target/release/bundle -maxdepth 2 -type f \( -name '*-setup.exe' -o -name '*.dmg' -o -name '*.deb' \) -exec cp {} dist-desktop/ \;
+          cd dist-desktop
+          for f in *; do mv "$f" "$(echo "$f" | sed "s/\(_[0-9.]*\)/\1-${CODE_SHA:0:7}/")"; done
+          ls -la
+          (sha256sum * 2>/dev/null || shasum -a 256 *) | tee SHA256SUMS.txt
+
+      # ------------------------------------------------------------------ Linux
+      - name: Linux — install, GUI first run, self-test offline, uninstall/reinstall
+        if: runner.os == 'Linux'
+        run: |
+          set -x
+          deb=$(ls dist-desktop/*.deb); pkg=$(dpkg-deb -f "$deb" Package)
+          sudo apt-get install -y "./$deb"; echo "instalado: $pkg $(dpkg -s $pkg | grep Version)" | tee "$EV/install.txt"
+          cargo install tauri-driver --locked
+          me=$(whoami); data="$HOME/.local/share/br.mblz.lawyermind"
+          # Runs a command as this user inside a new network namespace that only has loopback.
+          offline() { sudo unshare --net -- sh -c "ip link set lo up && su $me -c \"env PATH=$PATH HOME=$HOME $*\""; }
+          printf '#!/bin/sh\nexec xvfb-run -a -s "-screen 0 1440x900x24" sh "$@"\n' > "$RUNNER_TEMP/x.sh"
+          cat > "$RUNNER_TEMP/gui.sh" <<EOS
+          set -e
+          tauri-driver > "$EV/tauri-driver.log" 2>&1 & D=\$!; sleep 2
+          node "$GITHUB_WORKSPACE/desktop/scripts/e2e-gui.mjs" /usr/bin/lawyermind "$EV" "\$1"
+          kill \$D || true
+          EOS
+          cat > "$RUNNER_TEMP/close.sh" <<EOS
+          lawyermind & A=\$!
+          for i in \$(seq 1 90); do grep -q "servidor pronto" "$data/logs/app.log" 2>/dev/null && [ \$(grep -c "servidor pronto" "$data/logs/app.log") -ge \$1 ] && break; sleep 1; done
+          sleep 3
+          python3 "$GITHUB_WORKSPACE/desktop/scripts/close-window-linux.py"
+          for i in \$(seq 1 30); do kill -0 \$A 2>/dev/null || break; sleep 1; done
+          if kill -0 \$A 2>/dev/null; then echo "app não encerrou"; exit 1; fi
+          if test -f "$data/pgdata/postmaster.pid"; then echo "postgres não parou"; exit 1; fi
+          echo "fechar a janela encerrou o app, o servidor e o PostgreSQL"
+          EOS
+          offline "sh $RUNNER_TEMP/x.sh $RUNNER_TEMP/gui.sh first"
+          offline "sh $RUNNER_TEMP/x.sh $RUNNER_TEMP/close.sh 2" | tee "$EV/close-window.txt"
+          for ph in seed verify; do offline "/usr/bin/lawyermind --self-test $RUNNER_TEMP/st/state $RUNNER_TEMP/st/work $EV $ph"; done
+          sudo apt-get remove -y "$pkg"; test ! -e /usr/bin/lawyermind
+          { echo "após desinstalar:"; ls -la "$data"; test -f "$data/pgdata/PG_VERSION" && echo "dados preservados"; } | tee "$EV/uninstall.txt"
+          sudo apt-get install -y "./$deb"
+          offline "sh $RUNNER_TEMP/x.sh $RUNNER_TEMP/gui.sh reopen"
+          cp "$data/logs/app.log" "$EV/app-gui.log"
+
+      # ---------------------------------------------------------------- Windows
+      - name: Windows — install, offline self-test, uninstall/reinstall, GUI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ev = $env:EV
+          $installer = Get-ChildItem dist-desktop -Filter *-setup.exe | Select-Object -First 1
+          function Install-App { $p = Start-Process -Wait -PassThru -FilePath $installer.FullName -ArgumentList '/S'; if ($p.ExitCode -ne 0) { throw "instalador falhou $($p.ExitCode)" } }
+          Install-App
+          $inst = Join-Path $env:LOCALAPPDATA 'LawyerMind'
+          $exe = Get-ChildItem $inst -Filter *.exe | Where-Object { $_.Name -notlike 'uninstall*' } | Select-Object -First 1
+          "instalado em $($exe.FullName)" | Tee-Object "$ev/install.txt"
+          Get-AuthenticodeSignature $exe.FullName | Format-List Status,StatusMessage | Out-String | Tee-Object "$ev/install.txt" -Append
+
+          # Offline: block outbound traffic of every installed executable (loopback stays allowed).
+          Get-ChildItem $inst -Recurse -Filter *.exe | ForEach-Object { New-NetFirewallRule -DisplayName "LM-offline-$($_.Name)-$([guid]::NewGuid())" -Direction Outbound -Action Block -Program $_.FullName | Out-Null }
+          $node = Join-Path $inst 'node\node.exe'
+          & $node -e "fetch('https://example.com').then(()=>{console.log('REDE ACESSIVEL');process.exit(1)},e=>{console.log('rede bloqueada para o app: '+e.cause?.code);process.exit(0)})" | Tee-Object "$ev/offline-check.txt"
+          if ($LASTEXITCODE -ne 0) { throw "bloqueio de rede não efetivo" }
+
+          $data = Join-Path $env:LOCALAPPDATA 'br.mblz.lawyermind'
+          $work = Join-Path $env:RUNNER_TEMP 'lm-work'
+          function SelfTest($phase) {
+            $p = Start-Process -Wait -PassThru -FilePath $exe.FullName -ArgumentList '--self-test', $data, $work, $ev, $phase
+            Get-Content (Join-Path $ev "shell-$phase.json")
+            if ($p.ExitCode -ne 0) { throw "autoteste $phase falhou ($($p.ExitCode))" }
+          }
+          SelfTest 'seed'
+
+          # Uninstall keeps the data; reinstall finds it.
+          $p = Start-Process -Wait -PassThru -FilePath (Join-Path $inst 'uninstall.exe') -ArgumentList '/S'
+          Start-Sleep -Seconds 5
+          $kept = Test-Path (Join-Path $data 'pgdata\PG_VERSION')
+          "app removido: $(-not (Test-Path $exe.FullName)); dados preservados: $kept" | Tee-Object "$ev/uninstall.txt"
+          if (-not $kept) { throw "dados apagados na desinstalação" }
+          Install-App
+          Get-ChildItem $inst -Recurse -Filter *.exe | ForEach-Object { New-NetFirewallRule -DisplayName "LM-offline2-$($_.Name)-$([guid]::NewGuid())" -Direction Outbound -Action Block -Program $_.FullName | Out-Null }
+          SelfTest 'verify'
+
+          # GUI: normal launch, screenshot, graceful close (WM_CLOSE) stops server and PostgreSQL.
+          $log = Join-Path $data 'logs\app.log'
+          $before = (Get-Content $log | Select-String 'servidor pronto').Count
+          Start-Process -FilePath $exe.FullName
+          for ($i = 0; $i -lt 120; $i++) { if ((Get-Content $log | Select-String 'servidor pronto').Count -gt $before) { break }; Start-Sleep 1 }
+          Start-Sleep 8
+          Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $img = New-Object System.Drawing.Bitmap $b.Width,$b.Height
+          [System.Drawing.Graphics]::FromImage($img).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size); $img.Save("$ev\gui-windows.png")
+          $url = ((Get-Content $log | Select-String 'servidor pronto em (\S+)' | Select-Object -Last 1).Matches[0].Groups[1].Value)
+          (Invoke-WebRequest -UseBasicParsing "$url/api/desktop/status").Content | Tee-Object "$ev/gui-status.txt"
+          taskkill /IM $exe.Name | Out-Null
+          for ($i = 0; $i -lt 30; $i++) { if (-not (Get-Process -Name $exe.BaseName -ErrorAction SilentlyContinue)) { break }; Start-Sleep 1 }
+          Start-Sleep 3
+          $clean = -not (Test-Path (Join-Path $data 'pgdata\postmaster.pid'))
+          "fechamento pela janela: app encerrado=$(-not (Get-Process -Name $exe.BaseName -ErrorAction SilentlyContinue)); postgres parado=$clean" | Tee-Object "$ev/close-window.txt"
+          Copy-Item $log "$ev\app-gui.log"
+          if (-not $clean) { throw "PostgreSQL não parou ao fechar a janela" }
+
+      - name: Windows — GUI end-to-end via WebDriver (Edge WebView2)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cargo install tauri-driver --locked
+          $inst = Join-Path $env:LOCALAPPDATA 'LawyerMind'
+          $exe = Get-ChildItem $inst -Filter *.exe | Where-Object { $_.Name -notlike 'uninstall*' } | Select-Object -First 1
+          # Fresh data dir for the first-run GUI test (the self-test data stays in the backup copy).
+          $data = Join-Path $env:LOCALAPPDATA 'br.mblz.lawyermind'
+          Rename-Item -Path $data -NewName 'br.mblz.lawyermind.selftest'
+          # msedgedriver must match the WebView2 Runtime the app uses (not the Edge browser).
+          $wv = $null
+          foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}') {
+            if (-not $wv) { $wv = (Get-ItemProperty -Path $k -ErrorAction SilentlyContinue).pv }
+          }
+          $driver = Join-Path $env:EdgeWebDriver 'msedgedriver.exe'
+          $have = (& $driver --version) -replace '.*?(\d+\.\d+\.\d+\.\d+).*', '$1'
+          "WebView2 Runtime $wv; msedgedriver do runner $have" | Tee-Object "$env:EV\webdriver-versions.txt"
+          if ($wv -and $have -ne $wv) {
+            $zip = Join-Path $env:RUNNER_TEMP 'edgedriver.zip'
+            Invoke-WebRequest -UseBasicParsing "https://msedgedriver.microsoft.com/$wv/edgedriver_win64.zip" -OutFile $zip
+            Expand-Archive $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'edgedriver') -Force
+            $driver = Join-Path $env:RUNNER_TEMP 'edgedriver\msedgedriver.exe'
+            "usando msedgedriver $(& $driver --version)" | Tee-Object "$env:EV\webdriver-versions.txt" -Append
+          }
+          $d = Start-Process -PassThru -FilePath tauri-driver -ArgumentList '--native-driver', $driver -RedirectStandardOutput "$env:EV\tauri-driver.log" -RedirectStandardError "$env:EV\tauri-driver.err"
+          Start-Sleep 3
+          # Diagnostics: which processes (and command lines) exist while the driver starts the app.
+          $watch = Start-Job -ArgumentList "$env:EV\webdriver-processes.txt" -ScriptBlock {
+            param($out)
+            for ($i = 0; $i -lt 90; $i++) {
+              Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'lawyermind|msedgewebview2|msedgedriver|node' } |
+                ForEach-Object { "$(Get-Date -Format o) $($_.ProcessId) $($_.Name) $($_.CommandLine)" } | Add-Content $out
+              Start-Sleep 2
+            }
+          }
+          try {
+            node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV first
+            if ($LASTEXITCODE -ne 0) { throw "e2e first falhou" }
+            node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV reopen
+            if ($LASTEXITCODE -ne 0) { throw "e2e reopen falhou" }
+          } finally {
+            Stop-Process $d -ErrorAction SilentlyContinue
+            Stop-Job $watch -ErrorAction SilentlyContinue
+            Write-Host "--- tauri-driver"; Get-Content "$env:EV\tauri-driver.err","$env:EV\tauri-driver.log" -ErrorAction SilentlyContinue | Select-Object -Last 40 | Write-Host
+            Write-Host "--- processos"; Get-Content "$env:EV\webdriver-processes.txt" -ErrorAction SilentlyContinue | Sort-Object -Unique | Select-Object -Last 60 | Write-Host
+            Write-Host "--- app.log"; Get-Content (Join-Path $data 'logs\app.log') -ErrorAction SilentlyContinue | Select-Object -Last 30 | Write-Host
+          }
+
+      # ------------------------------------------------------------------ macOS
+      - name: macOS — install, offline self-test, uninstall/reinstall, GUI launch
+        if: runner.os == 'macOS'
+        run: |
+          set -x
+          dmg=$(ls dist-desktop/*.dmg)
+          install_app() {
+            mnt=$(mktemp -d); hdiutil attach "$dmg" -nobrowse -mountpoint "$mnt"
+            mkdir -p "$HOME/Applications"; rm -rf "$HOME/Applications/LawyerMind.app"
+            cp -R "$mnt/LawyerMind.app" "$HOME/Applications/"; hdiutil detach "$mnt"
+          }
+          install_app
+          app="$HOME/Applications/LawyerMind.app"; bin="$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)"
+          { echo "instalado em $app"; codesign -dv --verbose=2 "$app" 2>&1; spctl -a -vv "$app" 2>&1 || true; } | tee "$EV/install.txt"
+          # Offline: deny every outbound connection except localhost (inherited by PostgreSQL and Node).
+          SB='(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (remote unix-socket))'
+          if sandbox-exec -p "$SB" curl -s -m 10 https://example.com -o /dev/null; then echo "bloqueio não efetivo"; exit 1; fi
+          echo "rede externa bloqueada para o processo de teste" | tee "$EV/offline-check.txt"
+          data="$HOME/Library/Application Support/br.mblz.lawyermind"
+          sandbox-exec -p "$SB" "$bin" --self-test "$data" "$RUNNER_TEMP/lm-work" "$EV" seed
+          rm -rf "$app"; test ! -e "$app"
+          { echo "após desinstalar:"; ls -la "$data"; test -f "$data/pgdata/PG_VERSION" && echo "dados preservados"; } | tee "$EV/uninstall.txt"
+          install_app
+          sandbox-exec -p "$SB" "$bin" --self-test "$data" "$RUNNER_TEMP/lm-work" "$EV" verify
+          # GUI: normal launch, screenshot, quit via the app menu path (graceful).
+          before=$(grep -c "servidor pronto" "$data/logs/app.log")
+          open "$app"
+          for i in $(seq 1 120); do [ $(grep -c "servidor pronto" "$data/logs/app.log") -gt $before ] && break; sleep 1; done
+          sleep 8; screencapture -x "$EV/gui-macos.png" || true
+          url=$(grep -o 'servidor pronto em [^ ]*' "$data/logs/app.log" | tail -1 | awk '{print $4}')
+          curl -s "$url/api/desktop/status" | tee "$EV/gui-status.txt"
+          osascript -e 'quit app "LawyerMind"'
+          for i in $(seq 1 30); do pgrep -f "LawyerMind.app/Contents/MacOS" >/dev/null || break; sleep 1; done
+          sleep 3
+          if test -f "$data/pgdata/postmaster.pid"; then echo "PostgreSQL não parou" | tee "$EV/close-window.txt"; exit 1; fi
+          echo "encerrar o app parou o servidor e o PostgreSQL" | tee "$EV/close-window.txt"
+          cp "$data/logs/app.log" "$EV/app-gui.log"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lawyermind-desktop-${{ matrix.name }}
+          path: |
+            dist-desktop/
+            evidence/
+          if-no-files-found: warn
+          retention-days: 30

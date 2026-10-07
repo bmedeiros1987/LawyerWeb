@@ -47,7 +47,7 @@ export default async function OpenClawPage(){
 
   return <div className="page-stack">
     <section className="page-header">
-      <div><span className="eyebrow">MBLZ Agent Hub</span><h1>Agente próprio do escritório</h1><p>OpenClaw como runtime do agente; MBLZ continua controlando identidade, sigilo, contexto e auditoria.</p></div>
+      <div><span className="eyebrow">LawyerMind Agent Hub</span><h1>Agente próprio do escritório</h1><p>OpenClaw como runtime do agente; LawyerMind continua controlando identidade, sigilo, contexto e auditoria.</p></div>
       <span className="status-pill success"><ShieldCheck size={11}/>Isolado por workspace</span>
     </section>
 

@@ -49,7 +49,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   const expiring=contracts.filter(c=>c.expiresAt&&c.expiresAt>=now&&c.expiresAt<=in60d&&["ACTIVE","EXPIRING"].includes(c.status)).length;
 
   return <div className="page-stack">
-    <section className="page-header"><div><span className="eyebrow">MBLZ Contracts</span><h1>Contratos</h1><p>Minuta, revisão, vigência, aviso prévio, renovação e assinatura em um único ciclo.</p></div>
+    <section className="page-header"><div><span className="eyebrow">LawyerMind Contracts</span><h1>Contratos</h1><p>Minuta, revisão, vigência, aviso prévio, renovação e assinatura em um único ciclo.</p></div>
       {canEdit&&<QuickContractForm workspaceId={member.workspaceId} clients={clients} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))} members={members.map(m=>({userId:m.userId,name:m.user.name??m.user.email??"Usuário"}))}/>}
     </section>
 
