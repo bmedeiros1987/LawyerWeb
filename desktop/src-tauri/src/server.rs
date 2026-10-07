@@ -27,6 +27,8 @@ const PASS_ENV: &[&str] = &[
     "PATH", "SystemRoot", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
     "LOCALAPPDATA", "APPDATA", "LANG", "LC_ALL", "TZ", "OneDrive", "OneDriveCommercial", "OneDriveConsumer",
     "XDG_RUNTIME_DIR", "DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS",
+    // Set only by `--self-test`: documents are not opened in desktop programs.
+    "MBLZ_DESKTOP_NO_LAUNCH",
 ];
 
 fn free_port() -> Result<u16, String> {

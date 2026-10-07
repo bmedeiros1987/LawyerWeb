@@ -14,7 +14,7 @@ export default async function ComputerPage() {
   const session = await auth(); if (!session?.user?.id) redirect("/login");
   const owner = await isOwner(session.user.id);
   const state = desktopStateDir();
-  const root = documentsRoot();
+  const root = await documentsRoot();
   return <DesktopComputer
     owner={owner} version={desktopVersion()}
     databaseDir={path.join(state, "pgdata")} backupsDir={path.join(state, "backups")} documentsRoot={root}

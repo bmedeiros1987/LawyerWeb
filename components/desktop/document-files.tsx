@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ExternalLink, FileText, FolderOpen, Save, Upload } from "lucide-react";
+import { ExternalLink, Eye, FileText, FolderOpen, Save, Upload } from "lucide-react";
 import { pickFile, pickSave, postJson } from "./native";
 import "./desktop.css";
 
@@ -16,7 +16,10 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit }: { docume
     setBusy(true); setMessage(null);
     try { await fn(); } catch (e) { setMessage({ text: (e as Error).message, tone: "warn" }); } finally { setBusy(false); }
   }
-  const open = (id: string, reveal: boolean) => act(async () => { await postJson(`/api/desktop/documents/versions/${id}/open`, { reveal }); setMessage({ text: reveal ? "Pasta da cópia de trabalho aberta." : "Cópia de trabalho aberta no programa padrão. Alterações ficam apenas nessa cópia.", tone: "ok" }); });
+  const open = (id: string, mode: "edit" | "read", reveal = false) => act(async () => {
+    await postJson(`/api/desktop/documents/versions/${id}/open`, { mode, reveal });
+    setMessage({ text: reveal ? "Pasta da cópia de trabalho aberta." : mode === "edit" ? "Cópia de trabalho aberta no programa padrão. Alterações ficam apenas nessa cópia." : "Aberta uma cópia temporária somente leitura. Alterações nela não são guardadas no LawyerMind.", tone: "ok" });
+  });
   async function doExport(versionId: string, dest: string, overwrite = false, confirmation?: string) {
     try {
       const r = await postJson<{ path: string; replaced: boolean; syncFolder: string | null }>(`/api/desktop/documents/versions/${versionId}/export`, { destPath: dest, overwrite, confirmation });
@@ -47,8 +50,9 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit }: { docume
           <small>Original (somente leitura): <span className="desktop-path">{v.provenance.originalPath ?? "—"}</span>{v.provenance.originalInSyncFolder ? " · pasta sincronizada" : ""}</small>
           <small>SHA-256 na importação: <span className="desktop-path">{v.sha256?.slice(0, 16)}…</span> · {new Date(v.createdAt).toLocaleString("pt-BR")}</small></div>
         <div className="desktop-actions">
-          <button className="desktop-secondary" onClick={() => open(v.id, false)} disabled={busy}><ExternalLink size={14}/>Abrir cópia</button>
-          <button className="desktop-secondary" onClick={() => open(v.id, true)} disabled={busy}><FolderOpen size={14}/>Mostrar pasta</button>
+          {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit")} disabled={busy}><ExternalLink size={14}/>Abrir cópia para editar</button>}
+          <button className="desktop-secondary" onClick={() => open(v.id, "read")} disabled={busy}><Eye size={14}/>Abrir somente leitura</button>
+          {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit", true)} disabled={busy}><FolderOpen size={14}/>Mostrar pasta</button>}
           <button className="desktop-secondary" onClick={() => exportClick(v)} disabled={busy}><Save size={14}/>Exportar…</button>
         </div>
       </div>)}</div>}

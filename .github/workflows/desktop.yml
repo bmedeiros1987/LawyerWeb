@@ -214,12 +214,32 @@ jobs:
           # Fresh data dir for the first-run GUI test (the self-test data stays in the backup copy).
           $data = Join-Path $env:LOCALAPPDATA 'br.mblz.lawyermind'
           Rename-Item -Path $data -NewName 'br.mblz.lawyermind.selftest'
+          # msedgedriver must match the WebView2 Runtime the app uses (not the Edge browser).
+          $wv = $null
+          foreach ($k in 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}') {
+            if (-not $wv) { $wv = (Get-ItemProperty -Path $k -ErrorAction SilentlyContinue).pv }
+          }
           $driver = Join-Path $env:EdgeWebDriver 'msedgedriver.exe'
+          $have = (& $driver --version) -replace '.*?(\d+\.\d+\.\d+\.\d+).*', '$1'
+          "WebView2 Runtime $wv; msedgedriver do runner $have" | Tee-Object "$env:EV\webdriver-versions.txt"
+          if ($wv -and $have -ne $wv) {
+            $zip = Join-Path $env:RUNNER_TEMP 'edgedriver.zip'
+            Invoke-WebRequest -UseBasicParsing "https://msedgedriver.microsoft.com/$wv/edgedriver_win64.zip" -OutFile $zip
+            Expand-Archive $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'edgedriver') -Force
+            $driver = Join-Path $env:RUNNER_TEMP 'edgedriver\msedgedriver.exe'
+            "usando msedgedriver $(& $driver --version)" | Tee-Object "$env:EV\webdriver-versions.txt" -Append
+          }
           $d = Start-Process -PassThru -FilePath tauri-driver -ArgumentList '--native-driver', $driver -RedirectStandardOutput "$env:EV\tauri-driver.log" -RedirectStandardError "$env:EV\tauri-driver.err"
           Start-Sleep 3
-          node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV first
-          node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV reopen
-          Stop-Process $d -ErrorAction SilentlyContinue
+          try {
+            node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV first
+            if ($LASTEXITCODE -ne 0) { throw "e2e first falhou" }
+            node desktop/scripts/e2e-gui.mjs $exe.FullName $env:EV reopen
+            if ($LASTEXITCODE -ne 0) { throw "e2e reopen falhou" }
+          } finally {
+            Stop-Process $d -ErrorAction SilentlyContinue
+            Get-Content "$env:EV\tauri-driver.err" -ErrorAction SilentlyContinue | Select-Object -Last 40
+          }
 
       # ------------------------------------------------------------------ macOS
       - name: macOS — install, offline self-test, uninstall/reinstall, GUI launch

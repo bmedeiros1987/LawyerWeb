@@ -103,8 +103,16 @@ avisa sobre sincronização parcial e conflitos entre computadores.
 - **O original é só lido** (`lib/desktop/documents.ts`), inclusive no Google Drive. Nunca é editado,
   sobrescrito, movido, renomeado ou excluído. Se mudar durante a leitura, a importação é cancelada.
 - **A cópia de trabalho** fica em `documentos/ws/<workspace>/<documento>/v<versão>-<nome>`, fora de
-  pastas sincronizadas. "Abrir cópia" abre essa cópia no programa padrão; edições e salvamentos
-  automáticos atingem só ela.
+  pastas sincronizadas. "Abrir cópia para editar" abre essa cópia no programa padrão; edições e
+  salvamentos automáticos atingem só ela.
+- **Abrir exige a permissão certa:** editar a cópia de trabalho (ou mostrar a pasta dela) exige
+  `documents.edit`. Com permissão só de leitura, o app abre uma **cópia temporária somente leitura**
+  em `leitura/` (apagada depois de 24 h); a cópia de trabalho nunca é entregue ao programa.
+- **Nada sai da pasta autorizada:** nenhum componente abaixo da pasta de cópias pode ser link
+  simbólico, junção do Windows ou arquivo com hard link. O app confere cada parte do caminho no disco
+  (e o caminho real) antes de abrir, exportar, importar, fazer backup, restaurar ou relocalizar, e
+  recusa com erro "link" sem ler nem gravar nada. A exportação também recusa um destino que, pelo
+  caminho real, caia dentro da pasta de cópias ou da pasta de dados.
 - **Proveniência:** a versão registra o caminho original, o tamanho, a data, se o original estava em
   pasta sincronizada e o SHA-256 na importação.
 - **Exportar sempre cria um arquivo novo** no destino escolhido. Se o arquivo já existir, nada é
@@ -127,6 +135,15 @@ Em **Computador → Backup** (somente a conta proprietária), o backup é um arq
 O backup é lógico: **nunca copia o diretório vivo do PostgreSQL**. Depois de gravado, é relido e
 verificado entrada por entrada. Backup corrompido ou de outro formato é recusado.
 
+**Banco e arquivos juntos:**
+
+- backup, restauração e relocalização usam uma trava exclusiva no PostgreSQL; importações usam a
+  mesma trava em modo compartilhado. Nenhuma cópia é importada, restaurada ou relocalizada entre o
+  snapshot do banco e a leitura dos arquivos;
+- cada cópia é lida uma vez, com o SHA-256 calculado enquanto entra no backup. Se o tamanho ou a data
+  mudarem durante a leitura (um programa salvando o documento), o backup é cancelado e nenhum arquivo
+  fica gravado: feche o documento e repita.
+
 **Restaurar:**
 
 1. verifica todo o arquivo e exige que as migrações sejam iguais às desta versão;
@@ -134,8 +151,12 @@ verificado entrada por entrada. Backup corrompido ou de outro formato é recusad
 3. salva um **backup de segurança** do estado atual em `backups/antes-da-restauracao-*`;
 4. grava as cópias de trabalho numa pasta **vazia** (ou que já tenha cópias idênticas) e **nunca
    sobrescreve** arquivo diferente;
-5. troca todos os registros numa transação e confere as contagens;
+5. troca todos os registros **e a pasta de cópias de trabalho** na mesma transação e confere as
+   contagens. Se algo falhar antes do commit, nem os dados nem a pasta mudam;
 6. encerra as sessões, o que exige novo login.
+
+A pasta de destino não pode conter links simbólicos nem junções. A pasta de cópias em uso fica
+registrada no banco local (tabela `desktop.local_setting`, que não entra no backup).
 
 > O arquivo de backup **não é criptografado**. Guarde-o em local protegido.
 
@@ -146,13 +167,34 @@ verificado entrada por entrada. Backup corrompido ou de outro formato é recusad
   Confira o SHA-256 em `SHA256SUMS.txt` antes de prosseguir. Requer o WebView2, presente no
   Windows 10/11 atualizados. Uma cópia do `vcruntime140.dll` redistribuível vai junto do PostgreSQL.
 - **macOS** (`LawyerMind_<versão>-<commit>_aarch64.dmg`, Apple Silicon): arraste para Aplicativos. O app
-  tem só assinatura ad-hoc e **não é notarizado**: um arquivo baixado da internet é bloqueado pelo
-  Gatekeeper. A distribuição pública exige assinatura Developer ID e notarização, que dependem de
-  credenciais da Apple ainda não fornecidas.
+  tem só assinatura ad-hoc e **não é notarizado**, então o Gatekeeper o bloqueia quando baixado da
+  internet. **Este build não deve ser distribuído a usuários**; não contorne o Gatekeeper. A
+  distribuição exige assinatura Developer ID e notarização (ver "Assinatura e notarização").
 - **Linux** (`.deb`): `sudo apt install ./LawyerMind_<versão>_amd64.deb`.
 
 No primeiro acesso, crie a conta proprietária e **guarde a chave de recuperação**; depois crie o
 workspace.
+
+## Assinatura e notarização (pendente de aprovação)
+
+Nada foi contratado nem configurado. Os passos abaixo dependem de contas e credenciais do titular.
+
+- **macOS:** conta no Apple Developer Program, em nome da pessoa ou da empresa; certificado
+  "Developer ID Application"; notarização pelo `notarytool` com chave da App Store Connect API ou
+  senha de app. No CI, o certificado (.p12 + senha) e as credenciais de notarização entram como
+  *secrets* do repositório, lidos pelo `tauri build` (`APPLE_CERTIFICATE`,
+  `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY`,
+  `APPLE_API_KEY_PATH`). O `signingIdentity: "-"` do `tauri.conf.json` passa a ser a identidade
+  Developer ID, com *hardened runtime*. Todos os executáveis embarcados (PostgreSQL, Node.js e
+  bibliotecas) precisam ser assinados, e o .dmg é notarizado e "grampeado" (`stapler`). A validação
+  usa `spctl -a -vv` e `xcrun stapler validate`.
+- **Windows:** certificado de assinatura de código (OV ou EV) de uma autoridade certificadora, ou o
+  serviço Azure Artifact Signing (antigo Trusted Signing), da Microsoft, que exige conta Azure e
+  validação de identidade. O instalador NSIS e os executáveis embarcados são assinados com
+  `signtool` (ou o comando de assinatura configurado no Tauri) e carimbo de tempo. A reputação no
+  SmartScreen se acumula com o uso do mesmo certificado.
+
+Até lá, os instaladores servem para teste interno, conferidos pelo SHA-256.
 
 ## Atualização
 
@@ -203,11 +245,14 @@ fica em `.github/workflows/desktop.yml`.
   loopback) e recusa de pasta sincronizada. Não rode como root: o PostgreSQL recusa.
 - **`npx vitest run tests/desktop-local.test.ts`:** regras de pasta sincronizada, caminhos e detecção
   de SQL destrutivo.
+- **`RUN_DB_TESTS=1 npx vitest run tests/desktop-store-db.test.ts`:** testes negativos com PostgreSQL
+  real, num banco descartável: leitura sem `documents.edit`, links simbólicos/junções/hard links,
+  restauração que falha antes do commit, backup com arquivo alterado durante a leitura e trava.
 - **`lawyermind --self-test <estado> <trabalho> <relatórios> seed|verify`:** roteiro de aceite do app
   **instalado**, com dados fictícios (`runtime/selftest.mjs`):
-  - `seed` cobre os passos D01–D21: loopback, autenticação, cadastro e edição, documentos e originais,
-    exportação, isolamento e backup;
-  - `verify` roda num novo processo e cobre P01–P09: persistência, restauração, relocalização,
-    bloqueio e recuperação.
+  - `seed` cobre os passos D01–D23: loopback, autenticação, cadastro e edição, documentos e originais,
+    exportação, isolamento, backup, abertura para edição/leitura e recusa de links e junções;
+  - `verify` roda num novo processo e cobre P01–P10: persistência, restauração, relocalização,
+    bloqueio, recuperação e restauração recusada em destino com junção.
 - **`scripts/e2e-gui.mjs`:** interface via WebDriver. Funciona no Linux e no Windows; não há suporte a
   WebDriver para o WKWebView do macOS.

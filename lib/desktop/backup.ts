@@ -10,6 +10,16 @@
 // verified after writing. Restore verifies the whole archive first, saves a
 // safety backup of the current database, writes document files without ever
 // overwriting a different file, and replaces all rows in one transaction.
+//
+// Database and files together: backup, restore and relocation hold the store
+// lock exclusively (imports hold it shared), so no working copy is added,
+// restored or relocated between the database snapshot and the file reads.
+// Each file is read once — hashed while it is written into the archive —
+// through a handle checked against the validated path; if its size or
+// modification time changes during the read (a program saving it), the
+// backup is aborted instead of recording a torn copy. The working-copy folder
+// switched by a restore is stored in the database and changes in the same
+// transaction as the rows.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -21,8 +31,10 @@ import type { PoolClient } from "pg";
 import { backupsDir, desktopVersion, DesktopError } from "./env";
 import { qi, withClient } from "./db";
 import { appliedMigrations } from "./migrate";
-import { documentsRoot, readSettings, writeSettings } from "./settings";
-import { resolveStorageKey } from "./paths";
+import { documentsRoot, setDocumentsRoot } from "./settings";
+import { containedPath, ensureContainedDir, isInside, openContained, realDir, realPathLoose, resolveStorageKey } from "./paths";
+import { withStoreLock } from "./lock";
+import { desktopStateDir } from "./env";
 import { syncMarker } from "./sync";
 
 export const FORMAT = "lawyermind-backup";
@@ -59,11 +71,24 @@ function hashing(stream: Readable): { out: PassThrough; digest: Promise<string>;
 
 export type BackupReport = { path: string; bytes: number; includes_documents: boolean; counts: Record<string, number>; documents: number; documents_bytes: number; verified: true };
 
-export async function createBackup(opts: { dest: string; includeDocuments: boolean }): Promise<BackupReport> {
+type BackupOptions = {
+  dest: string; includeDocuments: boolean;
+  /** false only when the caller already holds the store lock (restore). */
+  lock?: boolean; lockTimeoutMs?: number;
+  /** Test hook: called after the first chunk of each document file is read. */
+  onFileChunk?: (key: string) => void;
+};
+
+export function createBackup(opts: BackupOptions): Promise<BackupReport> {
+  return opts.lock === false ? createBackupLocked(opts) : withStoreLock("exclusive", () => createBackupLocked(opts), opts.lockTimeoutMs);
+}
+
+async function createBackupLocked(opts: BackupOptions): Promise<BackupReport> {
   if (!path.isAbsolute(opts.dest)) throw new DesktopError("Escolha onde salvar o backup.", 400);
   const dest = path.normalize(opts.dest.endsWith(EXTENSION) ? opts.dest : opts.dest + EXTENSION);
   if (fs.existsSync(dest)) throw new DesktopError("Já existe um arquivo com esse nome. Escolha outro nome para o backup.", 409, "exists");
-  const root = documentsRoot();
+  const root = opts.includeDocuments ? await documentsRoot() : "";
+  if (opts.includeDocuments && isInside(realPathLoose(root), realPathLoose(dest))) throw new DesktopError("Salve o backup fora da pasta de cópias de trabalho.", 400);
 
   const snapshot = await withClient(async c => {
     await c.query("begin isolation level repeatable read read only");
@@ -79,36 +104,51 @@ export async function createBackup(opts: { dest: string; includeDocuments: boole
     } finally { await c.query("commit"); }
   });
 
-  const files: { key: string; abs: string }[] = [];
+  const files: string[] = [];
   if (opts.includeDocuments) {
     const missing: string[] = [];
     for (const key of snapshot.keys) {
-      const abs = resolveStorageKey(root, key);
-      if (fs.existsSync(abs) && fs.statSync(abs).isFile()) files.push({ key, abs }); else missing.push(key);
+      try { containedPath(root, key, "file"); files.push(key); }
+      catch (e) { if (e instanceof DesktopError && (e.code === "missing" || e.code === "missing-root")) missing.push(key); else throw e; }
     }
     if (missing.length) throw new DesktopError(`${missing.length} cópia(s) de trabalho não foram encontradas em ${root} (ex.: ${missing[0]}). Relocalize a pasta de documentos antes do backup.`, 409, "missing-documents");
   }
 
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   const partial = path.join(path.dirname(dest), `.${path.basename(dest)}.partial-${crypto.randomUUID()}`);
+  const zip = new yazl.ZipFile();
+  let out: fs.WriteStream | null = null, written: Promise<void> | null = null;
   try {
-    const zip = new yazl.ZipFile();
     const entries: Record<string, string> = {};
     const counts: Record<string, number> = {};
-    const written = pipeline(zip.outputStream, fs.createWriteStream(partial));
+    out = fs.createWriteStream(partial);
+    written = pipeline(zip.outputStream, out);
+    written.catch(() => {});
     for (const d of snapshot.data) {
       const name = `data/${d.table}.json`;
       entries[name] = sha(d.json); counts[d.table] = d.count;
       zip.addBuffer(Buffer.from(d.json, "utf8"), name, { compress: true });
     }
-    // Hash first, then let yazl open each file lazily (one descriptor at a time).
-    // A file changed in between makes the post-write verification fail.
+    // One read per file, hashed on the way into the archive, through a handle
+    // that is checked to be the validated (link-free) file.
     let bytes = 0;
-    for (const f of files) {
-      const name = `files/${f.key}`;
-      entries[name] = await streamSha(fs.createReadStream(f.abs));
-      bytes += fs.statSync(f.abs).size;
-      zip.addFile(f.abs, name, { compress: false });
+    for (const key of files) {
+      const name = `files/${key}`;
+      const { fd, stat: before } = openContained(root, key);
+      try {
+        const reader = fs.createReadStream("", { fd, autoClose: false });
+        let first = true;
+        if (opts.onFileChunk) reader.on("data", () => { if (first) { first = false; opts.onFileChunk!(key); } });
+        const h = hashing(reader);
+        zip.addReadStream(h.out, name, { compress: false, mtime: before.mtime });
+        entries[name] = await h.digest;
+        const size = await h.size;
+        const after = fs.fstatSync(fd);
+        if (size !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs) {
+          throw new DesktopError(`A cópia de trabalho ${key} foi alterada durante o backup (talvez esteja aberta e salvando). Feche o documento e faça o backup de novo. Nenhum backup foi gravado.`, 409, "changed");
+        }
+        bytes += size;
+      } finally { fs.closeSync(fd); }
     }
     const manifest: Manifest = {
       format: FORMAT, format_version: FORMAT_VERSION, created_at: new Date().toISOString(), app_version: desktopVersion(),
@@ -122,6 +162,9 @@ export async function createBackup(opts: { dest: string; includeDocuments: boole
     if (fs.existsSync(dest)) throw new DesktopError("Já existe um arquivo com esse nome.", 409, "exists");
     fs.renameSync(partial, dest);
   } catch (e) {
+    (zip.outputStream as unknown as Readable).destroy();
+    out?.destroy();
+    await written?.catch(() => {});
     fs.rmSync(partial, { force: true });
     throw e;
   }
@@ -196,9 +239,17 @@ async function verifyBackupStrict(file: string): Promise<Manifest> {
 
 export type RestoreReport = { restored_from: string; safety_backup: string; counts: Record<string, number>; includes_documents: boolean; documents_root: string; documents_written: number; documents_already_present: number };
 
-function isEmptyDir(p: string) { return fs.readdirSync(p).length === 0; }
+type RestoreOptions = {
+  file: string; documentsTarget?: string | null; lockTimeoutMs?: number;
+  /** Test hook: runs inside the transaction, after the rows and the folder were replaced, before commit. */
+  beforeCommit?: () => Promise<void>;
+};
 
-export async function restoreBackup(opts: { file: string; documentsTarget?: string | null }): Promise<RestoreReport> {
+export function restoreBackup(opts: RestoreOptions): Promise<RestoreReport> {
+  return withStoreLock("exclusive", () => restoreLocked(opts), opts.lockTimeoutMs);
+}
+
+async function restoreLocked(opts: RestoreOptions): Promise<RestoreReport> {
   const m = await verifyBackup(opts.file);
   const current = await withClient(c => appliedMigrations(c));
   if (JSON.stringify(current) !== JSON.stringify(m.migrations)) {
@@ -209,45 +260,60 @@ export async function restoreBackup(opts: { file: string; documentsTarget?: stri
 
   // Plan document writes before changing anything.
   const fileEntries = Object.entries(m.entries).filter(([n]) => n.startsWith("files/"));
-  let target = documentsRoot();
-  const toWrite: { name: string; dest: string; sha: string }[] = [];
+  let target = await documentsRoot();
+  const toWrite: { name: string; key: string; sha: string }[] = [];
   let already = 0;
   if (m.includes_documents) {
     if (!opts.documentsTarget || !path.isAbsolute(opts.documentsTarget)) throw new DesktopError("Escolha a pasta onde as cópias de trabalho serão restauradas.", 400);
     target = path.normalize(opts.documentsTarget);
     const marker = syncMarker(target);
     if (marker) throw new DesktopError(`A pasta de cópias de trabalho não pode ficar em pasta sincronizada ("${marker}").`, 400, "synced");
-    if (fs.existsSync(target) && !fs.statSync(target).isDirectory()) throw new DesktopError("O destino não é uma pasta.", 400);
-    const fresh = !fs.existsSync(target) || isEmptyDir(target);
+    const real = realPathLoose(target);
+    for (const reserved of ["pgdata", "backups", "leitura"]) {
+      const r = realPathLoose(path.join(desktopStateDir(), reserved));
+      if (isInside(r, real) || isInside(real, r)) throw new DesktopError("Escolha uma pasta fora das pastas internas do LawyerMind (banco, backups).", 400);
+    }
+    if (fs.existsSync(target)) {
+      if (!fs.statSync(target).isDirectory()) throw new DesktopError("O destino não é uma pasta.", 400);
+      target = realDir(target);
+    }
     for (const [name, digest] of fileEntries) {
-      const dest = resolveStorageKey(target, name.slice(6));
-      if (!fresh && fs.existsSync(dest)) {
-        if (await streamSha(fs.createReadStream(dest)) === digest) { already++; continue; }
-        throw new DesktopError(`A pasta escolhida já contém um arquivo diferente em ${name.slice(6)}. Escolha uma pasta vazia.`, 409, "conflict");
+      const key = name.slice(6);
+      // Refuses links/junctions anywhere below the target, existing or not.
+      const existing = fs.existsSync(target) ? containedPath(target, key, "any") : null;
+      if (existing && fs.existsSync(existing)) {
+        const { fd } = openContained(target, key);
+        let same: boolean;
+        try { same = await streamSha(fs.createReadStream("", { fd, autoClose: false })) === digest; } finally { fs.closeSync(fd); }
+        if (same) { already++; continue; }
+        throw new DesktopError(`A pasta escolhida já contém um arquivo diferente em ${key}. Escolha uma pasta vazia.`, 409, "conflict");
       }
-      toWrite.push({ name, dest, sha: digest });
+      toWrite.push({ name, key, sha: digest });
     }
   }
 
   // Safety copy of the current database before replacing it.
   fs.mkdirSync(backupsDir(), { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const safety = await createBackup({ dest: path.join(backupsDir(), `antes-da-restauracao-${stamp}${EXTENSION}`), includeDocuments: false });
+  const safety = await createBackup({ dest: path.join(backupsDir(), `antes-da-restauracao-${stamp}${EXTENSION}`), includeDocuments: false, lock: false });
 
-  // Extract document files (temp + rename, verified).
+  // Extract document files (temp + rename, verified, never through a link).
   const want = new Map(toWrite.map(w => [w.name, w]));
   let written = 0;
+  if (m.includes_documents) {
+    fs.mkdirSync(target, { recursive: true });
+    target = realDir(target);
+  }
   if (want.size) {
     await forEachEntry(opts.file, async (e, open) => {
       const w = want.get(e.fileName); if (!w) return;
-      fs.mkdirSync(path.dirname(w.dest), { recursive: true });
-      const tmp = path.join(path.dirname(w.dest), `.lawyermind-tmp-${crypto.randomUUID()}`);
+      const dir = ensureContainedDir(target, w.key.split("/").slice(0, -1).join("/"));
+      const tmp = path.join(dir, `.lawyermind-tmp-${crypto.randomUUID()}`);
       try {
         const h = hashing(await open());
-        await pipeline(h.out, fs.createWriteStream(tmp));
+        await pipeline(h.out, fs.createWriteStream(tmp, { flags: "wx" }));
         if (await h.digest !== w.sha) throw new DesktopError(`Checksum divergente ao extrair ${e.fileName}.`, 422);
-        if (fs.existsSync(w.dest)) throw new DesktopError(`Arquivo surgiu durante a restauração: ${w.dest}`, 409);
-        fs.renameSync(tmp, w.dest);
+        fs.renameSync(tmp, containedPath(target, w.key, "absent"));
         written++;
       } finally { fs.rmSync(tmp, { force: true }); }
     });
@@ -269,11 +335,13 @@ export async function restoreBackup(opts: { file: string; documentsTarget?: stri
       const out: Record<string, number> = {};
       for (const t of tables) out[t] = Number((await c.query<{ n: string }>(`select count(*)::text as n from ${ref(t)}`)).rows[0].n);
       for (const t of tables) if (out[t] !== m.counts[t]) throw new DesktopError(`Contagem divergente em ${t} após restaurar; nada foi alterado.`, 500);
+      // The working-copy folder switches in the same transaction as the rows.
+      if (m.includes_documents) await setDocumentsRoot(target, c);
+      await opts.beforeCommit?.();
       await c.query("commit");
       return out;
     } catch (e) { await c.query("rollback"); throw e; }
   });
 
-  if (m.includes_documents) writeSettings({ ...readSettings(), documentsRoot: target });
   return { restored_from: opts.file, safety_backup: safety.path, counts, includes_documents: m.includes_documents, documents_root: target, documents_written: written, documents_already_present: already };
 }

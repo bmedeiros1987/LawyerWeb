@@ -280,6 +280,54 @@ async function seed() {
     const v = await owner.post("/api/desktop/backup/verify", { path: bad });
     expect(v.status >= 400, `backup corrompido aceito (${v.status})`);
   });
+
+  await step("D22", "abrir para editar entrega a cópia de trabalho; abrir para leitura entrega cópia temporária somente leitura", async () => {
+    const url = `/api/desktop/documents/versions/${memo.versionId}/open`;
+    const edit = await owner.post(url, { mode: "edit" });
+    expect(edit.status === 200 && edit.json.mode === "edit" && fs.realpathSync(edit.json.path) === fs.realpathSync(memo.copyPath), `editar: ${edit.status} ${edit.text.slice(0, 200)}`);
+    const read = await owner.post(url, {});
+    expect(read.status === 200 && read.json.mode === "read", `leitura (padrão): ${read.status} ${read.text.slice(0, 200)}`);
+    expect(read.json.path.startsWith(path.join(STATE, "leitura")) && fs.realpathSync(read.json.path) !== fs.realpathSync(memo.copyPath), "leitura deveria usar cópia temporária");
+    expect((fs.statSync(read.json.path).mode & 0o222) === 0, "cópia de leitura deveria ser somente leitura");
+    expect(shaFile(read.json.path) === memo.editedSha && shaFile(memo.copyPath) === memo.editedSha, "conteúdo");
+    const foreign = await other.post(url, { mode: "read" });
+    expect(foreign.status === 404, `outra conta abrindo documento A: ${foreign.status}`);
+  });
+
+  await step("D23", "links simbólicos e junções que saem da pasta autorizada são recusados (abrir, exportar, backup, importar)", async () => {
+    // Windows: junction (no privilege needed); macOS/Linux: symbolic link.
+    const link = (target, at) => fs.symlinkSync(target, at, "junction");
+    const unlink = at => { try { fs.unlinkSync(at); } catch { fs.rmdirSync(at); } };
+    const fora = path.join(WORK, "fora-da-pasta"); fs.mkdirSync(fora, { recursive: true });
+    const src = path.join(drive, "Procuração.pdf"); fs.writeFileSync(src, "procuração sintética"); fs.chmodSync(src, 0o444);
+    const imp = await owner.post("/api/desktop/documents/import", { sourcePath: src, matterId: memo.matterId });
+    expect(imp.status === 201, `import ${imp.status}`);
+    const docDir = path.join(docsDefault(), ...path.dirname(imp.json.storageKey).split("/"));
+    const moved = path.join(fora, "pasta-do-documento"); fs.renameSync(docDir, moved); link(moved, docDir);
+    const results = [];
+    try {
+      const o = await owner.post(`/api/desktop/documents/versions/${imp.json.versionId}/open`, { mode: "edit" });
+      const e = await owner.post(`/api/desktop/documents/versions/${imp.json.versionId}/export`, { destPath: path.join(WORK, "nao-exportar.pdf") });
+      const b = await owner.post("/api/desktop/backup", { dest: path.join(WORK, "nao-gravar"), includeDocuments: true });
+      results.push(o.status, e.status, b.status);
+      expect(o.status === 422 && o.json.code === "link", `abrir via junção: ${o.status}`);
+      expect(e.status === 422 && !fs.existsSync(path.join(WORK, "nao-exportar.pdf")), `exportar via junção: ${e.status}`);
+      expect(b.status === 422 && !fs.readdirSync(WORK).some(f => f.startsWith("nao-gravar") || f.startsWith(".nao-gravar")), `backup via junção: ${b.status}`);
+    } finally { unlink(docDir); fs.renameSync(moved, docDir); }
+    const wsDir = path.join(docsDefault(), "ws", path.dirname(imp.json.storageKey).split("/")[1]);
+    const wsMoved = path.join(fora, "ws"); fs.renameSync(wsDir, wsMoved); link(wsMoved, wsDir);
+    try {
+      const before = fs.readdirSync(wsMoved, { recursive: true }).length;
+      const i = await owner.post("/api/desktop/documents/import", { sourcePath: src, matterId: memo.matterId });
+      expect(i.status === 422 && fs.readdirSync(wsMoved, { recursive: true }).length === before, `importar via junção: ${i.status}`);
+    } finally { unlink(wsDir); fs.renameSync(wsMoved, wsDir); }
+    const alias = path.join(WORK, "atalho-documentos"); link(docsDefault(), alias);
+    const ex = await owner.post(`/api/desktop/documents/versions/${memo.versionId}/export`, { destPath: path.join(alias, "dentro.docx") });
+    expect(ex.status === 400 && !fs.existsSync(path.join(docsDefault(), "dentro.docx")), `exportar para atalho da pasta de cópias: ${ex.status}`);
+    const ok = await owner.post(`/api/desktop/documents/versions/${imp.json.versionId}/open`, { mode: "edit" });
+    expect(ok.status === 200, `após remover a junção o documento volta a abrir: ${ok.status}`);
+    return `recusas: ${results.join(", ")}`;
+  });
 }
 
 async function verify() {
@@ -326,6 +374,17 @@ async function verify() {
     const restoredCopy = path.join(r.json.documents_root, ...memo.storageKey.split("/"));
     expect(shaFile(restoredCopy) === memo.editedSha, "cópia restaurada difere");
     return `backup de segurança: ${r.json.safety_backup}`;
+  });
+
+  await step("P10", "restauração recusa destino com junção/link e não grava fora; a pasta de documentos não muda", async () => {
+    const target = path.join(WORK, "alvo-com-juncao"); fs.mkdirSync(target, { recursive: true });
+    const trap = path.join(WORK, "armadilha"); fs.mkdirSync(trap, { recursive: true });
+    fs.symlinkSync(trap, path.join(target, "ws"), "junction");
+    const r = await owner.post("/api/desktop/backup/restore", { path: memo.backup, documentsTarget: target, confirmation: "RESTAURAR" });
+    expect(r.status === 422 && r.json.code === "link", `restore com junção: ${r.status} ${r.text.slice(0, 200)}`);
+    expect(fs.readdirSync(trap).length === 0, "gravou na pasta apontada pela junção");
+    const o = await owner.post(`/api/desktop/documents/versions/${memo.versionId}/open`, { mode: "edit" });
+    expect(o.status === 200 && fs.realpathSync(o.json.path).startsWith(fs.realpathSync(memo.restoredRoot)), `pasta de documentos mudou: ${o.text.slice(0, 200)}`);
   });
 
   await step("P06", "relocalização explícita da pasta de cópias", async () => {

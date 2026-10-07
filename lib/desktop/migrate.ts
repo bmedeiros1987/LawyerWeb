@@ -36,6 +36,11 @@ create table if not exists desktop.local_session (
   created_at timestamptz not null default now()
 );
 create index if not exists local_session_user on desktop.local_session (user_id);
+create table if not exists desktop.local_setting (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
 `;
 
 type Migration = { name: string; sql: string; sha256: string };

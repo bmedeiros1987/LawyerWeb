@@ -167,6 +167,8 @@ fn self_test(context: &tauri::Context<tauri::Wry>, args: &[String]) -> i32 {
     };
     let plain = |p: &str| lawyermind_core::pg::plain_path(Path::new(p));
     let (state, work, report_dir) = (plain(state), plain(work), plain(report_dir));
+    // Automated run: "abrir documento" must not launch desktop programs.
+    std::env::set_var("MBLZ_DESKTOP_NO_LAUNCH", "1");
     let _ = std::fs::create_dir_all(&work);
     let _ = std::fs::create_dir_all(&report_dir);
     let mut steps: Vec<ShellStep> = Vec::new();

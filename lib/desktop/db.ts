@@ -5,7 +5,7 @@ import { Pool, type PoolClient } from "pg";
 const g = globalThis as unknown as { desktopPool?: Pool };
 
 export function pool(): Pool {
-  if (!g.desktopPool) g.desktopPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  if (!g.desktopPool) g.desktopPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 6 });
   return g.desktopPool;
 }
 

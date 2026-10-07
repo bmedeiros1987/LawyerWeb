@@ -4,7 +4,7 @@ import { ArchiveRestore, DatabaseBackup, FolderOpen, HardDrive, KeyRound, Shield
 import { pickFile, pickFolder, pickSave, postJson } from "./native";
 import "./desktop.css";
 
-type Check = { root: string; exists: boolean; total: number; found: number; missing: number; missingSamples: string[]; syncFolder: string | null };
+type Check = { root: string; exists: boolean; total: number; found: number; missing: number; missingSamples: string[]; links: number; linkSamples: string[]; syncFolder: string | null };
 type Account = { user_id: string; email: string; name: string | null; is_owner: boolean; created_at: string; locked: boolean; me: boolean };
 type Props = { owner: boolean; version: string; databaseDir: string; backupsDir: string; documentsRoot: string; check: Check | null; accounts: Account[] };
 
@@ -96,10 +96,11 @@ export function DesktopComputer(p: Props) {
         <div className="panel-heading"><div><span className="eyebrow">Cópias de trabalho</span><h2>Relocalizar pasta</h2></div><FolderOpen size={18}/></div>
         <p>O banco guarda apenas caminhos relativos a esta pasta. Se você a moveu ou trocou de disco, aponte a nova localização: o aplicativo confere os arquivos antes de aplicar e nunca move pastas sozinho. Pastas sincronizadas são recusadas.</p>
         {p.check && p.check.missing > 0 && <p className="desktop-note warn">{p.check.missing} cópia(s) não estão na pasta atual.</p>}
+        {p.check && p.check.links > 0 && <p className="desktop-note warn">{p.check.links} cópia(s) passam por link simbólico, junção ou hard link e ficam bloqueadas (ex.: {p.check.linkSamples[0]}).</p>}
         <div className="desktop-actions"><button className="desktop-secondary" onClick={chooseRoot} disabled={busy}><FolderOpen size={14}/>Escolher pasta…</button></div>
         {candidate && <div className="desktop-form">
           <span className="desktop-path">{candidate.root}</span>
-          <p className={"desktop-note " + (candidate.missing ? "warn" : "ok")}>{candidate.found} de {candidate.total} cópia(s) encontradas nessa pasta.{candidate.syncFolder ? ` Pasta sincronizada ("${candidate.syncFolder}") — não permitida.` : ""}</p>
+          <p className={"desktop-note " + (candidate.missing ? "warn" : "ok")}>{candidate.found} de {candidate.total} cópia(s) encontradas nessa pasta.{candidate.syncFolder ? ` Pasta sincronizada ("${candidate.syncFolder}") — não permitida.` : ""}{candidate.links ? ` ${candidate.links} passam por link simbólico, junção ou hard link — não permitido.` : ""}</p>
           {candidate.missing > 0 && <label className="check-line" style={{ display: "flex", gap: 8, fontSize: 12 }}><input type="checkbox" style={{ width: "auto", height: "auto" }} checked={force} onChange={e => setForce(e.target.checked)}/>Usar mesmo assim (as ausentes ficarão indisponíveis)</label>}
           <div><button className="desktop-primary" onClick={applyRoot} disabled={busy || (candidate.missing > 0 && !force)}>Usar esta pasta</button></div>
         </div>}
