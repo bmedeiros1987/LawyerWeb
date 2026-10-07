@@ -85,8 +85,9 @@ if (fs.existsSync(links)) {
   for (const { source, target: link } of JSON.parse(fs.readFileSync(links, "utf8"))) {
     const from = path.join(out, path.relative("native", source));
     const to = path.join(out, path.relative("native", link));
-    // Unversioned development links (libfoo.so / libfoo.dylib) are not used at runtime.
-    if (/^lib[^.]+\.(so|dylib)$/.test(path.basename(to))) continue;
+    // Unversioned Linux development links (libfoo.so) are not used at runtime; on
+    // macOS the binaries load the unversioned libfoo.dylib names, so keep those.
+    if (/^lib[^.]+\.so$/.test(path.basename(to))) continue;
     if (fs.existsSync(from) && !fs.existsSync(to)) fs.copyFileSync(from, to);
   }
 }
