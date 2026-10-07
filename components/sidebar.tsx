@@ -49,7 +49,7 @@ export function Sidebar({desktop=false}:{desktop?:boolean}){
     return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", outside); };
   }, []);
   return <aside className="sidebar">
-    <Link href="/app" className="side-brand"><img className="mblz-mark" src="/brand/mblz-app-icon.svg" alt="MBLZ"/><span className="side-brand-copy"><strong>MBLZ</strong><small>MBLZ · Legal OS</small></span></Link>
+    <Link href="/app" className="side-brand"><img className="mblz-mark lawyermind-mark" src="/brand/lawyermind-symbol-cream.png" alt="LawyerMind"/><span className="side-brand-copy"><strong>LawyerMind</strong><small>Gestão jurídica</small></span></Link>
     <button className="command-button"><Search size={16}/><span>Buscar em tudo</span><kbd>⌘ K</kbd></button>
     <nav className="side-nav" aria-label="Navegação principal">
       <div className="side-section-title">Trabalho</div>

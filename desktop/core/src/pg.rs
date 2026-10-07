@@ -121,6 +121,21 @@ pub fn guard_not_synced(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Removes the Windows verbatim prefix (`\\?\C:\...`) that some APIs return.
+/// PostgreSQL's tools (initdb, pg_ctl) cannot handle verbatim paths.
+pub fn plain_path(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        if rest.as_bytes().get(1) == Some(&b':') {
+            return PathBuf::from(rest);
+        }
+    }
+    p.to_path_buf()
+}
+
 fn command(program: &Path) -> Command {
     #[allow(unused_mut)]
     let mut cmd = Command::new(program);
@@ -163,6 +178,7 @@ impl LocalPostgres {
     /// Initializes the cluster on first use and starts it (or attaches to an
     /// instance of this same cluster left running by a previous crash).
     pub fn start(paths: PgPaths) -> Result<Self> {
+        let paths = PgPaths { bin_dir: plain_path(&paths.bin_dir), state_dir: plain_path(&paths.state_dir) };
         guard_not_synced(&paths.state_dir)?;
         for tool in ["initdb", "pg_ctl", "postgres"] {
             let p = paths.tool(tool);
@@ -183,11 +199,16 @@ impl LocalPostgres {
 
         let mut pg = LocalPostgres { paths, port: 0, password: creds.password };
         if let Some(port) = pg.running_port()? {
+            // An instance left running by a previous crash: reuse it only if it
+            // actually answers; a hung/unreachable one is stopped and restarted.
             pg.port = port;
-        } else {
-            pg.port = free_loopback_port()?;
-            pg.pg_ctl_start()?;
+            if pg.ensure_database().is_ok() {
+                return Ok(pg);
+            }
+            pg.stop().map_err(|e| Error::Postgres(format!("instância anterior não responde e não pôde ser parada: {e}")))?;
         }
+        pg.port = free_loopback_port()?;
+        pg.pg_ctl_start()?;
         pg.ensure_database()?;
         Ok(pg)
     }
@@ -363,6 +384,13 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strips_windows_verbatim_prefix() {
+        assert_eq!(plain_path(Path::new(r"\\?\C:\Users\a\LawyerMind")), PathBuf::from(r"C:\Users\a\LawyerMind"));
+        assert_eq!(plain_path(Path::new(r"\\?\UNC\srv\share\x")), PathBuf::from(r"\\srv\share\x"));
+        assert_eq!(plain_path(Path::new("/home/a/x")), PathBuf::from("/home/a/x"));
+    }
 
     #[test]
     fn detects_sync_folders() {

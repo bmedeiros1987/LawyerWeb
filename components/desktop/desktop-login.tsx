@@ -71,7 +71,7 @@ export function DesktopLogin({ hasAccounts }: { hasAccounts: boolean }) {
 
   return <main className="auth-page lawyermind-login">
     <section className="auth-visual" aria-label="LawyerMind">
-      <div className="auth-brand"><div><strong className="lawyermind-wordmark">LawyerMind</strong><span>Seu trabalho jurídico, em ordem.</span></div></div>
+      <div className="auth-brand"><img className="lawyermind-login-symbol" src="/brand/lawyermind-symbol-cream.png" alt=""/><div><strong className="lawyermind-wordmark">LawyerMind</strong><span>Seu trabalho jurídico, em ordem.</span></div></div>
       <div className="auth-copy"><span className="eyebrow">Clareza para o que importa</span><h1>Mais espaço<br/>para pensar.<br/><em>Mais controle<br/>para agir.</em></h1><p>Processos, clientes e documentos neste computador, com banco local e backup verificável.</p></div>
       <div className="auth-highlights"><span><HardDrive size={18} aria-hidden="true"/> Dados locais</span><span><Layers3 size={18} aria-hidden="true"/> Contexto reunido</span><span><FileText size={18} aria-hidden="true"/> Originais preservados</span></div>
     </section>

@@ -58,7 +58,7 @@ export default async function Page() {
 
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#655cf6"}}><Bot size={20}/></div>
-        <div><strong>MBLZ Agent · OpenClaw</strong><span>{openClawState === "CONNECTED" ? "Gateway conectado. Configure seus canais e teste o agente." : openClawState === "DEGRADED" ? "Não conectado: existe uma configuração, mas o Gateway não está com status conectado. Revise a conexão." : "Não conectado. Agente próprio com e-mail, Telegram, WhatsApp e Web em uma única camada."}</span></div>
+        <div><strong>LawyerMind Agent · OpenClaw</strong><span>{openClawState === "CONNECTED" ? "Gateway conectado. Configure seus canais e teste o agente." : openClawState === "DEGRADED" ? "Não conectado: existe uma configuração, mas o Gateway não está com status conectado. Revise a conexão." : "Não conectado. Agente próprio com e-mail, Telegram, WhatsApp e Web em uma única camada."}</span></div>
         {membership
           ? <a className="new-button" href="/app/integrations/openclaw"><Bot size={15}/>{openClawState === "CONNECTED" ? "Configurar" : openClawState === "DEGRADED" ? "Revisar" : "Preparar"}</a>
           : <span className="status-pill quiet">Aguardando setup</span>}
@@ -72,7 +72,7 @@ export default async function Page() {
 
       <article className="integration-card">
         <div className="integration-logo" style={{color:"#59616d"}}><Cloud size={19}/></div>
-        <div><strong>MBLZ Push — Tribunais</strong><span>DJEN, DataJud, Domicílio Judicial e conectores permitidos.</span></div>
+        <div><strong>LawyerMind Push — Tribunais</strong><span>DJEN, DataJud, Domicílio Judicial e conectores permitidos.</span></div>
         <span className="status-pill quiet">Em preparação</span>
       </article>
 

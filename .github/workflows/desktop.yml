@@ -204,7 +204,6 @@ jobs:
 
       - name: Windows — GUI end-to-end via WebDriver (Edge WebView2)
         if: runner.os == 'Windows'
-        continue-on-error: true
         shell: pwsh
         run: |
           cargo install tauri-driver --locked

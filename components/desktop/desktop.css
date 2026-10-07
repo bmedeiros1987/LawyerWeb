@@ -52,3 +52,4 @@
 .desktop-rows>div:first-child{border-top:0}
 .desktop-rows small{display:block;color:var(--secondary);font-size:11px;margin-top:2px}
 @media(max-width:1100px){.desktop-grid{grid-template-columns:1fr}}
+.lawyermind-login-symbol{height:64px;width:auto;margin-right:6px}

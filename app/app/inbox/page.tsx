@@ -76,7 +76,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   const actionCount=rows.filter(r=>r.requiresAction&&!["TREATED","CONVERTED","DISMISSED"].includes(r.status)).length;
 
   return <div className="page-stack">
-    <section className="page-header"><div><span className="eyebrow">MBLZ Push</span><h1>Caixa Jurídica</h1><p>Tribunais, Gmail e compartilhamentos em uma única fila antes de virarem tarefa ou prazo.</p></div></section>
+    <section className="page-header"><div><span className="eyebrow">LawyerMind Push</span><h1>Caixa Jurídica</h1><p>Tribunais, Gmail e compartilhamentos em uma única fila antes de virarem tarefa ou prazo.</p></div></section>
     <form className="toolbar-card" action="/app/inbox" method="get"><div className="search-field"><Search size={17}/><input name="q" defaultValue={search} placeholder="Processo, cliente, remetente, tribunal ou conteúdo"/></div></form>
 
     <section className="panel">
@@ -100,6 +100,6 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
       })}</div>}
     </section>
 
-    <section className="panel inbox-safety-note"><Clock3 size={18}/><div><strong>Entrada não é prazo confirmado.</strong><span>O MBLZ pode sugerir uma demanda ou data, mas um prazo legal só entra no Deadline Safety após revisão humana.</span></div></section>
+    <section className="panel inbox-safety-note"><Clock3 size={18}/><div><strong>Entrada não é prazo confirmado.</strong><span>O LawyerMind pode sugerir uma demanda ou data, mas um prazo legal só entra no Deadline Safety após revisão humana.</span></div></section>
   </div>;
 }

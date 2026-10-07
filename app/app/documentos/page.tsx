@@ -51,7 +51,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{q?:stri
   ]);
 
   return <div className="page-stack">
-    <section className="page-header"><div><span className="eyebrow">MBLZ Files</span><h1>Documentos jurídicos</h1><p>Contratos, pareceres, procurações, certidões, atos societários, petições e seus vínculos.</p></div>
+    <section className="page-header"><div><span className="eyebrow">LawyerMind Files</span><h1>Documentos jurídicos</h1><p>Contratos, pareceres, procurações, certidões, atos societários, petições e seus vínculos.</p></div>
       {canEdit&&<QuickLegalDocumentForm workspaceId={member.workspaceId} clients={clients} matters={matters.map(m=>({id:m.id,label:[m.number,m.title].filter(Boolean).join(" · ")}))}/>}
     </section>
 

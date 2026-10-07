@@ -26,8 +26,8 @@ export default function PreviewPage(){
   return <div className="preview-shell">
     <aside className="preview-sidebar">
       <div className="preview-brand">
-        <img src="/brand/mblz-app-icon.svg" alt="MBLZ"/>
-        <div><strong>MBLZ</strong><span>Legal OS</span></div>
+        <img src="/brand/lawyermind-app-icon.png" alt="LawyerMind"/>
+        <div><strong>LawyerMind</strong><span>Legal OS</span></div>
       </div>
 
       <button className="preview-search"><Search size={16}/><span>Buscar em tudo</span><kbd>⌘ K</kbd></button>
@@ -70,9 +70,9 @@ export default function PreviewPage(){
           <div>
             <span className="eyebrow">Terça-feira, 29 de setembro</span>
             <h1>O que precisa da sua atenção.</h1>
-            <p>O MBLZ prioriza risco, contexto e próxima ação — não quantidade de telas.</p>
+            <p>O LawyerMind prioriza risco, contexto e próxima ação — não quantidade de telas.</p>
           </div>
-          <button className="preview-ai-button"><Sparkles size={16}/>Perguntar ao MBLZ</button>
+          <button className="preview-ai-button"><Sparkles size={16}/>Perguntar ao LawyerMind</button>
         </section>
 
         <section className="preview-metrics">
@@ -93,7 +93,7 @@ export default function PreviewPage(){
         <section className="preview-grid">
           <article className="preview-card wide">
             <div className="preview-card-head">
-              <div><span className="eyebrow">MBLZ Pulse</span><h2>Prioridades agora</h2></div>
+              <div><span className="eyebrow">LawyerMind Pulse</span><h2>Prioridades agora</h2></div>
               <button>Ver Caixa Jurídica <ChevronRight size={14}/></button>
             </div>
 
@@ -116,7 +116,7 @@ export default function PreviewPage(){
 
           <aside className="preview-card preview-intelligence">
             <div className="preview-ai-orb"><Sparkles size={22}/></div>
-            <span className="eyebrow">MBLZ Intelligence</span>
+            <span className="eyebrow">LawyerMind Intelligence</span>
             <h2>Briefing jurídico, pronto.</h2>
             <p>Resumos, comparação de versões, revisão contratual e próximas ações usando somente o contexto autorizado do escritório.</p>
             <button>Abrir Intelligence</button>

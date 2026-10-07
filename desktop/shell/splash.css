@@ -1,7 +1,7 @@
 :root{--navy:#0E1B2C;--gold:#8C6B1A;--gold-light:#E8D9A8;--paper:#F7F5F0}
 html,body{margin:0;height:100%;background:var(--navy);color:var(--paper);font-family:Inter,ui-sans-serif,-apple-system,"Segoe UI",sans-serif}
 main{min-height:100%;display:grid;place-items:center;align-content:center;gap:14px;text-align:center;padding:24px}
-.mark{width:84px;height:84px;border-radius:20px}
+.mark{width:auto;height:112px}
 h1{font-family:Fraunces,Georgia,"Times New Roman",serif;font-weight:400;font-size:44px;letter-spacing:-.03em;margin:0}
 #phase{color:#C5CDD6;font-size:14px;margin:0}
 #bar{width:220px;height:3px;background:#ffffff1f;border-radius:3px;overflow:hidden}

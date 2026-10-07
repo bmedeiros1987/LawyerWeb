@@ -34,6 +34,8 @@ pub struct Resources {
 
 impl Resources {
     pub fn at(root: &Path) -> Self {
+        // Tauri may return `\\?\C:\...` on Windows; Node and PostgreSQL need plain paths.
+        let root = &lawyermind_core::pg::plain_path(root);
         let node = root.join("node").join(format!("node{}", std::env::consts::EXE_SUFFIX));
         Resources {
             pg_bin: root.join("postgres").join("bin"),
@@ -163,7 +165,8 @@ fn self_test(context: &tauri::Context<tauri::Wry>, args: &[String]) -> i32 {
         eprintln!("uso: lawyermind --self-test <pasta-de-estado> <pasta-de-trabalho> <pasta-de-relatorio> <seed|verify>");
         return 2;
     };
-    let (state, work, report_dir) = (PathBuf::from(state), PathBuf::from(work), PathBuf::from(report_dir));
+    let plain = |p: &str| lawyermind_core::pg::plain_path(Path::new(p));
+    let (state, work, report_dir) = (plain(state), plain(work), plain(report_dir));
     let _ = std::fs::create_dir_all(&work);
     let _ = std::fs::create_dir_all(&report_dir);
     let mut steps: Vec<ShellStep> = Vec::new();
@@ -276,7 +279,7 @@ pub fn run() {
             let state = state.clone();
             let server_port = server_port.clone();
             move |app| {
-                let state_dir = app.path().app_local_data_dir()?;
+                let state_dir = lawyermind_core::pg::plain_path(&app.path().app_local_data_dir()?);
                 let resources = Resources::at(&app.path().resource_dir()?);
                 if let Ok(mut i) = state.0.lock() {
                     i.state_dir = Some(state_dir.clone());

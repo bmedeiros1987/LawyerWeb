@@ -289,3 +289,6 @@
 .viewport-popover .quick-create-head .icon-button{flex-shrink:0}
 
 .app-frame .viewport-popover{z-index:100}
+
+/* LawyerMind symbol (identity concept 02): transparent PNG, no tile shadow. */
+.lawyermind-mark{width:auto;height:38px;border-radius:0;box-shadow:none;object-fit:contain}
