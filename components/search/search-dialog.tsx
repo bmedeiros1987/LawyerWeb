@@ -45,12 +45,28 @@ export function SearchDialog() {
     detectMac().then(m => { macRef.current = m; setMac(m); });
   }, []);
 
+  // Each keystroke, filter change, opening and closing starts a new generation:
+  // any answer still in flight belongs to an older one and is dropped, even if
+  // the same text is typed again (A → B → A) or the window is reopened.
+  const latest = useRef({ q, filter });
+  latest.current = { q, filter };
+  const invalidate = (nextQ: string, nextFilter: SearchKind | "all") => {
+    seq.current++;
+    setState(normalizeQuery(nextQ).length >= 2 ? { status: "loading", key: searchKey(nextQ, nextFilter) } : { status: "idle" });
+  };
+
   const open = useCallback(() => {
     const d = dialog.current; if (!d) return;
-    if (!d.open) d.showModal();
+    if (!d.open) {
+      d.showModal();
+      // New session: never show the answer from the last time it was open.
+      void run(latest.current.q, latest.current.filter);
+    }
     requestAnimationFrame(() => { input.current?.focus(); input.current?.select(); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const close = () => dialog.current?.close();
+  const onClose = () => { seq.current++; setState({ status: "idle" }); };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -71,7 +87,7 @@ export function SearchDialog() {
       if (kind !== "all") params.set("kinds", kind);
       const r = await fetch(`/api/search?${params}`, { headers: { accept: "application/json" } });
       const body = await r.json().catch(() => ({}));
-      if (id !== seq.current) return; // a newer query was typed: drop this late answer
+      if (id !== seq.current) return; // newer generation (typing, filter, reopen, close): drop it
       if (!r.ok) { setState({ status: "error", key, error: body.error ?? `Erro ${r.status}` }); return; }
       setState({ status: "done", key, result: body }); setActive(0);
     } catch {
@@ -99,17 +115,17 @@ export function SearchDialog() {
 
   const groups = (Object.keys(GROUP) as SearchKind[]).map(k => ({ k, items: hits.map((h, i) => ({ h, i })).filter(x => x.h.kind === k) })).filter(g => g.items.length);
 
-  return <dialog ref={dialog} className="search-dialog" aria-label="Buscar em tudo" onClick={e => { if (e.target === dialog.current) close(); }}>
+  return <dialog ref={dialog} className="search-dialog" aria-label="Buscar em tudo" onClose={onClose} onClick={e => { if (e.target === dialog.current) close(); }}>
     <div className="search-box" onKeyDown={onKeyDown}>
       <div className="search-input-row">
         <Search size={20} aria-hidden/>
-        <input ref={input} value={q} onChange={e => setQ(e.target.value)} placeholder="Cliente, processo, documento ou trecho de um contrato" aria-label="Termo de busca"
+        <input ref={input} value={q} onChange={e => { setQ(e.target.value); invalidate(e.target.value, filter); }} placeholder="Cliente, processo, documento ou trecho de um contrato" aria-label="Termo de busca"
           role="combobox" aria-expanded={hits.length > 0} aria-controls="search-results" aria-activedescendant={hits[active] ? `search-hit-${active}` : undefined} autoComplete="off" spellCheck={false}/>
         {status === "loading" && <Loader2 size={18} className="spin" aria-label="Buscando"/>}
         <button type="button" className="icon-button" onClick={close} aria-label="Fechar busca" title="Fechar (Esc)"><X size={18}/></button>
       </div>
       <div className="search-filters" role="group" aria-label="Filtrar por tipo">
-        {FILTERS.map(f => <button type="button" key={f.kind} aria-pressed={filter === f.kind} className={filter === f.kind ? "chip active" : "chip"} onClick={() => setFilter(f.kind)}>
+        {FILTERS.map(f => <button type="button" key={f.kind} aria-pressed={filter === f.kind} className={filter === f.kind ? "chip active" : "chip"} onClick={() => { if (f.kind !== filter) { setFilter(f.kind); invalidate(q, f.kind); } }}>
           {f.label}{result && f.kind !== "all" && result.counts[f.kind] !== undefined ? ` (${result.counts[f.kind]})` : ""}</button>)}
       </div>
       <div className="search-results" id="search-results" role="listbox" aria-label="Resultados">

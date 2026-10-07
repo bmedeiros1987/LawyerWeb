@@ -12,7 +12,7 @@ import { SearchDialog, openSearch } from "@/components/search/search-dialog";
 beforeAll(() => {
   // jsdom has no modal dialogs.
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
-  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+  HTMLDialogElement.prototype.close = function () { if (!this.open) return; this.removeAttribute("open"); this.dispatchEvent(new Event("close")); };
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); push.mockReset(); });
 
@@ -81,14 +81,54 @@ describe("search window", () => {
     expect(screen.getByText("Construtora Horizonte")).toBeTruthy();
   });
 
-  it("going back to the same query does not reuse an answer that belongs to another one", async () => {
+  it("A → B → A within the debounce: the first A answer, still in flight, is dropped", async () => {
+    const t = await setup();
+    t.type("alpha");
+    const firstA = await t.callFor(1);
+    t.type("beta"); t.type("alpha"); // back to A before B's request leaves
+    await t.respond(firstA, answer([hit("old", "Resposta antiga de alpha")]));
+    expect(screen.queryByText("Resposta antiga de alpha")).toBeNull();
+    expect(screen.getByText("Buscando…")).toBeTruthy();
+    t.enter();
+    expect(push).not.toHaveBeenCalled();
+    const secondA = await t.callFor(2);
+    expect(secondA.url).toContain("q=alpha");
+    await t.respond(secondA, answer([hit("new", "Resposta nova de alpha")]));
+    expect(screen.getByText("Resposta nova de alpha")).toBeTruthy();
+  });
+
+  it("an answer shown before is not reused when going back to the same text", async () => {
     const t = await setup();
     t.type("alpha");
     await t.respond(await t.callFor(1), answer([hit("a", "Documento alpha")]));
-    t.type("alphabeta");
-    t.type("alpha"); // back to the shown query before any new answer
-    expect(screen.getByText("Documento alpha")).toBeTruthy(); // same key: still the right answer
-    t.type("beta");
+    t.type("alphabeta"); t.type("alpha");
     expect(screen.queryByText("Documento alpha")).toBeNull();
+    await t.respond(await t.callFor(2), answer([hit("a2", "Documento alpha atualizado")]));
+    expect(screen.getByText("Documento alpha atualizado")).toBeTruthy();
+  });
+
+  it("close and reopen: new session, the old answer is not shown and a new search is requested", async () => {
+    const t = await setup();
+    t.type("horizonte");
+    await t.respond(await t.callFor(1), answer([hit("c1", "Construtora Horizonte", "clients")]));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar busca" }));
+    act(() => openSearch());
+    expect(screen.queryByText("Construtora Horizonte")).toBeNull();
+    t.enter();
+    expect(push).not.toHaveBeenCalled();
+    const again = await t.callFor(2);
+    expect(again.url).toContain("q=horizonte");
+    await t.respond(again, answer([hit("c2", "Construtora Horizonte (atual)", "clients")]));
+    expect(screen.getByText("Construtora Horizonte (atual)")).toBeTruthy();
+  });
+
+  it("an answer arriving after the window closed is dropped", async () => {
+    const t = await setup();
+    t.type("horizonte");
+    const pending = await t.callFor(1);
+    fireEvent.click(screen.getByRole("button", { name: "Fechar busca" }));
+    await t.respond(pending, answer([hit("c1", "Construtora Horizonte", "clients")]));
+    act(() => openSearch());
+    expect(screen.queryByText("Construtora Horizonte")).toBeNull();
   });
 });
