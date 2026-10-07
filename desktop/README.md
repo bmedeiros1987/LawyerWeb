@@ -1,128 +1,213 @@
 # LawyerMind Desktop (local-first)
 
-Versão desktop do LawyerMind/MBLZ que roda **inteiramente no computador do usuário**:
-sem servidor, sem internet, sem contas externas. Primeira entrega:
+Aplicativo desktop do LawyerMind para Windows e macOS (e Linux): o **próprio app web**, em build de
+produção, rodando no computador do usuário com **PostgreSQL local**. Não depende de servidor remoto,
+internet, terminal aberto, `npm run dev` ou banco previamente instalado.
 
-- cadastro de **clientes** e **processos** (editar, arquivar; nada é excluído);
-- **documentos** numa pasta local escolhida pelo usuário, com **caminhos relativos** e **relocalização** da pasta;
-- **persistência** em PostgreSQL local após fechar/reabrir o app (e após queda);
-- **backup e restauração** verificados por checksum.
+Primeira entrega:
+- login offline com contas locais;
+- clientes e processos: cadastrar, consultar e editar;
+- importação de documentos com proteção dos originais;
+- persistência após fechar e reabrir;
+- backup e restauração;
+- isolamento por workspace.
+
+Ficam **fora** desta entrega, bloqueados no app desktop: WhatsApp, Telegram, OpenClaw, Google
+(login, Calendar, Gmail), push, controle remoto e gravação de reuniões.
 
 ## Arquitetura
 
 ```
-desktop/
-  core/        Rust: PostgreSQL local, esquema, registros, documentos, backup, autoteste (sem código de rede)
-  src-tauri/   Rust: janela Tauri 2 + comandos (IPC) chamados pela interface
-  ui/          Next.js com `output: "export"` (HTML/JS estático, sem funções de servidor)
-  scripts/     preparo do PostgreSQL embarcado, sincronização do visual, testes E2E
+LawyerMind (Tauri 2, Rust)
+ ├─ PostgreSQL 18.4 embarcado ── 127.0.0.1:<porta aleatória>, senha SCRAM aleatória, dados do usuário
+ ├─ Node.js 22 embarcado ─────── servidor Next.js de produção (output "standalone") em 127.0.0.1:<porta aleatória>
+ └─ janela (WebView) ─────────── tela de inicialização → http://127.0.0.1:<porta>/login
 ```
 
-**Interface × funções de servidor.** O app web usa server components, rotas `/api` e Prisma. No desktop
-nada disso é empacotado: a interface é exportada estaticamente (`ui/out`) e **toda** operação é um comando
-Rust (`src-tauri/src/lib.rs`) executado no próprio processo do app contra o PostgreSQL local. O app
-empacotado não sobe Node.js nem servidor de desenvolvimento.
+### Inicialização
 
-**Mesma interface.** `scripts/sync-ui-assets.mjs` copia `app/globals.css`, `public/fonts` e `public/brand`
-do app web para a UI desktop a cada build; o selo da águia é o mesmo arquivo.
+1. **Pasta de dados:** o shell (`src-tauri/src/lib.rs`) recusa iniciar se a pasta de dados estiver em
+   pasta sincronizada.
+2. **PostgreSQL:**
+   - inicializa o cluster na primeira execução (`initdb`, senha aleatória);
+   - sobe com `pg_ctl`;
+   - se o app tiver caído e deixado o banco ativo, reconecta a ele.
+3. **Servidor:**
+   - inicia o Node embarcado com um ambiente mínimo: sem herdar proxy nem credenciais do sistema;
+   - usa um segredo gerado por instalação.
+4. **Migrações** (`instrumentation.ts` → `lib/desktop/migrate.ts`), aplicadas antes de o servidor
+   atender:
+   - são as do `prisma/migrations`;
+   - cada uma roda numa transação e nunca é reaplicada;
+   - migração alterada depois de aplicada interrompe a inicialização;
+   - SQL com `DROP`, `TRUNCATE`, `DELETE` ou `RENAME` é recusado;
+   - antes de migrar um banco com dados, um backup é salvo em `backups/antes-da-migracao-*`.
+5. **Janela:** navega para o servidor local. A navegação para qualquer outro endereço é bloqueada.
 
-**PostgreSQL local (não SQLite).** Os binários oficiais do servidor PostgreSQL 18.4 (pacotes
-`@embedded-postgres/<plataforma>` do npm, gerados pelo projeto zonky embedded-postgres-binaries, versão e
-SHA-512 fixados em `scripts/prepare-postgres.mjs`) são incluídos no instalador. Na primeira execução o app
-roda `initdb` com senha aleatória (SCRAM) e sobe o servidor com `pg_ctl` em `127.0.0.1`, porta livre
-aleatória, sem socket Unix. Ao fechar a janela o servidor é parado (`pg_ctl stop -m fast`). Se o app cair,
-o servidor continua ativo e a próxima abertura se reconecta a ele; se o servidor tiver sido morto, o
-PostgreSQL faz a recuperação normal pelo WAL.
+### Encerramento e recuperação
 
-| Sistema | Pasta interna (banco, credenciais, logs, backups de segurança) |
+- **Fechar a janela:** o servidor recebe SIGTERM (no Windows é encerrado) e o PostgreSQL para com
+  `pg_ctl stop -m fast`.
+- **Queda do app:** a próxima abertura reconecta ao banco ainda ativo.
+- **Queda do sistema:** o PostgreSQL faz a recuperação normal pelo WAL.
+
+### Modo desktop do app web
+
+O modo desktop (`MBLZ_DESKTOP=1`) só existe no app instalado; o deploy web não é afetado.
+
+- **Login local** (`lib/desktop/auth.ts`):
+  - senha com scrypt (N=2¹⁷);
+  - sessão em cookie HttpOnly com SameSite=Strict, válida por 12 h, revogável; o banco guarda só o
+    hash do token;
+  - 5 senhas erradas bloqueiam a conta por 15 min.
+- **Conta proprietária:** criada no primeiro acesso, com uma **chave de recuperação** exibida uma única
+  vez. Não há credencial fixa, bypass nem login Google.
+- **Proteção do servidor local** (`proxy.ts`):
+  - `Host` e `Origin` precisam ser o próprio loopback, o que bloqueia DNS rebinding e requisições de
+    outros sites;
+  - rotas de integrações externas respondem 404.
+- **Isolamento:** é o modelo do app web. Cada conta só vê os workspaces de que é membro, com as
+  permissões do RBAC e o sigilo de processos. A conta proprietária cria outras contas locais em
+  **Computador**; elas começam sem workspace.
+
+## Onde ficam os dados
+
+| Sistema | Pasta de dados (banco `pgdata/`, cópias `documentos/`, `backups/`, `logs/`) |
 |---|---|
 | Windows | `%LOCALAPPDATA%\br.mblz.lawyermind\` |
 | macOS | `~/Library/Application Support/br.mblz.lawyermind/` |
 | Linux | `~/.local/share/br.mblz.lawyermind/` |
 
-**Nunca sincronize o diretório ativo do banco pelo Drive.** O app se recusa a iniciar se a pasta interna
-estiver dentro de Google Drive/Meu Drive, OneDrive, Dropbox, iCloud/CloudStorage, Box, pCloud, MEGA,
-Nextcloud, ownCloud ou Syncthing (`core/src/pg.rs`, `sync_folder_marker`). Para cópia fora do computador,
-use **Backup**: o arquivo de backup pode ser guardado numa pasta sincronizada.
+O programa é instalado em outra pasta: `%LOCALAPPDATA%\LawyerMind\` no Windows,
+`LawyerMind.app` no macOS e `/usr/lib/LawyerMind` no Linux. **Desinstalar não apaga os dados.**
 
-## Documentos
+### Pastas sincronizadas
 
-- O usuário escolhe a pasta de documentos em **Configurações**. Ela fica gravada só neste computador
-  (`settings.json` na pasta interna), não no banco nem no backup.
-- Ao adicionar um arquivo, uma **cópia** é gravada em `<pasta>/<cliente>/<número ou título do processo>/<arquivo>`
-  (nomes saneados para Windows/macOS/Linux; o original não é movido nem apagado). Arquivo que já está dentro
-  da pasta é apenas registrado.
-- O banco guarda o caminho **relativo** com `/` (ex.: `Cliente X/0000001-23.2026.8.26.0100/peticao.pdf`),
-  tamanho e SHA-256. Caminhos absolutos, `..`, `\` e `:` são rejeitados.
-- **Relocalizar pasta**: se a pasta foi movida, trocou de disco/letra ou foi restaurada em outro lugar, o app
-  confere quantos documentos existem na nova pasta antes de aplicar; com arquivos ausentes, só aplica com
-  confirmação explícita.
+**O banco PostgreSQL ativo nunca fica em Google Drive, iCloud, OneDrive ou Dropbox.** O app se recusa a
+iniciar se a pasta de dados estiver numa delas. A pasta de cópias de trabalho também é recusada em
+pasta sincronizada. Documentos exportados e backups concluídos podem ser salvos nelas; a interface
+avisa sobre sincronização parcial e conflitos entre computadores.
+
+**Limitações da detecção** (`lib/desktop/sync.ts` e `core/src/pg.rs`): ela é feita por caminho.
+
+- **Detecta:** nomes de pasta conhecidos (Google Drive, Meu Drive, Drives compartilhados, OneDrive,
+  Dropbox, iCloud, Mobile Documents, CloudStorage, Box, pCloud, MEGA, Nextcloud, ownCloud, Syncthing,
+  Sync), as raízes do OneDrive pelas variáveis de ambiente e symlinks/junções do caminho.
+- **Não detecta:** cliente de sincronização configurado numa pasta de nome arbitrário, compartilhamento
+  de rede, ou unidade virtual cujo caminho não traga nome reconhecível (por exemplo `G:\` sem
+  "Meu Drive").
+
+## Documentos: originais protegidos
+
+- **Importar é sempre explícito:** o usuário escolhe o arquivo num seletor nativo.
+- **O original é só lido** (`lib/desktop/documents.ts`), inclusive no Google Drive. Nunca é editado,
+  sobrescrito, movido, renomeado ou excluído. Se mudar durante a leitura, a importação é cancelada.
+- **A cópia de trabalho** fica em `documentos/ws/<workspace>/<documento>/v<versão>-<nome>`, fora de
+  pastas sincronizadas. "Abrir cópia" abre essa cópia no programa padrão; edições e salvamentos
+  automáticos atingem só ela.
+- **Proveniência:** a versão registra o caminho original, o tamanho, a data, se o original estava em
+  pasta sincronizada e o SHA-256 na importação.
+- **Exportar sempre cria um arquivo novo** no destino escolhido. Se o arquivo já existir, nada é
+  alterado; substituir exige digitar `SOBRESCREVER`.
+- **Caminhos relativos:** o banco guarda só o caminho relativo à pasta de cópias. Se ela for movida, a
+  **relocalização é explícita** (Computador → Relocalizar pasta): o app confere os arquivos antes de
+  aplicar e nunca move pastas sozinho.
 
 ## Backup e restauração
 
-Um backup é **um arquivo `.lawyermind-backup`** (ZIP) com:
+Em **Computador → Backup** (somente a conta proprietária), o backup é um arquivo `.lawyermind-backup`
+(ZIP) com:
 
-- `manifest.json`: formato, versão do esquema, contagens e SHA-256 de cada entrada;
-- `data/clients.json`, `data/matters.json`, `data/documents.json`: todos os registros;
-- `files/<caminho relativo>`: **os próprios documentos — incluídos por padrão**. A opção “Incluir os documentos”
-  pode ser desmarcada; nesse caso o backup contém **somente o banco** e a interface diz isso explicitamente.
+- `manifest.json`: formato, migrações aplicadas, tabelas, contagens e SHA-256 de cada entrada;
+- `data/<schema>.<tabela>.json`: **todas as tabelas** (todas as contas e workspaces), lidas num único
+  snapshot `REPEATABLE READ`, o que garante consistência;
+- `files/<caminho>`: as **cópias de trabalho dos documentos**, incluídas por padrão. Desmarcando a opção,
+  o backup leva **somente o banco**, e isso fica declarado na tela e no manifesto.
 
-O backup é lógico (linhas em JSON), não copia a pasta ativa do PostgreSQL e não depende da versão exata dos
-binários. Depois de gravado, o arquivo é **relido e verificado** entrada por entrada. Se algum documento
-cadastrado estiver ausente, o backup com documentos é recusado (em vez de sair incompleto).
+O backup é lógico: **nunca copia o diretório vivo do PostgreSQL**. Depois de gravado, é relido e
+verificado entrada por entrada. Backup corrompido ou de outro formato é recusado.
 
-A restauração: (1) verifica todo o arquivo antes de alterar qualquer coisa; (2) grava automaticamente um
-**backup de segurança** do estado atual em `<pasta interna>/backups/`; (3) extrai os documentos para uma pasta
-**vazia** escolhida pelo usuário (ou que já contenha cópias idênticas) e **nunca sobrescreve arquivo
-diferente**; (4) substitui os registros numa única transação e confere as contagens; (5) aponta a pasta de
-documentos para o destino restaurado.
+**Restaurar:**
 
-> O arquivo de backup **não é criptografado**. Contém dados de clientes: guarde-o em mídia/pasta protegida.
+1. verifica todo o arquivo e exige que as migrações sejam iguais às desta versão;
+2. pede a confirmação `RESTAURAR`;
+3. salva um **backup de segurança** do estado atual em `backups/antes-da-restauracao-*`;
+4. grava as cópias de trabalho numa pasta **vazia** (ou que já tenha cópias idênticas) e **nunca
+   sobrescreve** arquivo diferente;
+5. troca todos os registros numa transação e confere as contagens;
+6. encerra as sessões, o que exige novo login.
 
-## Rede, credenciais e permissões
+> O arquivo de backup **não é criptografado**. Guarde-o em local protegido.
 
-- `lawyermind-core` não tem cliente HTTP (o CI verifica com `cargo tree`). Nenhum comando faz requisição de rede.
-- CSP do webview restrita a `'self'` + IPC; capability `core:default` apenas (o JavaScript não acessa arquivos,
-  shell nem rede; os seletores de arquivo rodam em Rust).
-- Sem atualizador automático, sem telemetria, sem login, sem WhatsApp/Gmail/Telegram/OpenClaw, sem
-  sincronização com o app web. Nenhum segredo, credencial ou serviço pago é necessário para compilar ou usar.
-- A senha do PostgreSQL local fica em `db-credentials.json` na pasta interna (permissão 0600 em macOS/Linux).
+## Instalação
 
-## Compilar e testar
+- **Windows** (`LawyerMind_<versão>-<commit>_x64-setup.exe`): instala por usuário, sem pedir
+  administrador. O instalador **não é assinado**, então o SmartScreen mostra "Editor desconhecido".
+  Confira o SHA-256 em `SHA256SUMS.txt` antes de prosseguir. Requer o WebView2, presente no
+  Windows 10/11 atualizados. Uma cópia do `vcruntime140.dll` redistribuível vai junto do PostgreSQL.
+- **macOS** (`LawyerMind_<versão>-<commit>_aarch64.dmg`, Apple Silicon): arraste para Aplicativos. O app
+  tem só assinatura ad-hoc e **não é notarizado**: um arquivo baixado da internet é bloqueado pelo
+  Gatekeeper. A distribuição pública exige assinatura Developer ID e notarização, que dependem de
+  credenciais da Apple ainda não fornecidas.
+- **Linux** (`.deb`): `sudo apt install ./LawyerMind_<versão>_amd64.deb`.
 
-Pré-requisitos: Node 22, Rust estável; no Linux, `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev`;
-no Windows, Visual Studio Build Tools (o `vcruntime140.dll` redistribuível é copiado para junto do PostgreSQL).
+No primeiro acesso, crie a conta proprietária e **guarde a chave de recuperação**; depois crie o
+workspace.
+
+## Atualização
+
+Instale a nova versão por cima da anterior. Os dados ficam na pasta de dados, que o instalador não
+toca. Na primeira abertura, as migrações novas são aplicadas automaticamente. Se o banco tiver dados,
+um backup `antes-da-migracao-*` é salvo antes.
+
+Recomenda-se fazer um backup manual antes de atualizar. Um banco de versão **mais nova** não abre numa
+versão antiga do app: a inicialização é interrompida, e não há downgrade automático.
+
+## Recuperação
+
+- **Senha esquecida:**
+  - conta proprietária: use "Esqueci a senha" com a chave de recuperação; uma nova chave é gerada;
+  - outras contas: a proprietária redefine em Computador → Contas.
+- **Chave de recuperação perdida e senha da proprietária esquecida:** não há recuperação dentro do app,
+  por design (sem bypass). Restaure um backup recente, que leva junto as contas e senhas daquele
+  momento.
+- **O app não inicia:** a tela de inicialização mostra o erro e a pasta de dados. Os logs locais estão
+  em `logs/app.log`, `logs/server.log` e `logs/postgresql.log`. Os dados não são alterados por uma
+  falha de inicialização.
+- **Restauração em outro computador:** instale o app, crie uma conta temporária e restaure o backup
+  (Computador → Restaurar). As contas do backup substituem as atuais.
+- **Desfazer uma restauração:** restaure o backup `antes-da-restauracao-*` da pasta `backups/`.
+
+## Compilar
+
+Pré-requisitos:
+- Node.js 22 e Rust estável;
+- no Linux: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev`;
+- no Windows: Visual Studio Build Tools;
+- no macOS: Xcode Command Line Tools.
 
 ```bash
-cd desktop
-npm ci
-npm run prepare:postgres          # baixa e confere os binários do PostgreSQL da plataforma
-npm run test:core                 # testes com PostgreSQL real (não rode como root: o PostgreSQL recusa)
-npx tauri build                   # instaladores em target/release/bundle/
+npm ci                                   # raiz (app web)
+cd desktop && npm ci
+npm run prepare:postgres                 # binários do PostgreSQL 18.4 da plataforma (SHA-512 fixado)
+npm run prepare:server                   # build standalone do Next.js + Node.js desta máquina + autoteste
+npx tauri build                          # instaladores em target/release/bundle/
 ```
 
-Autoteste do app **instalado**, com dados sintéticos e pasta de trabalho própria (não toca nos dados reais):
+O instalador é sempre gerado na própria plataforma; não há compilação cruzada. A integração contínua
+fica em `.github/workflows/desktop.yml`.
 
-```bash
-lawyermind --self-test <pasta-de-trabalho> <relatorio.json> seed     # cria cliente, processo e documento
-lawyermind --self-test <pasta-de-trabalho> <relatorio.json> verify   # outro processo: persistência, backup,
-                                                                     # relocalização e restauração
-```
+## Testes
 
-`.github/workflows/desktop.yml` compila, instala e roda o autoteste em `windows-latest`, `macos-latest` e
-`ubuntu-24.04` (no Linux, sem rede e também pela interface via WebDriver), e publica os instaladores como
-artefatos do workflow. Ele roda em PRs que alteram `desktop/**` ou manualmente.
-
-## Assinatura
-
-Nenhum instalador é assinado com certificado nem notarizado (exigiria credenciais Apple/Windows, fora do
-escopo). No macOS o bundle recebe apenas assinatura **ad-hoc** (`signingIdentity: "-"`); um `.dmg` baixado
-da internet será bloqueado pelo Gatekeeper até liberação manual. No Windows o SmartScreen avisará sobre
-editor desconhecido. Instalador NSIS em modo por usuário (não pede administrador).
-
-## Limitações conhecidas desta versão
-
-- Sem sincronização com o app web e sem multiusuário: um computador, um banco.
-- Restauração só entre backups do mesmo esquema (hoje, esquema 1).
-- Banco e backups sem criptografia própria em repouso (dependem da proteção do disco do sistema).
-- Prazos, agenda, tarefas, contratos e demais módulos do web ainda não estão no desktop.
+- **`cargo test -p lawyermind-core`:** ciclo real do PostgreSQL (persistência, reconexão após queda,
+  loopback) e recusa de pasta sincronizada. Não rode como root: o PostgreSQL recusa.
+- **`npx vitest run tests/desktop-local.test.ts`:** regras de pasta sincronizada, caminhos e detecção
+  de SQL destrutivo.
+- **`lawyermind --self-test <estado> <trabalho> <relatórios> seed|verify`:** roteiro de aceite do app
+  **instalado**, com dados fictícios (`runtime/selftest.mjs`):
+  - `seed` cobre os passos D01–D21: loopback, autenticação, cadastro e edição, documentos e originais,
+    exportação, isolamento e backup;
+  - `verify` roda num novo processo e cobre P01–P09: persistência, restauração, relocalização,
+    bloqueio e recuperação.
+- **`scripts/e2e-gui.mjs`:** interface via WebDriver. Funciona no Linux e no Windows; não há suporte a
+  WebDriver para o WKWebView do macOS.
