@@ -9,6 +9,7 @@
   "scripts": {
     "test:desktop-courts": "node --experimental-strip-types --test tests/desktop-court-sync.test.mjs tests/desktop-court-http.test.mjs",
     "test:desktop-courts:db": "node scripts/validate-desktop-courts.mjs",
+    "test:synthetic": "node --experimental-strip-types tests/synthetic/desktop-concurrency.mjs && node --experimental-transform-types --test tests/synthetic/document-review-pilot.mjs && python3 -I tests/synthetic/check-review-fixtures.py",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "prisma migrate deploy && next start",

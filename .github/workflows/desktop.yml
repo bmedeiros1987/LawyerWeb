@@ -95,6 +95,9 @@ jobs:
         working-directory: desktop
         run: npm run prepare:server 2>&1 | tail -20 | tee "$EV/prepare-server.txt"
 
+      - name: Court store on an exclusive disposable PostgreSQL cluster
+        run: npm run test:desktop-courts:db 2>&1 | tee "$EV/court-store-db.txt"
+
       - name: Build installer
         working-directory: desktop
         run: npx tauri build --bundles ${{ matrix.bundles }}

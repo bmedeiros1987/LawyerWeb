@@ -377,6 +377,17 @@ async function seed() {
     const none = await other.req("POST", "/api/desktop/review-pilot", { action: "provider", consent: true });
     expect(none.status === 403 || none.status === 503, `outra conta ${none.status}`);
   });
+
+  await step("D28", "captura judicial desativada: sem rede, sem comunicações, sem aviso no aparelho", async () => {
+    const g = await owner.get(`/api/desktop/courts/${memo.matterId}`);
+    expect(g.status === 200 && g.json.mode === "manual-disabled" && g.json.networkEnabled === false, `estado ${g.status} ${g.text.slice(0, 160)}`);
+    const r = await owner.req("POST", `/api/desktop/courts/${memo.matterId}`, { source: "DATAJUD" });
+    expect(r.status === 200 && r.json.networkEnabled === false && r.json.imported === 0 && r.json.deviceDelivery === "not-attempted", `consulta ${r.status} ${r.text.slice(0, 160)}`);
+    expect(r.json.skipped === true || (r.json.state?.status === "unavailable" && r.json.state?.lastSuccess == null), "uma fonte desativada não pode registrar sucesso");
+    const foreign = await other.get(`/api/desktop/courts/${memo.matterId}`);
+    expect(foreign.status === 404, `processo de outro escritório visível (${foreign.status})`);
+    return r.json.skipped ? "processo inelegível (sem número ou sigiloso)" : `DataJud: ${r.json.state.reason}`;
+  });
 }
 
 async function verify() {
