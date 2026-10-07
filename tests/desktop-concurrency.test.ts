@@ -26,6 +26,7 @@ vi.mock("node:crypto", async importOriginal => {
 vi.mock("@/lib/prisma", () => {
   const query = async (strings: TemplateStringsArray) => {
     const sql = strings.join("?");
+    if (sql.includes("returning true as ok")) return [{ ok: true }]; // reserveAttempt: account not locked
     if (sql.includes("select user_id, recovery_hash")) return [{ user_id: "u", recovery_hash: h.account.recovery_hash }];
     if (sql.includes("select user_id")) return [{ ...h.account }];
     if (sql.includes("select password_hash as h")) return [{ h: h.account.password_hash }];
@@ -109,7 +110,7 @@ describe("desktop concurrency: real module imports with disposable files", () =>
       recoverOwner("owner@test.invalid", "KEY", "other-password-123"),
     ]);
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
-    expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { status: 401 } });
+    expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { status: 409 } });
     expect(h.sessions).toEqual([]);
   });
   it.each(["recovery", "self-change", "owner-reset"])("rejects an old-password login in flight across %s", async mode => {

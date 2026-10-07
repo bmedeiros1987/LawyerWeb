@@ -13,6 +13,7 @@ const hash = (pw, salt) => crypto.createHash('sha512').update(pw).update(salt).d
 const scrypt = async (pw, salt) => { if (verificationHook && pw === 'old-password-123') await verificationHook(); return hash(pw, salt); };
 const query = async (strings, ...v) => {
   const sql = strings.join('?');
+  if (sql.includes('returning true as ok')) return [{ ok: true }]; // reserveAttempt: account not locked
   if (sql.includes('select user_id, recovery_hash')) return [{ user_id: 'u', recovery_hash: account.recovery_hash }];
   if (sql.includes('select user_id')) return [{ ...account }];
   throw Error(sql);
@@ -20,7 +21,7 @@ const query = async (strings, ...v) => {
 const execute = async (strings, ...v) => {
   const sql = strings.join('?');
   if (sql.includes('set password_hash') && sql.includes('recovery_hash =')) {
-    if (sql.includes('and recovery_hash =') && account.recovery_hash !== v[3]) return 0;
+    if (/and\s+recovery_hash =/.test(sql) && account.recovery_hash !== v[3]) return 0;
     account.password_hash = v[0]; account.recovery_hash = v[1]; return 1;
   }
   if (sql.includes('set failed_attempts = 0')) return 1;
@@ -42,7 +43,7 @@ if (!selected || selected === 'recovery') {
 await reset();
 const recovery = await Promise.allSettled([auth.recoverOwner('owner@test.invalid', 'KEY', 'new-password-123'), auth.recoverOwner('owner@test.invalid', 'KEY', 'other-password-123')]);
 assert.equal(recovery.filter(r => r.status === 'fulfilled').length, 1);
-assert.equal(recovery.find(r => r.status === 'rejected').reason.status, 401);
+assert.equal(recovery.find(r => r.status === 'rejected').reason.status, 409);
 assert.deepEqual(sessions, []);
 console.log('PASS: concurrent recovery consumes key once and revokes sessions');
 }
