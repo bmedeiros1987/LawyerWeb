@@ -1,13 +1,15 @@
 "use client";
 // Search window: opened by the "Buscar em tudo" button, the search icon in the
 // top bar, or Ctrl+K / ⌘K. Queries /api/search (real data, permission
-// scoped); ignores late responses; keyboard: ↑/↓ to move, Enter to open,
+// scoped); shows only the answer to what is typed now (never the previous
+// query's hits while a new one is pending) and ignores late responses; keyboard: ↑/↓ to move, Enter to open,
 // Esc to close.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, BriefcaseBusiness, ContactRound, FileSearch, FileText, Loader2, Search, X } from "lucide-react";
 import type { SearchHit, SearchKind, SearchResult } from "@/lib/search/global";
 import { detectMac, isMacPlatform, primaryModifier, shortcutLabel } from "@/lib/ui/platform";
+import { normalizeQuery, searchKey } from "@/lib/search/query-key";
 
 export const OPEN_SEARCH_EVENT = "lawyermind:open-search";
 export const openSearch = () => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
@@ -34,7 +36,7 @@ export function SearchDialog() {
   const seq = useRef(0);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<SearchKind | "all">("all");
-  const [state, setState] = useState<{ status: "idle" | "loading" | "done" | "error"; result?: SearchResult; error?: string }>({ status: "idle" });
+  const [state, setState] = useState<{ status: "idle" | "loading" | "done" | "error"; key?: string; result?: SearchResult; error?: string }>({ status: "idle" });
   const [active, setActive] = useState(0);
   const [mac, setMac] = useState(false);
   const macRef = useRef(false);
@@ -61,24 +63,31 @@ export function SearchDialog() {
 
   const run = useCallback(async (query: string, kind: SearchKind | "all") => {
     const id = ++seq.current;
-    if (query.trim().length < 2) { setState({ status: "idle" }); return; }
-    setState(s => ({ status: "loading", result: s.result }));
+    if (normalizeQuery(query).length < 2) { setState({ status: "idle" }); return; }
+    const key = searchKey(query, kind);
+    setState({ status: "loading", key });
     try {
       const params = new URLSearchParams({ q: query, limit: "8" });
       if (kind !== "all") params.set("kinds", kind);
       const r = await fetch(`/api/search?${params}`, { headers: { accept: "application/json" } });
       const body = await r.json().catch(() => ({}));
       if (id !== seq.current) return; // a newer query was typed: drop this late answer
-      if (!r.ok) { setState({ status: "error", error: body.error ?? `Erro ${r.status}` }); return; }
-      setState({ status: "done", result: body }); setActive(0);
+      if (!r.ok) { setState({ status: "error", key, error: body.error ?? `Erro ${r.status}` }); return; }
+      setState({ status: "done", key, result: body }); setActive(0);
     } catch {
-      if (id === seq.current) setState({ status: "error", error: "Sem resposta do servidor local. Tente novamente." });
+      if (id === seq.current) setState({ status: "error", key, error: "Sem resposta do servidor local. Tente novamente." });
     }
   }, []);
 
-  useEffect(() => { const t = setTimeout(() => run(q, filter), 220); return () => clearTimeout(t); }, [q, filter, run]);
+  useEffect(() => { setActive(0); const t = setTimeout(() => run(q, filter), 220); return () => clearTimeout(t); }, [q, filter, run]);
 
-  const hits = useMemo(() => state.result?.hits ?? [], [state.result]);
+  // Only the answer to the current query and filter is shown; anything else
+  // (debounce window, request in flight, late answer) reads as "Buscando…".
+  const typed = normalizeQuery(q).length >= 2;
+  const current = typed && state.key === searchKey(q, filter) ? state : null;
+  const status: "idle" | "loading" | "done" | "error" = !typed ? "idle" : current && current.status !== "loading" ? current.status : "loading";
+  const result = status === "done" ? current?.result : undefined;
+  const hits = useMemo(() => result?.hits ?? [], [result]);
   const go = (h: SearchHit) => { close(); router.push(h.href); };
   const allHref = `/app/busca?${new URLSearchParams({ q, ...(filter !== "all" ? { tipo: filter } : {}) })}`;
 
@@ -89,7 +98,6 @@ export function SearchDialog() {
   }
 
   const groups = (Object.keys(GROUP) as SearchKind[]).map(k => ({ k, items: hits.map((h, i) => ({ h, i })).filter(x => x.h.kind === k) })).filter(g => g.items.length);
-  const result = state.result;
 
   return <dialog ref={dialog} className="search-dialog" aria-label="Buscar em tudo" onClick={e => { if (e.target === dialog.current) close(); }}>
     <div className="search-box" onKeyDown={onKeyDown}>
@@ -97,7 +105,7 @@ export function SearchDialog() {
         <Search size={20} aria-hidden/>
         <input ref={input} value={q} onChange={e => setQ(e.target.value)} placeholder="Cliente, processo, documento ou trecho de um contrato" aria-label="Termo de busca"
           role="combobox" aria-expanded={hits.length > 0} aria-controls="search-results" aria-activedescendant={hits[active] ? `search-hit-${active}` : undefined} autoComplete="off" spellCheck={false}/>
-        {state.status === "loading" && <Loader2 size={18} className="spin" aria-label="Buscando"/>}
+        {status === "loading" && <Loader2 size={18} className="spin" aria-label="Buscando"/>}
         <button type="button" className="icon-button" onClick={close} aria-label="Fechar busca" title="Fechar (Esc)"><X size={18}/></button>
       </div>
       <div className="search-filters" role="group" aria-label="Filtrar por tipo">
@@ -105,9 +113,10 @@ export function SearchDialog() {
           {f.label}{result && f.kind !== "all" && result.counts[f.kind] !== undefined ? ` (${result.counts[f.kind]})` : ""}</button>)}
       </div>
       <div className="search-results" id="search-results" role="listbox" aria-label="Resultados">
-        {state.status === "idle" && <p className="search-hint">Digite ao menos 2 caracteres. A busca consulta clientes, processos e assuntos, documentos e o texto dos arquivos importados, respeitando as suas permissões. Atalho: {shortcutLabel("k", mac)}.</p>}
-        {state.status === "error" && <p className="search-error" role="alert"><AlertTriangle size={16}/> {state.error} <button type="button" className="link-button" onClick={() => run(q, filter)}>Tentar de novo</button></p>}
-        {state.status === "done" && hits.length === 0 && <p className="search-empty">Nenhum resultado para “{result?.query}”{filter !== "all" ? ` em ${FILTERS.find(f => f.kind === filter)?.label.toLowerCase()}` : ""}.</p>}
+        {status === "idle" && <p className="search-hint">Digite ao menos 2 caracteres. A busca consulta clientes, processos e assuntos, documentos e o texto dos arquivos importados, respeitando as suas permissões. Atalho: {shortcutLabel("k", mac)}.</p>}
+        {status === "loading" && <p className="search-loading" role="status">Buscando…</p>}
+        {status === "error" && <p className="search-error" role="alert"><AlertTriangle size={16}/> {current?.error} <button type="button" className="link-button" onClick={() => run(q, filter)}>Tentar de novo</button></p>}
+        {status === "done" && hits.length === 0 && <p className="search-empty">Nenhum resultado para “{result?.query}”{filter !== "all" ? ` em ${FILTERS.find(f => f.kind === filter)?.label.toLowerCase()}` : ""}.</p>}
         {groups.map(g => { const { label, Icon } = GROUP[g.k]; return <section key={g.k} className="search-group">
           <h3><Icon size={15} aria-hidden/> {label}{result?.counts[g.k] && result.counts[g.k]! > g.items.length ? ` — ${g.items.length} de ${result.counts[g.k]}` : ""}</h3>
           {g.items.map(({ h, i }) => <div key={h.kind + h.id} id={`search-hit-${i}`} role="option" aria-selected={i === active} className={i === active ? "search-hit active" : "search-hit"} onMouseEnter={() => setActive(i)} onClick={() => go(h)}>

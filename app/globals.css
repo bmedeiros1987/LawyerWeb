@@ -341,7 +341,7 @@
 .search-hit.active,.search-hit:hover{background:var(--surface-2)}
 .search-excerpt{display:block;margin-top:3px;font-size:calc(14px * var(--fs,1));line-height:1.5;color:var(--secondary);quotes:none}
 .search-excerpt mark{background:var(--gold-tint);color:var(--ink);padding:0 2px;border-radius:3px;font-weight:650}
-.search-hint,.search-empty,.search-error,.search-note{margin:10px 8px;font-size:calc(14px * var(--fs,1));line-height:1.55;color:var(--muted)}
+.search-hint,.search-loading,.search-empty,.search-error,.search-note{margin:10px 8px;font-size:calc(14px * var(--fs,1));line-height:1.55;color:var(--muted)}
 .search-error{color:var(--danger);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .search-note summary{cursor:pointer}
 .search-note ul{margin:8px 0 0;padding-left:20px}

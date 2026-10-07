@@ -41,6 +41,8 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
     "@types/node": "latest",
     "@types/pg": "latest",
     "@types/react": "latest",
@@ -48,6 +50,7 @@
     "@types/web-push": "latest",
     "@types/yauzl": "3.4.0",
     "@types/yazl": "3.3.1",
+    "jsdom": "26.1.0",
     "prisma": "7.10.0",
     "typescript": "latest",
     "vitest": "^3.2.4"
