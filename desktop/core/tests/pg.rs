@@ -46,3 +46,29 @@ fn refuses_database_inside_sync_folder() {
         assert!(!state.join("pgdata").exists());
     }
 }
+
+/// Regression for "postgres não parou" (CI, Linux): after a crash the old
+/// server is still running but cannot be reached. Startup must stop it
+/// cleanly and start a fresh server on the same data, and the data survives.
+#[test]
+fn recovers_from_running_but_unreachable_instance() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = PgPaths { bin_dir: bin_dir(), state_dir: dir.path().join("state") };
+    let pg = LocalPostgres::start(paths.clone()).expect("start");
+    pg.connect().unwrap().batch_execute("create table t (v text); insert into t values ('antes da queda')").unwrap();
+    // Simulate the crash leaving an unreachable server: point postmaster.pid at a dead port.
+    let pid_file = paths.data_dir().join("postmaster.pid");
+    let text = std::fs::read_to_string(&pid_file).unwrap();
+    let mut lines: Vec<String> = text.lines().map(String::from).collect();
+    let dead = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap().local_addr().unwrap().port();
+    lines[3] = dead.to_string();
+    std::fs::write(&pid_file, lines.join("\n") + "\n").unwrap();
+    drop(pg); // no clean stop: the app "crashed"
+
+    let recovered = LocalPostgres::start(paths.clone()).expect("recover");
+    assert_ne!(recovered.port(), dead);
+    let v: String = recovered.connect().unwrap().query_one("select v from t", &[]).unwrap().get(0);
+    assert_eq!(v, "antes da queda");
+    recovered.stop().unwrap();
+    assert!(!pid_file.exists(), "PostgreSQL deve parar no encerramento");
+}
