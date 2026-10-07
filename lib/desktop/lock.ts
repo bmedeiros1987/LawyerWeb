@@ -5,7 +5,7 @@
 import { DesktopError } from "./env";
 import { pool } from "./db";
 
-const STORE_LOCK = 7311;
+const STORE_LOCK = 7312; // 7310: migrations, 7311: account creation
 
 export async function withStoreLock<T>(mode: "shared" | "exclusive", fn: () => Promise<T>, timeoutMs = 60_000): Promise<T> {
   const c = await pool().connect();

@@ -7,6 +7,11 @@
 //   proposal (PR #50). Sessions: random 256-bit token in an HttpOnly,
 //   SameSite=Strict cookie; only its SHA-256 is stored; 12 h lifetime;
 //   revocable. 5 wrong passwords lock the account for 15 minutes.
+// - Concurrency: each login attempt is counted (atomically) BEFORE the
+//   password is checked, so parallel requests cannot get more than 5 guesses
+//   per lock window; a successful login resets the count. A recovery key is
+//   consumed by a single conditional UPDATE, so it works exactly once even
+//   when two requests use it at the same time.
 // - Data isolation is the web app's own model: every account only sees the
 //   workspaces it is a member of.
 import crypto from "node:crypto";
@@ -103,26 +108,37 @@ export async function requireOwner(userId: string) {
   if (!(await isOwner(userId))) throw new DesktopError("Somente a conta proprietária deste computador pode fazer isso.", 403);
 }
 
+/**
+ * Reserves one attempt for this account: returns false when it is locked.
+ * The count is the number of attempts since the last successful login; the
+ * attempt that reaches MAX_FAILURES sets the lock. An expired lock starts a
+ * new count.
+ */
+async function reserveAttempt(userId: string): Promise<boolean> {
+  const rows = await prisma.$queryRaw<{ ok: boolean }[]>`
+    update desktop.local_account set
+      failed_attempts = case when locked_until is not null and locked_until <= now() then 1 else failed_attempts + 1 end,
+      locked_until = case
+        when (case when locked_until is not null and locked_until <= now() then 1 else failed_attempts + 1 end) >= ${MAX_FAILURES}
+        then now() + make_interval(mins => ${LOCK_MINUTES}) else null end,
+      updated_at = now()
+    where user_id = ${userId}
+      and (locked_until is null or locked_until <= now())
+      and (failed_attempts < ${MAX_FAILURES} or locked_until is not null)
+    returning true as ok`;
+  return rows.length > 0;
+}
+
 export async function login(emailInput: string, password: string): Promise<{ token: string; expiresAt: Date }> {
   const email = normalizeEmail(emailInput);
   const rows = await prisma.$queryRaw<AccountRow[]>`select user_id, email_normalized, password_hash, is_owner, failed_attempts, locked_until from desktop.local_account where email_normalized = ${email}`;
   const acc = rows[0];
-  if (acc?.locked_until && acc.locked_until.getTime() > Date.now()) {
+  if (acc && !(await reserveAttempt(acc.user_id))) {
     await verifyPassword(password, null);
     throw new DesktopError(`Conta bloqueada temporariamente após tentativas incorretas. Tente novamente em até ${LOCK_MINUTES} minutos.`, 429);
   }
   const ok = await verifyPassword(password, acc?.password_hash ?? null);
-  if (!acc || !ok) {
-    if (acc) {
-      // A lock that already expired starts a fresh count.
-      await prisma.$executeRaw`update desktop.local_account set
-        failed_attempts = case when locked_until is not null and locked_until <= now() then 1 else failed_attempts + 1 end,
-        locked_until = case when (case when locked_until is not null and locked_until <= now() then 1 else failed_attempts + 1 end) >= ${MAX_FAILURES}
-                            then now() + make_interval(mins => ${LOCK_MINUTES}) else null end,
-        updated_at = now() where user_id = ${acc.user_id}`;
-    }
-    throw new DesktopError("E-mail ou senha incorretos.", 401);
-  }
+  if (!acc || !ok) throw new DesktopError("E-mail ou senha incorretos.", 401);
   const token = crypto.randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600_000);
   await prisma.$transaction([
@@ -185,7 +201,10 @@ export async function recoverOwner(emailInput: string, recoveryKey: string, next
   if (!ok) { await verifyPassword(next, null); throw new DesktopError("E-mail ou chave de recuperação incorretos.", 401); }
   const h = await hashPassword(next);
   const rotated = newRecoveryKey();
-  await prisma.$executeRaw`update desktop.local_account set password_hash = ${h}, recovery_hash = ${sha256(rotated)}, failed_attempts = 0, locked_until = null, updated_at = now() where user_id = ${rows[0].user_id}`;
+  // Consumes the key only if it is still the current one (one winner under concurrency).
+  const n = await prisma.$executeRaw`update desktop.local_account set password_hash = ${h}, recovery_hash = ${sha256(rotated)}, failed_attempts = 0, locked_until = null, updated_at = now()
+    where user_id = ${rows[0].user_id} and recovery_hash = ${sha256(key)}`;
+  if (n !== 1) throw new DesktopError("Esta chave de recuperação já foi usada. Use a chave nova exibida na recuperação.", 409);
   await revokeAllSessions(rows[0].user_id);
   return { recoveryKey: rotated };
 }

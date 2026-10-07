@@ -32,7 +32,7 @@ import { backupsDir, desktopVersion, DesktopError } from "./env";
 import { qi, withClient } from "./db";
 import { appliedMigrations } from "./migrate";
 import { documentsRoot, setDocumentsRoot } from "./settings";
-import { containedPath, ensureContainedDir, isInside, openContained, realDir, realPathLoose, resolveStorageKey } from "./paths";
+import { containedPath, ensureContainedDir, fsyncDir, fsyncFile, isInside, openContained, realDir, realPathLoose, resolveStorageKey } from "./paths";
 import { withStoreLock } from "./lock";
 import { desktopStateDir } from "./env";
 import { syncMarker } from "./sync";
@@ -161,6 +161,7 @@ async function createBackupLocked(opts: BackupOptions): Promise<BackupReport> {
     const fd = fs.openSync(partial, "r+"); fs.fsyncSync(fd); fs.closeSync(fd);
     if (fs.existsSync(dest)) throw new DesktopError("Já existe um arquivo com esse nome.", 409, "exists");
     fs.renameSync(partial, dest);
+    fsyncDir(path.dirname(dest));
   } catch (e) {
     (zip.outputStream as unknown as Readable).destroy();
     out?.destroy();
@@ -313,7 +314,9 @@ async function restoreLocked(opts: RestoreOptions): Promise<RestoreReport> {
         const h = hashing(await open());
         await pipeline(h.out, fs.createWriteStream(tmp, { flags: "wx" }));
         if (await h.digest !== w.sha) throw new DesktopError(`Checksum divergente ao extrair ${e.fileName}.`, 422);
+        fsyncFile(tmp);
         fs.renameSync(tmp, containedPath(target, w.key, "absent"));
+        fsyncDir(dir); // the restored file survives a power loss before the database commit
         written++;
       } finally { fs.rmSync(tmp, { force: true }); }
     });

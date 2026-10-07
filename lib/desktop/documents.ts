@@ -24,7 +24,7 @@ import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { prisma } from "@/lib/prisma";
 import { desktopStateDir, DesktopError } from "./env";
-import { containedPath, ensureContainedDir, isInside, openContained, realDir, realPathLoose, safeName } from "./paths";
+import { containedPath, ensureContainedDir, fsyncDir, isInside, openContained, realDir, realPathLoose, safeName } from "./paths";
 import { documentsRoot, setDocumentsRoot } from "./settings";
 import { withStoreLock } from "./lock";
 import { syncMarker } from "./sync";
@@ -93,6 +93,7 @@ async function importLocked(input: ImportInput) {
     originalInSyncFolder: syncMarker(source), importedAt: new Date().toISOString(), originalTreatedAsReadOnly: true,
   };
 
+  let placed: string | null = null;
   try {
     return await prisma.$transaction(async tx => {
       if (input.clientId && !(await tx.client.findFirst({ where: { id: input.clientId, workspaceId: input.workspaceId } }))) throw new DesktopError("Cliente não encontrado neste workspace.", 404);
@@ -100,8 +101,9 @@ async function importLocked(input: ImportInput) {
       let documentId = input.documentId ?? null;
       let version = 1;
       if (documentId) {
-        const doc = await tx.legalDocument.findFirst({ where: { id: documentId, workspaceId: input.workspaceId } });
-        if (!doc) throw new DesktopError("Documento não encontrado.", 404);
+        // Row lock: concurrent imports of new versions of the same document get consecutive numbers.
+        const locked = await tx.$queryRaw<{ id: string }[]>`select id from "LegalDocument" where id = ${documentId} and "workspaceId" = ${input.workspaceId} for update`;
+        if (!locked.length) throw new DesktopError("Documento não encontrado.", 404);
         const last = await tx.documentVersion.aggregate({ where: { documentId }, _max: { version: true } });
         version = (last._max.version ?? 0) + 1;
         await tx.legalDocument.update({ where: { id: documentId }, data: { currentVersion: version } });
@@ -127,8 +129,13 @@ async function importLocked(input: ImportInput) {
       ensureContainedDir(root, key.split("/").slice(0, -1).join("/"));
       const dest = containedPath(root, key, "absent");
       fs.renameSync(tmp, dest);
+      fsyncDir(path.dirname(dest));
+      placed = dest; // removed again if the transaction does not commit
       return { documentId, versionId: created.id, version, storageKey: key, sha256: digest, size, originalInSyncFolder: provenance.originalInSyncFolder };
     });
+  } catch (e) {
+    if (placed) fs.rmSync(placed, { force: true });
+    throw e;
   } finally { fs.rmSync(tmp, { force: true }); }
 }
 
