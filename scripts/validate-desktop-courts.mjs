@@ -24,13 +24,16 @@ const port = await new Promise((resolve, reject) => {
   // Windows pg_ctl -o passes through cmd.exe, which keeps the quotes of ''.
   fs.appendFileSync(path.join(cluster, "postgresql.conf"),
     "\n# court validation\nlisten_addresses = '127.0.0.1'\nport = " + port + "\nunix_socket_directories = ''\nmax_connections = 30\n");
+  // stdio "ignore": on Windows the server inherits pg_ctl's handles, and with
+  // pipes execFileSync would wait for them until the server stops (a hang).
+  // The server writes to postgres.log; the timeout bounds a start that stalls.
+  started = true;
   try {
-    execFileSync(path.join(binaries, "pg_ctl"), ["-D", cluster, "-l", path.join(root, "postgres.log"), "-w", "start"], { stdio: "pipe" });
+    execFileSync(path.join(binaries, "pg_ctl"), ["-D", cluster, "-l", path.join(root, "postgres.log"), "-w", "-t", "60", "start"], { stdio: "ignore", timeout: 120_000 });
   } catch (error) {
     try { console.error(fs.readFileSync(path.join(root, "postgres.log"), "utf8")); } catch {}
     throw error;
   }
-  started = true;
   const base = new URL("postgresql://court_fixture:" + password + "@127.0.0.1:" + port + "/postgres");
   const client = new pg.Client({ connectionString: base.toString() });
   await client.connect();
@@ -73,6 +76,9 @@ const port = await new Promise((resolve, reject) => {
   }
 } finally {
   if (app && app.exitCode === null) { app.kill("SIGTERM"); await new Promise(resolve => app.once("exit", resolve)); }
-  if (started) execFileSync(path.join(binaries, "pg_ctl"), ["-D", cluster, "-m", "fast", "-w", "stop"], { stdio: "pipe" });
+  if (started) {
+    try { execFileSync(path.join(binaries, "pg_ctl"), ["-D", cluster, "-m", "fast", "-w", "-t", "60", "stop"], { stdio: "ignore", timeout: 120_000 }); }
+    catch (error) { console.error("pg_ctl stop:", error.message); }
+  }
   fs.rmSync(root, { recursive: true, force: true });
 }
