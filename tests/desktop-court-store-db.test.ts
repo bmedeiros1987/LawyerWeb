@@ -37,7 +37,12 @@ describe.skipIf(!enabled)("court store on an exclusive disposable PostgreSQL clu
     const client = new pg.Client({ connectionString: url.toString() }); await client.connect();
     try {
       const server = (await client.query("select current_setting('data_directory') as directory, system_identifier::text from pg_control_system()")).rows[0];
-      if (server.directory !== proof.cluster || server.system_identifier !== proof.systemId)
+      // Same directory, compared canonically: on Windows PostgreSQL reports it
+      // with forward slashes and the manifest may hold an 8.3 short name.
+      const canonical = (p: string) => { const r = fs.realpathSync.native(p); return process.platform === "win32" ? r.toLowerCase() : r; };
+      let sameDir = false;
+      try { sameDir = canonical(server.directory) === canonical(proof.cluster); } catch { sameDir = false; }
+      if (!sameDir || server.system_identifier !== proof.systemId)
         throw new Error("Server does not match newly provisioned cluster");
     } finally { await client.end(); }
     const migrations = await import("@/lib/desktop/migrate");
