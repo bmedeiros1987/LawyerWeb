@@ -23,15 +23,15 @@ export function TelegramAgentSettings({
   const [expiresAt,setExpiresAt]=useState("");
 
   async function connectBot(event:FormEvent<HTMLFormElement>){
-    event.preventDefault();setBusy("bot");setError("");
-    const fd=new FormData(event.currentTarget);
+    event.preventDefault();const form=event.currentTarget;setBusy("bot");setError("");
+    const fd=new FormData(form);
     const response=await fetch("/api/integrations/telegram",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
       workspaceId,botToken:String(fd.get("botToken")||""),
     })});
     const data=await response.json().catch(()=>({}));
     setBusy("");
     if(!response.ok){setError(data.error??"Não foi possível conectar o bot.");return}
-    event.currentTarget.reset();router.refresh();
+    form.reset();router.refresh();
   }
 
   async function disconnectBot(){
