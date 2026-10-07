@@ -42,11 +42,12 @@ export function WhatsAppAgentSettings({
 
   async function configure(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setBusy("configure");
     setError("");
     setWebhookUrl("");
     setVerifyToken("");
-    const fd = new FormData(event.currentTarget);
+    const fd = new FormData(form);
     const response = await fetch("/api/integrations/whatsapp", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -64,7 +65,7 @@ export function WhatsAppAgentSettings({
       setError(data.error ?? "Não foi possível configurar o WhatsApp.");
       return;
     }
-    event.currentTarget.reset();
+    form.reset();
     setWebhookUrl(data.webhookUrl ?? "");
     setVerifyToken(data.verifyToken ?? "");
     router.refresh();
