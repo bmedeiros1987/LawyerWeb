@@ -298,7 +298,9 @@ async function seed() {
     // Windows: junction (no privilege needed); macOS/Linux: symbolic link.
     const link = (target, at) => fs.symlinkSync(target, at, "junction");
     const unlink = at => { try { fs.unlinkSync(at); } catch { fs.rmdirSync(at); } };
-    const fora = path.join(WORK, "fora-da-pasta"); fs.mkdirSync(fora, { recursive: true });
+    // Outside the authorized folder but on the same volume (folders are moved with rename;
+    // on Windows CI the work folder is on another drive).
+    const fora = path.join(STATE, "teste-fora-da-pasta-autorizada"); fs.mkdirSync(fora, { recursive: true });
     const src = path.join(drive, "Procuração.pdf"); fs.writeFileSync(src, "procuração sintética"); fs.chmodSync(src, 0o444);
     const imp = await owner.post("/api/desktop/documents/import", { sourcePath: src, matterId: memo.matterId });
     expect(imp.status === 201, `import ${imp.status}`);
