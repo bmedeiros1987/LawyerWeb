@@ -1,0 +1,66 @@
+LawyerMind — small vertical document-review proof (SIMULATED ONLY)
+
+Repository: bmedeiros1987/LawyerWeb
+Base / latest PR60 HEAD checked at completion: 1cce2ba2a9691deee0b55393d8b3fb5efbaf2511
+Branch: codex/document-review-pilot
+Worktree: LawyerWeb-review-pilot, separate from LawyerWeb-isolated.
+The previous concurrency branch stays clean at 1b3a8de6e16ecc20214e1694862f8ac48cf63cc4. It was NOT cherry-picked, pushed or modified here. PR60 remains untouched. No AGENTS.md/.agents/skills present in base.
+
+Implemented:
+- Desktop-only route /app/documentos/revisao-piloto linked from Documents. Requires existing authenticated workspace membership + documents.edit. API reuses desktop JSON same-origin and existing permission guards; no new auth or credentials.
+- One interface with read-only fictitious document, represented party and objective, clause selection, question/conversation, exact-anchor proposal, accept/reject, explicit conflicts, simulated opinion and confirmed local immutable review snapshot.
+- Three actual generated contracts: services DOCX, rental PDF, confidentiality DOCX. Browser checks original file bytes SHA-256 before starting. Text preview comes from fixture manifest; a separate test verifies it exactly matches generated DOCX XML/PDF text. This is NOT arbitrary DOCX/PDF parsing.
+- Original is never written. Accepted proposal replaces only exact text at its current hash-bound offsets; old pending anchors become conflicts. Rejected proposals do not change text. Pending/conflicted proposals block save until explicitly resolved/discarded.
+- Snapshot contains real hashes of original bytes, text, decisions and simulated opinion. JSON snapshots are exclusively created, read-only by normal mode bits, and scoped by user+workspace+review ID. Parent snapshots are checked. App refuses overwrites and links; immutability is app-enforced, NOT OS/WORM protection against outside processes or the account owner.
+- Saving writes/fsyncs the snapshot file and, on POSIX, its directory. This is not a fully tested crash-durability guarantee (new ancestor directories/controller behavior/Windows remain unproven).
+- Provider endpoint is narrow, disabled and has no network implementation, account discovery, credential loading, tools or fallback model. It returns provider-disconnected/503 even with consent. Contract text is inert data, rendered as text, never authorization for tools/shell.
+- Opening arbitrary client files and connecting ChatGPT are visibly blocked. Consent covers local simulation and save only. No document or context sent externally.
+
+What is NOT implemented/verified:
+- No real AI/legal review. Replies/proposals are deterministic fixture demonstrations. No citations, jurisprudence, legal adequacy or substantive recommendations are verified.
+- No WYSIWYG DOCX editor or DOCX roundtrip/export; saved artifact is a JSON review snapshot, not a new Word file preserving original formatting.
+- PDF original may be viewed inline by the browser reader, read-only. PDF.js rendering/text-layer selection is NOT integrated. Anchors are exact fixture text offsets/clause IDs, not validated PDF page/geometry coordinates.
+- Only clause 2 has a predefined sample proposal. Other clauses can be selected/read, but no proposal is fabricated for them.
+- No reopening/listing history after restarting. Current session shows saved snapshots. Existing desktop backup/restore does NOT include review-pilot snapshots; therefore not ready for persistent real client data.
+- Existing PR60 concurrency findings remain a release prerequisite; earlier patch is available separately and must be reviewed/integrated without a conflicting push.
+- No real database, clients, Drive documents, email, WhatsApp, Telegram, user accounts or secrets accessed. No Windows execution. No new subscriptions/costs, persistent connections or account authentication.
+
+Tests and checks (actual outcomes):
+- PASS: 9 Node tests import ACTUAL TypeScript model/store/fixtures and existing desktop containment/error modules, using Node 24.21.0 --experimental-transform-types. No reimplemented state machine, DB mocks, network mocks or actual DB. Only generated files and temporary disposable state.
+  Covers all 3 files: accept/reject/exact anchors/snapshot/original preservation; context+consent; disconnected real provider; stale/overlapping conflicts; tampered snapshots/text/source hashes; contract-instruction-as-data boundary; user/workspace scope; symlink rejection.
+- PASS: 3 fixture-content/hash checks. DOCX ZIP+XML and simple generated PDF text match manifest exactly, with SHA-256 of actual bytes. This does not validate EigenPal or arbitrary Word/PDF fidelity.
+- PASS: git diff --check.
+- FAILED global typecheck: missing yauzl/yazl and their declarations in offline dependencies, producing 2 missing-module and 4 backup callback implicit-any diagnostics. No diagnostics in new pilot source/React component/API route. Do not call this a full typecheck pass.
+- FAILED frontend bundling attempt: cached esbuild native executable fails spawn with ENOEXEC. No browser/GUI end-to-end test completed. No security/signature/quarantine workaround attempted.
+- Full Next production build, DB integration, packaged app and installer NOT RUN. Relevant prerequisites not green; no installer produced.
+- Available runtime is Node 24.21.0; project requests >=22 <23. Complete dependencies and approved Node22 runtime needed for supported validation. No dependency manifests/lockfiles changed. Worktree references read-only existing node_modules; no install scripts/downloads performed here.
+
+Reproduce module proof from worktree root, Node24:
+node --experimental-transform-types --test tests/synthetic/document-review-pilot.mjs
+python3 tests/synthetic/check-review-fixtures.py
+Supported-application validation still needed: complete npm ci under Node22, Prisma generate, typecheck, relevant suite, build, authenticated UI flow with disposable workspace, then review before installer.
+
+Read-only integration/editor research (2026-10-07; no account activation):
+1) OpenAI official ChatGPT plan usage supports an optional OAuth flow for eligible open-source/locally hosted apps; eligibility, account permissions and local route remain unverified here. No root repository OSS license was found, so do not assume that route applies to LawyerMind. This is not a promise of free Platform API use.
+https://developers.openai.com/siwc/token-sharing-open-source
+Official preview requirements include store:false and stream:true; public Responses endpoint only, no private ChatGPT backend endpoints. Not all APIs/tools are supported.
+https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
+https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+2) OpenClaw docs describe Codex subscription and API-key routes separately; non-agent APIs use Platform billing. A local installation/gateway was not found in PATH/common executable paths, and no handshake or auth was performed. Thus no supported local integration is proven. Existing general OpenClaw agent adapter was reviewed but NOT invoked/reused: it has broader tool/context capabilities and stored gateway credentials outside this pilot's narrow boundary.
+https://docs.openclaw.ai/providers/openai
+3) EigenPal current manifests fetched from main declare Apache-2.0 for core and React; observed versions were core2.26.0 and React2.24.0, while React peers require core~2.24.0. These are cached/non-atomic main reads, not an established compatible published pair. Core depends on XML/ZIP, ProseMirror, bidi, image/font tooling; React adds i18n/Radix and requires React18/19. Repository documents license exceptions and Pro packages for comments/tracked changes/editor API/PDF export. No Pro packages used. No EigenPal dependency adopted before consistent version pinning, license/dependency audit and fidelity tests on headers/footers, tables, numbering, styles, section breaks, comments/tracked changes and unsupported OOXML.
+https://github.com/eigenpal/docx-editor
+https://raw.githubusercontent.com/eigenpal/docx-editor/main/packages/core/package.json
+https://raw.githubusercontent.com/eigenpal/docx-editor/main/packages/react/package.json
+https://raw.githubusercontent.com/eigenpal/docx-editor/main/LICENSE
+4) PDF.js is a read/render/text-selection candidate (Apache-2.0); not an equivalent Word-style PDF editor. Current master manifest requires newer Node ranges; no compatible release/dependency package was selected or installed in this proof.
+https://mozilla.github.io/pdf.js/
+https://raw.githubusercontent.com/mozilla/pdf.js/master/package.json
+
+Next review gates before calling this a real pilot:
+- Validate a consistent free EigenPal core+React pair and PDF.js release with official install permissions and full fidelity/security corpus.
+- Real file import from authorized working-copy versions, full snapshot/version persistence, backup coverage and reopen history.
+- UI end-to-end/permissions/CSRF tests on a disposable local instance under supported runtime.
+- Separately approved, supported ChatGPT/OpenClaw subscription connection, provider capability limits, narrow no-tool requests, explicit per-document send consent, failure/usage status. No token extraction/private endpoints/fallback to another provider.
+- Integrate approved concurrency patch; all relevant build checks and independent review before any test installer.
+No push, merge, deploy, store publication or Gatekeeper/quarantine changes made.
