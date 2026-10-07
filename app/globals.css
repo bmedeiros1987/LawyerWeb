@@ -378,9 +378,9 @@
 @media(max-width:760px){.app-root .app-frame{display:block}}
 .app-root .side-brand-copy small{color:#C9B27A}
 /* Accessibility (dot settings patch, adapted): skip link, minimum click targets, reduced motion */
-.skip-link{position:fixed;left:16px;top:-80px;z-index:1000;padding:10px 16px;border-radius:8px;background:var(--surface);color:var(--ink);border:2px solid var(--focus);font-weight:650;font-size:calc(14px * var(--fs,1))}.skip-link:focus{top:16px}
+.skip-link{position:fixed;left:16px;top:16px;z-index:1000;padding:10px 16px;border-radius:8px;background:var(--surface);color:var(--ink);border:2px solid var(--focus);font-weight:650;font-size:calc(14px * var(--fs,1))}.skip-link:not(:focus){width:1px;height:1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .app-root{--target:44px}.app-root[data-density="compact"]{--target:36px}
 .app-root :is(.side-link,.filter-button,.new-button,.icon-button,.command-button,.account-menu>summary,.prefs-form button,.search-dialog input,.quick-form :is(input,select,button)){min-height:var(--target)}
 main.workspace-content:focus{outline:none}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
-.update-panel h2{margin:0 0 8px;font-size:calc(18px * var(--fs,1))}.update-panel p{margin:6px 0}.update-panel pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.update-panel{display:block;border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:var(--surface)}.update-panel button{justify-self:start;width:auto;margin:6px 0}.update-panel h2{margin:0 0 8px;font-size:calc(18px * var(--fs,1))}.update-panel p{margin:6px 0}.update-panel pre{white-space:pre-wrap;overflow-wrap:anywhere}
