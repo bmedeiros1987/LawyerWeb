@@ -1,6 +1,6 @@
 // Real migration/backup/restore on a dedicated throw-away database.
 // N+1 SQL is a synthetic fixture, not a released installer or OS reboot claim.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -8,6 +8,8 @@ import { desktopTestEnv, type DesktopTestEnv } from "./helpers/desktop-db";
 
 const digest = (file: string) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 describe.skipIf(process.env.RUN_DB_TESTS !== "1")("desktop synthetic N to N+1 and restore", () => {
+  const adminUrl = process.env.DATABASE_URL!;
+  const cached = globalThis as unknown as { prisma?: unknown; desktopPool?: unknown };
   let env: DesktopTestEnv;
   let migrate: typeof import("@/lib/desktop/migrate");
   let backup: typeof import("@/lib/desktop/backup");
@@ -17,7 +19,11 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("desktop synthetic N to N+1 an
   let version: Awaited<ReturnType<typeof import("@/lib/desktop/documents")["importDocument"]>>;
   let migrationDir: string;
   const upgradeName = "20990101000000_synthetic_upgrade";
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // Each case gets its own database, filesystem and fresh DB module instances.
+    process.env.DATABASE_URL = adminUrl;
+    delete cached.prisma; delete cached.desktopPool;
+    vi.resetModules();
     env = await desktopTestEnv("upgrade");
     migrate = await import("@/lib/desktop/migrate"); backup = await import("@/lib/desktop/backup");
     docs = await import("@/lib/desktop/documents");
@@ -34,13 +40,22 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("desktop synthetic N to N+1 an
     fs.cpSync(path.resolve("prisma/migrations"), migrationDir, { recursive: true });
     process.env.MBLZ_DESKTOP_MIGRATIONS_DIR = migrationDir;
   }, 120_000);
-  afterAll(async () => { if (env) await env.cleanup(); });
+  afterEach(async () => {
+    try { if (env) await env.cleanup(); }
+    finally { process.env.DATABASE_URL = adminUrl; delete cached.prisma; delete cached.desktopPool; }
+  });
 
-  it("N+1 applies new SQL, takes a safety backup, preserves data/files and is idempotent", async () => {
+  function addUpgrade() {
     const dir = path.join(migrationDir, upgradeName); fs.mkdirSync(dir);
     fs.writeFileSync(path.join(dir, "migration.sql"), "CREATE TABLE public.synthetic_upgrade_receipt (id text PRIMARY KEY);\n");
+  }
+
+  it("N+1 applies new SQL, takes a safety backup, preserves data/files and is idempotent", async () => {
+    expect(await prisma.$queryRaw`SELECT to_regclass('public.synthetic_upgrade_receipt')::text AS receipt`).toEqual([{ receipt: null }]);
+    addUpgrade();
     const r = await migrate.runDesktopMigrations();
     expect(r.applied).toEqual([upgradeName]);
+    expect(await prisma.$queryRaw`SELECT to_regclass('public.synthetic_upgrade_receipt')::text AS receipt`).toEqual([{ receipt: "synthetic_upgrade_receipt" }]);
     expect(r.preMigrationBackup).toBeTruthy();
     const safety = await backup.verifyBackup(r.preMigrationBackup!);
     expect(safety.includes_documents).toBe(false);
@@ -77,6 +92,8 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "1")("desktop synthetic N to N+1 an
   }, 30_000);
 
   it("refuses changed migration history instead of reapplying SQL or losing data", async () => {
+    addUpgrade();
+    await migrate.runDesktopMigrations();
     fs.appendFileSync(path.join(migrationDir, upgradeName, "migration.sql"), "-- modified fixture\n");
     await expect(migrate.runDesktopMigrations()).rejects.toThrow("alterada depois de aplicada");
     expect(await prisma.client.findUniqueOrThrow({ where: { id: clientId } })).toMatchObject({ name: "Cliente preservado" });
