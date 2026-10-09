@@ -145,7 +145,7 @@ O botão **Buscar em tudo**, a lupa da barra superior e o atalho **Ctrl+K** (Win
 
 Em **conta → Preferências de leitura**:
 
-- **tamanho do texto:** 90, 100, 115 ou 130%;
+- **tamanho do texto:** 100, 115, 130 ou 150% (90% salvo é normalizado para 100%);
 - **densidade:** confortável ou compacta;
 - **tema:** claro, escuro ou igual ao sistema.
 
@@ -190,6 +190,10 @@ A pasta de destino não pode conter links simbólicos nem junções. A pasta de 
 registrada no banco local (tabela `desktop.local_setting`, que não entra no backup).
 
 > O arquivo de backup **não é criptografado**. Guarde-o em local protegido.
+
+O PostgreSQL local também não possui criptografia em repouso fornecida pelo app. A senha SCRAM não
+cifra o diretório de dados. O contrato local-first, a proteção dos originais e a proposta T13-B estão
+em [docs/OFFLINE-DESKTOP.md](../docs/OFFLINE-DESKTOP.md); a aceitação desse risco permanece pendente.
 
 ## Instalação
 
@@ -282,9 +286,14 @@ fica em `.github/workflows/desktop.yml`.
 - **`RUN_DB_TESTS=1 npx vitest run tests/desktop-store-db.test.ts`:** testes negativos com PostgreSQL
   real, num banco descartável: leitura sem `documents.edit`, links simbólicos/junções/hard links,
   restauração que falha antes do commit, backup com arquivo alterado durante a leitura e trava.
+- **`PG_BIN_DIR=<binários já verificados> node scripts/validate-desktop-upgrade.mjs`**, na raiz:
+  cria um cluster exclusivo, ignora qualquer `DATABASE_URL` existente e remove o cluster ao terminar.
+  Executa os testes de store e `desktop-upgrade-restore-db.test.ts`: migration N+1 sintética, backup
+  de segurança, preservação/idempotência, restore em pasta vazia, truncamento e histórico alterado.
+  Não instala pacotes/binários. Esse ensaio não é upgrade real de instalador nem reinício do SO.
 - **`lawyermind --self-test <estado> <trabalho> <relatórios> seed|verify`:** roteiro de aceite do app
   **instalado**, com dados fictícios (`runtime/selftest.mjs`):
-  - `seed` cobre os passos D01–D25: loopback, autenticação, cadastro e edição, documentos e originais,
+  - `seed` cobre os passos D01–D28: loopback, autenticação, cadastro e edição, documentos e originais,
     exportação, isolamento, backup, abertura para edição/leitura, recusa de links e junções, busca
     (cadastros e conteúdo) e preferências de leitura;
   - `verify` roda num novo processo e cobre P01–P11: persistência, preferências, restauração,

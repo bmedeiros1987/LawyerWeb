@@ -89,7 +89,7 @@ CRON_SECRET
 
 ## Desktop / Offline
 
-A estratégia está documentada em [`docs/OFFLINE-DESKTOP.md`](docs/OFFLINE-DESKTOP.md). O Desktop será um cliente offline-first do mesmo backend, usando cache local criptografado e sincronização posterior — nunca uma segunda fonte de verdade.
+A arquitetura candidata está documentada em [`docs/OFFLINE-DESKTOP.md`](docs/OFFLINE-DESKTOP.md). O desktop executa este aplicativo localmente, com PostgreSQL embarcado e login local. Esta versão não sincroniza automaticamente com a nuvem; não se deve presumir criptografia do banco em repouso. A entrega permanece candidata, sujeita à revisão e aos requisitos de distribuição por plataforma.
 
 ## Estado atual
 
