@@ -26,7 +26,9 @@
 
 ## Relógio crítico do PostgreSQL
 
-**Prazo observado pelo provedor: 29/10/2026 19:20:21 UTC.** A decisão humana sobre continuidade precisa ocorrer **antes** desse horário; não contar com recuperação de dados após a expiração.
+**Expiração técnica informada pelo provedor: 29/10/2026 às 19:20:21 UTC (16h20 Brasília).** **Este não é um limite operacional seguro para iniciar a preservação dos dados.** Não contar com recuperação após a expiração.
+
+**Marco interno conservador de contingência: 27/10/2026, às 12h00 de Brasília (15h00 UTC)** — até esse momento, o responsável humano deve ter definido a continuidade e, **com autorização e acesso legítimos**, concluído a exportação/backup, verificado a integridade e ensaiado a restauração em ambiente isolado, com evidências datadas. Essa antecedência é uma **meta operacional sugerida**, não um prazo do Render nem garantia de tempo suficiente; iniciar imediatamente e antecipar o marco se volume, acesso ou RPO/RTO exigirem. **Não deixar a execução para o dia 29/10.** Se o marco não puder ser cumprido, escalar o risco P0 ao responsável imediatamente, preservar o estado de **NO-GO** e não declarar recuperação garantida. O autopiloto não exporta dados reais, altera permissões ou contrata infraestrutura.
 
 - [ ] Responsável identificou e escolheu a estratégia de continuidade: armazenamento persistente autorizado expressamente **ou** outra solução comprovada e lícita. Não contratar/alterar plano automaticamente.
 - [ ] Responsável confirmou quais dados precisam de retenção e qual RPO/RTO é aceitável.
