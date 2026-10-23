@@ -12,7 +12,7 @@
 | Deploy web | Render `mblz-legal-os`, `dep-davoabjm8hqs73c98pj0`, `LIVE`, trigger `new_commit`, mesmo SHA, auto-deploy ligado | `LIVE` não significa serviço responsivo |
 | Infra web | Plano `free`; `healthCheckPath` nativo vazio | Não atribuir HTTP 503 apenas a cold start sem evidência |
 | Saúde HTTP | Página e dois endpoints retornaram HTTP 503; em nova consulta aproximadamente às 06h30 (Brasília), `/api/health` respondeu `ok=true` e `/api/health/database` respondeu `reachable/schema=ready/migrations=tracked` | Recuperação pontual **não** encerra intermitência |
-| Último startup consultado | 22/10 20:50 UTC: Next.js 16.3.8 pronto; 4 migrations encontradas e nenhuma pendente | Não é prova de recuperação por backup |
+| Startup correlacionado à recuperação | 23/10 09:29:56 UTC: nova inicialização; 09:30:12 UTC: quatro migrations, nenhuma pendente; 09:30:14 UTC: Next.js 16.3.8 pronto | Forte correlação temporal com os HTTP 503; não comprova causa de todas as falhas nem backup/restauração |
 | PostgreSQL | `vcl-postgres` PostgreSQL 18 `free`, status `available`; expira em **29/10/2026 às 19:20:21 UTC (16:20 Brasília)** | Banco atual é temporário; não há backup/restauração homologados |
 | Verificação SQL externa | Bloqueada por lista vazia de IPs autorizados | Não ampliar permissões nem expor conexão automaticamente |
 
