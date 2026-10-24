@@ -12,10 +12,11 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use lawyermind_core::open_files::{self, OpenQueue};
 use lawyermind_core::pg::{LocalPostgres, PgPaths};
 use serde::Serialize;
 use server::{Server, ServerPaths};
-use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -102,6 +103,38 @@ struct Inner {
 
 #[derive(Clone, Default)]
 struct AppState(Arc<Mutex<Inner>>);
+
+/// Files the OS asked LawyerMind to open (double click, "Open with", drag onto the icon). Only a lexical
+/// filter runs here; the local server re-checks every path before reading it, and nothing is imported
+/// until the user confirms.
+#[derive(Clone, Default)]
+struct Opens(Arc<OpenQueue>);
+
+/// Queues the acceptable paths, brings the window forward and tells the page to fetch them.
+/// Rejected arguments are only counted in the local log, never their names.
+fn queue_opens(app: &AppHandle, args: &[String], cwd: Option<&str>) {
+    let filtered = open_files::from_args(args, cwd);
+    if let Ok(dir) = app.path().app_local_data_dir() {
+        app_log(&lawyermind_core::pg::plain_path(&dir), &format!("arquivos recebidos do sistema: {} aceitos, {} recusados", filtered.accepted.len(), filtered.rejected.len()));
+    }
+    if filtered.accepted.is_empty() {
+        return;
+    }
+    if let Some(opens) = app.try_state::<Opens>() {
+        opens.0.push_all(filtered.accepted);
+    }
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+    let _ = app.emit_to("main", "lawyermind-open-files", ());
+}
+
+// Hands over, once, the paths waiting to be opened.
+#[tauri::command]
+fn take_pending_opens(opens: State<'_, Opens>) -> Vec<String> {
+    opens.0.take()
+}
 
 // Narrow platform metadata only (labels and keys of shortcuts): no shell, HTTP,
 // filesystem or credentials.
@@ -279,19 +312,27 @@ pub fn run() {
     }
 
     let state = AppState::default();
+    let opens = Opens::default();
+    // Windows/Linux: "Open with" passes the file as an argument of the first launch.
+    let cwd = std::env::current_dir().ok().map(|p| p.display().to_string());
+    opens.0.push_all(open_files::from_args(&args[1..], cwd.as_deref()).accepted);
     let server_port = Arc::new(AtomicU16::new(0));
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
                 let _ = w.set_focus();
             }
+            // A second launch with a file ("Open with" while the app is running) lands here.
+            queue_opens(app, args.get(1..).unwrap_or_default(), Some(&cwd));
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(state.clone())
+        .manage(opens.clone())
         .setup({
             let state = state.clone();
             let server_port = server_port.clone();
+            let opens = opens.clone();
             move |app| {
                 let state_dir = lawyermind_core::pg::plain_path(&app.path().app_local_data_dir()?);
                 let resources = Resources::at(&app.path().resource_dir()?);
@@ -299,6 +340,7 @@ pub fn run() {
                     i.state_dir = Some(state_dir.clone());
                     i.startup = Startup { phase: "Iniciando o banco local…".into(), state_dir: Some(state_dir.display().to_string()), ..Default::default() };
                 }
+                app_log(&state_dir, &format!("arquivos recebidos do sistema: {} na partida", opens.0.len()));
                 // Only the splash screen (bundled) and the local server may be shown.
                 let allowed = server_port.clone();
                 #[allow(unused_mut)]
@@ -349,11 +391,19 @@ pub fn run() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform])
+        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform, take_pending_opens])
         .build(context)
         .expect("falha ao iniciar o LawyerMind");
 
-    app.run(move |_handle, event| {
+    app.run(move |handle, event| {
+        // macOS delivers files through an open event, whether the app was closed or already running.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Opened { urls } = &event {
+            let args: Vec<String> = urls.iter().map(|u| u.to_string()).collect();
+            queue_opens(handle, &args, None);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = handle;
         if let RunEvent::Exit = event {
             let mut i = match state.0.lock() { Ok(i) => i, Err(p) => p.into_inner() };
             if let (Some(stack), Some(dir)) = (i.stack.take(), i.state_dir.clone()) {

@@ -6,6 +6,7 @@
 //! records, documents, backup) runs in the bundled Next.js server.
 
 pub mod error;
+pub mod open_files;
 pub mod pg;
 
 pub use error::{Error, Result};

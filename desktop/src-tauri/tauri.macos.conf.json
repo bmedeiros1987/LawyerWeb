@@ -1,0 +1,22 @@
+{
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": ["pdf"],
+        "name": "PDF",
+        "description": "Documento PDF",
+        "mimeType": "application/pdf",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["docx"],
+        "name": "Documento Word (.docx)",
+        "description": "Documento Word (.docx)",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ]
+  }
+}

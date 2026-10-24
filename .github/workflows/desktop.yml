@@ -158,7 +158,32 @@ jobs:
           $ev = $env:EV
           $installer = Get-ChildItem dist-desktop -Filter *-setup.exe | Select-Object -First 1
           function Install-App { $p = Start-Process -Wait -PassThru -FilePath $installer.FullName -ArgumentList '/S'; if ($p.ExitCode -ne 0) { throw "instalador falhou $($p.ExitCode)" } }
+          # File associations: LawyerMind is offered in "Open with" but must NOT take over the default of .pdf/.docx.
+          $assoc = @{ '.pdf' = 'LawyerMind.PDF'; '.docx' = 'LawyerMind.DOCX' }
+          function Get-Default($ext) { (Get-ItemProperty -Path "HKCU:\Software\Classes\$ext" -ErrorAction SilentlyContinue).'(default)' }
+          function Get-UserChoice($ext) { (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$ext\UserChoice" -ErrorAction SilentlyContinue).ProgId }
+          $defaultsBefore = @{}; foreach ($e in $assoc.Keys) { $defaultsBefore[$e] = "$(Get-Default $e)|$(Get-UserChoice $e)" }
+          function Assert-Associations([bool]$present) {
+            foreach ($e in $assoc.Keys) {
+              $prog = $assoc[$e]
+              if ("$(Get-Default $e)|$(Get-UserChoice $e)" -ne $defaultsBefore[$e]) { throw "o padrão de $e foi alterado (era '$($defaultsBefore[$e])')" }
+              $key = Get-Item -Path "HKCU:\Software\Classes\$e\OpenWithProgids" -ErrorAction SilentlyContinue
+              $names = if ($key) { $key.GetValueNames() } else { @() }
+              $has = $names -contains $prog
+              if ($has -ne $present) { throw "OpenWithProgids de ${e}: esperado presente=$present, obtido $has" }
+              if ((Test-Path "HKCU:\Software\Classes\$prog") -ne $present) { throw "ProgID $prog: esperado presente=$present" }
+            }
+            $reg = (Get-ItemProperty -Path 'HKCU:\Software\RegisteredApplications' -ErrorAction SilentlyContinue).LawyerMind
+            if ((($reg -eq 'Software\LawyerMind\Capabilities')) -ne $present) { throw "RegisteredApplications: esperado presente=$present, obtido '$reg'" }
+            if ($present) {
+              $cmd = (Get-ItemProperty -Path 'HKCU:\Software\Classes\LawyerMind.PDF\shell\open\command').'(default)'
+              if ($cmd -notmatch '"%1"$') { throw "comando de abertura inesperado: $cmd" }
+              if ((Test-Path 'HKCU:\Software\Classes\.doc\OpenWithProgids') -and ((Get-Item 'HKCU:\Software\Classes\.doc\OpenWithProgids').GetValueNames() -match 'LawyerMind')) { throw ".doc não deve ser associado" }
+            }
+            "associacoes presentes=$present; padroes de .pdf/.docx intactos" | Tee-Object "$ev/associations.txt" -Append
+          }
           Install-App
+          Assert-Associations $true
           $inst = Join-Path $env:LOCALAPPDATA 'LawyerMind'
           $exe = Get-ChildItem $inst -Filter *.exe | Where-Object { $_.Name -notlike 'uninstall*' } | Select-Object -First 1
           "instalado em $($exe.FullName)" | Tee-Object "$ev/install.txt"
@@ -185,14 +210,20 @@ jobs:
           $kept = Test-Path (Join-Path $data 'pgdata\PG_VERSION')
           "app removido: $(-not (Test-Path $exe.FullName)); dados preservados: $kept" | Tee-Object "$ev/uninstall.txt"
           if (-not $kept) { throw "dados apagados na desinstalação" }
+          Assert-Associations $false
           Install-App
+          Assert-Associations $true
           Get-ChildItem $inst -Recurse -Filter *.exe | ForEach-Object { New-NetFirewallRule -DisplayName "LM-offline2-$($_.Name)-$([guid]::NewGuid())" -Direction Outbound -Action Block -Program $_.FullName | Out-Null }
           SelfTest 'verify'
 
           # GUI: normal launch, screenshot, graceful close (WM_CLOSE) stops server and PostgreSQL.
           $log = Join-Path $data 'logs\app.log'
           $before = (Get-Content $log | Select-String 'servidor pronto').Count
-          Start-Process -FilePath $exe.FullName
+          # Synthetic files for "open with": app closed (argument of the first launch) and app open (second instance).
+          $syn1 = Join-Path $env:RUNNER_TEMP 'sintetico-1.pdf'; $syn2 = Join-Path $env:RUNNER_TEMP 'sintetico-2.docx'
+          Set-Content -Path $syn1 -Value "%PDF-1.4`n%%EOF`n" -NoNewline
+          [IO.File]::WriteAllBytes($syn2, [byte[]](0x50,0x4b,0x03,0x04,0,0,0,0))
+          Start-Process -FilePath $exe.FullName -ArgumentList "`"$syn1`""
           for ($i = 0; $i -lt 120; $i++) { if ((Get-Content $log | Select-String 'servidor pronto').Count -gt $before) { break }; Start-Sleep 1 }
           Start-Sleep 8
           Add-Type -AssemblyName System.Windows.Forms,System.Drawing
@@ -200,6 +231,11 @@ jobs:
           [System.Drawing.Graphics]::FromImage($img).CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size); $img.Save("$ev\gui-windows.png")
           $url = ((Get-Content $log | Select-String 'servidor pronto em (\S+)' | Select-Object -Last 1).Matches[0].Groups[1].Value)
           (Invoke-WebRequest -UseBasicParsing "$url/api/desktop/status").Content | Tee-Object "$ev/gui-status.txt"
+          if (-not (Get-Content $log | Select-String 'arquivos recebidos do sistema: 1 na partida')) { throw "arquivo passado na abertura não chegou ao aplicativo" }
+          Start-Process -FilePath $exe.FullName -ArgumentList "`"$syn2`""
+          for ($i = 0; $i -lt 20; $i++) { if (Get-Content $log | Select-String 'arquivos recebidos do sistema: 1 aceitos, 0 recusados') { break }; Start-Sleep 1 }
+          if (-not (Get-Content $log | Select-String 'arquivos recebidos do sistema: 1 aceitos, 0 recusados')) { throw "arquivo passado a uma segunda instância não chegou ao aplicativo em execução" }
+          "abrir arquivo: app fechado (argumento) e app aberto (instância única) entregaram o arquivo" | Tee-Object "$ev/open-file.txt"
           taskkill /IM $exe.Name | Out-Null
           for ($i = 0; $i -lt 30; $i++) { if (-not (Get-Process -Name $exe.BaseName -ErrorAction SilentlyContinue)) { break }; Start-Sleep 1 }
           Start-Sleep 3
@@ -271,6 +307,12 @@ jobs:
           install_app
           app="$HOME/Applications/LawyerMind.app"; bin="$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)"
           { echo "instalado em $app"; codesign -dv --verbose=2 "$app" 2>&1; spctl -a -vv "$app" 2>&1 || true; } | tee "$EV/install.txt"
+          # File associations declared in Info.plist: PDF and DOCX as an ALTERNATE viewer (never the default); no .doc.
+          plist="$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes" "$plist" | tee "$EV/document-types.txt"
+          grep -q "pdf" "$EV/document-types.txt" && grep -q "docx" "$EV/document-types.txt" || { echo "PDF/DOCX ausentes do Info.plist"; exit 1; }
+          grep -q "Alternate" "$EV/document-types.txt" || { echo "a classificação deveria ser Alternate"; exit 1; }
+          if grep -Eq '^[[:space:]]+doc$' "$EV/document-types.txt"; then echo ".doc não deve ser associado"; exit 1; fi
           # Offline: deny every outbound connection except localhost (inherited by PostgreSQL and Node).
           SB='(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (remote unix-socket))'
           if sandbox-exec -p "$SB" curl -s -m 10 https://example.com -o /dev/null; then echo "bloqueio não efetivo"; exit 1; fi
@@ -283,11 +325,21 @@ jobs:
           sandbox-exec -p "$SB" "$bin" --self-test "$data" "$RUNNER_TEMP/lm-work" "$EV" verify
           # GUI: normal launch, screenshot, quit via the app menu path (graceful).
           before=$(grep -c "servidor pronto" "$data/logs/app.log")
-          open "$app"
+          # Synthetic file handed to the app with the app closed ("open with" / double click).
+          printf '%%PDF-1.4\n%%%%EOF\n' > "$RUNNER_TEMP/sintetico-1.pdf"
+          open -a "$app" "$RUNNER_TEMP/sintetico-1.pdf"
           for i in $(seq 1 120); do [ $(grep -c "servidor pronto" "$data/logs/app.log") -gt $before ] && break; sleep 1; done
           sleep 8; screencapture -x "$EV/gui-macos.png" || true
           url=$(grep -o 'servidor pronto em [^ ]*' "$data/logs/app.log" | tail -1 | awk '{print $4}')
           curl -s "$url/api/desktop/status" | tee "$EV/gui-status.txt"
+          grep -Eq "arquivos recebidos do sistema: (1 aceitos, 0 recusados|1 na partida)" "$data/logs/app.log" || { echo "arquivo aberto com o app fechado não chegou"; exit 1; }
+          # ... and with the app already running (open event delivered to the running instance).
+          printf '%%PDF-1.4\n%%%%EOF\n' > "$RUNNER_TEMP/sintetico-2.pdf"
+          n=$(grep -c "arquivos recebidos do sistema: 1 aceitos, 0 recusados" "$data/logs/app.log" || true)
+          open -a "$app" "$RUNNER_TEMP/sintetico-2.pdf"
+          for i in $(seq 1 20); do [ "$(grep -c "arquivos recebidos do sistema: 1 aceitos, 0 recusados" "$data/logs/app.log" || true)" -gt "$n" ] && break; sleep 1; done
+          [ "$(grep -c "arquivos recebidos do sistema: 1 aceitos, 0 recusados" "$data/logs/app.log" || true)" -gt "$n" ] || { echo "arquivo aberto com o app aberto não chegou"; exit 1; }
+          echo "abrir arquivo: app fechado e app aberto entregaram o arquivo" | tee "$EV/open-file.txt"
           osascript -e 'quit app "LawyerMind"'
           for i in $(seq 1 30); do pgrep -f "LawyerMind.app/Contents/MacOS" >/dev/null || break; sleep 1; done
           sleep 3
