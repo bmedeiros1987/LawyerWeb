@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ExternalLink, Eye, FileText, FolderOpen, Save, Upload } from "lucide-react";
 import { pickFile, pickSave, postJson } from "./native";
+import { comparePath, openInNewWindow } from "./windows";
 import "./desktop.css";
 
 type Version = { id: string; version: number; originalName: string | null; sha256: string | null; createdAt: string; provenance: { originalPath?: string; originalInSyncFolder?: string | null } };
@@ -35,6 +36,8 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit }: { docume
     const dest = await pickSave("Exportar cópia", v.originalName ?? "documento");
     if (dest) await doExport(v.id, dest);
   });
+  const [cmpL, setCmpL] = useState(versions[1]?.id ?? ""), [cmpR, setCmpR] = useState(versions[0]?.id ?? "");
+  const compareTwoWindows = () => act(async () => { await openInNewWindow(comparePath(cmpL, cmpR, "esq")); await openInNewWindow(comparePath(cmpL, cmpR, "dir")); });
   const newVersion = () => act(async () => {
     const sourcePath = await pickFile("Escolher arquivo para nova versão");
     if (!sourcePath) return;
@@ -57,6 +60,12 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit }: { docume
           <button className="desktop-secondary" onClick={() => exportClick(v)} disabled={busy}><Save size={14}/>Exportar…</button>
         </div>
       </div>)}</div>}
+    {versions.length >= 2 && <div className="desktop-form" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr)) auto auto", alignItems: "end", marginTop: 12 }}>
+      <label><span>Comparar (esquerda)</span><select value={cmpL} onChange={e => setCmpL(e.target.value)}>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label>
+      <label><span>com (direita)</span><select value={cmpR} onChange={e => setCmpR(e.target.value)}>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label>
+      <a className="desktop-secondary" href={comparePath(cmpL, cmpR)} aria-disabled={cmpL === cmpR}>Comparar lado a lado</a>
+      <button className="desktop-secondary" onClick={compareTwoWindows} disabled={busy || cmpL === cmpR}>Abrir em duas janelas</button>
+    </div>}
     {message && <p className={"desktop-note " + message.tone} role="status" style={{ marginTop: 12 }}>{message.text}</p>}
     {pending && <div className="desktop-form" style={{ maxWidth: 460 }}>
       <label><span>Para substituir o arquivo existente em <span className="desktop-path">{pending.dest}</span>, digite SOBRESCREVER</span><input value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="off"/></label>

@@ -8,12 +8,13 @@
 mod server;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use lawyermind_core::open_files::{self, OpenQueue};
 use lawyermind_core::pg::{LocalPostgres, PgPaths};
+use lawyermind_core::windows;
 use serde::Serialize;
 use server::{Server, ServerPaths};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
@@ -128,6 +129,49 @@ fn queue_opens(app: &AppHandle, args: &[String], cwd: Option<&str>) {
         let _ = w.set_focus();
     }
     let _ = app.emit_to("main", "lawyermind-open-files", ());
+}
+
+/// Port of the local server (0 until it is ready); every window may only navigate to it.
+#[derive(Clone)]
+struct ServerPort(Arc<AtomicU16>);
+
+/// Numbers the additional windows (`doc-1`, `doc-2`, …); never reused within a run.
+#[derive(Default)]
+struct WindowCounter(AtomicU32);
+
+/// Opens one allow-listed document screen (see `lawyermind_core::windows`) in an additional window, e.g. for a
+/// second monitor. The calling window is not touched, so nothing in it is lost; the new window talks to the same
+/// local server and session, and every request is authorized there per user, workspace and document.
+/// `async` because creating a window from a synchronous command can deadlock on Windows.
+#[tauri::command]
+async fn open_document_window(app: AppHandle, state: State<'_, AppState>, port: State<'_, ServerPort>, counter: State<'_, WindowCounter>, path: String) -> Result<String, String> {
+    let path = windows::validate_path(&path).map_err(|e| e.to_string())?.to_string();
+    let base = state.0.lock().map_err(|_| "estado indisponível".to_string())?.startup.url.clone().ok_or_else(|| "O servidor local ainda não está pronto.".to_string())?;
+    let open = app.webview_windows().keys().filter(|l| l.starts_with(windows::LABEL_PREFIX)).count();
+    if open >= windows::MAX_EXTRA_WINDOWS {
+        return Err(format!("Já há {} janelas extras abertas. Feche uma para abrir outra.", windows::MAX_EXTRA_WINDOWS));
+    }
+    let url: tauri::Url = format!("{base}{path}").parse().map_err(|_| "endereço inválido".to_string())?;
+    let label = windows::label(counter.0.fetch_add(1, Ordering::SeqCst) + 1);
+    let allowed = port.0.clone();
+    #[allow(unused_mut)]
+    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url));
+    // WebView2 requires every window of the process to share the same browser arguments: keep this identical to `main`.
+    #[cfg(windows)]
+    if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+        builder = builder.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection {extra}"));
+    }
+    builder
+        .title("LawyerMind")
+        .inner_size(1100.0, 800.0)
+        .min_inner_size(720.0, 520.0)
+        .on_navigation(move |url| {
+            let port = allowed.load(Ordering::SeqCst);
+            url.scheme() == "http" && url.host_str() == Some("127.0.0.1") && port != 0 && url.port() == Some(port)
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(label)
 }
 
 // Hands over, once, the paths waiting to be opened.
@@ -329,6 +373,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(state.clone())
         .manage(opens.clone())
+        .manage(ServerPort(server_port.clone()))
+        .manage(WindowCounter::default())
         .setup({
             let state = state.clone();
             let server_port = server_port.clone();
@@ -391,7 +437,7 @@ pub fn run() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform, take_pending_opens])
+        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform, take_pending_opens, open_document_window])
         .build(context)
         .expect("falha ao iniciar o LawyerMind");
 
@@ -402,8 +448,13 @@ pub fn run() {
             let args: Vec<String> = urls.iter().map(|u| u.to_string()).collect();
             queue_opens(handle, &args, None);
         }
-        #[cfg(not(target_os = "macos"))]
-        let _ = handle;
+        // Closing the main window ends the app (server and PostgreSQL included), as before; closing an additional
+        // window does not.
+        if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
+            if label == "main" {
+                handle.exit(0);
+            }
+        }
         if let RunEvent::Exit = event {
             let mut i = match state.0.lock() { Ok(i) => i, Err(p) => p.into_inner() };
             if let (Some(stack), Some(dir)) = (i.stack.take(), i.state_dir.clone()) {

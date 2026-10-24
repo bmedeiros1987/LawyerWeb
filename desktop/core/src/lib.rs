@@ -8,5 +8,6 @@
 pub mod error;
 pub mod open_files;
 pub mod pg;
+pub mod windows;
 
 pub use error::{Error, Result};
