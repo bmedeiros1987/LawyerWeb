@@ -52,6 +52,7 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit }: { docume
         <div className="desktop-actions">
           {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit")} disabled={busy}><ExternalLink size={14}/>Abrir cópia para editar</button>}
           <button className="desktop-secondary" onClick={() => open(v.id, "read")} disabled={busy}><Eye size={14}/>Abrir somente leitura</button>
+          <a className="desktop-secondary" href={`/app/documentos/${documentId}/assistente/${v.id}`}>Conversar sobre o texto (IA)</a>
           {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit", true)} disabled={busy}><FolderOpen size={14}/>Mostrar pasta</button>}
           <button className="desktop-secondary" onClick={() => exportClick(v)} disabled={busy}><Save size={14}/>Exportar…</button>
         </div>
