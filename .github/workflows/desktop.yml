@@ -171,7 +171,7 @@ jobs:
               $names = if ($key) { $key.GetValueNames() } else { @() }
               $has = $names -contains $prog
               if ($has -ne $present) { throw "OpenWithProgids de ${e}: esperado presente=$present, obtido $has" }
-              if ((Test-Path "HKCU:\Software\Classes\$prog") -ne $present) { throw "ProgID $prog: esperado presente=$present" }
+              if ((Test-Path "HKCU:\Software\Classes\$prog") -ne $present) { throw "ProgID ${prog}: esperado presente=$present" }
             }
             $reg = (Get-ItemProperty -Path 'HKCU:\Software\RegisteredApplications' -ErrorAction SilentlyContinue).LawyerMind
             if ((($reg -eq 'Software\LawyerMind\Capabilities')) -ne $present) { throw "RegisteredApplications: esperado presente=$present, obtido '$reg'" }
