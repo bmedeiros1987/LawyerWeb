@@ -8,14 +8,16 @@
 mod server;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use lawyermind_core::open_files::{self, OpenQueue};
 use lawyermind_core::pg::{LocalPostgres, PgPaths};
+use lawyermind_core::windows;
 use serde::Serialize;
 use server::{Server, ServerPaths};
-use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -102,6 +104,81 @@ struct Inner {
 
 #[derive(Clone, Default)]
 struct AppState(Arc<Mutex<Inner>>);
+
+/// Files the OS asked LawyerMind to open (double click, "Open with", drag onto the icon). Only a lexical
+/// filter runs here; the local server re-checks every path before reading it, and nothing is imported
+/// until the user confirms.
+#[derive(Clone, Default)]
+struct Opens(Arc<OpenQueue>);
+
+/// Queues the acceptable paths, brings the window forward and tells the page to fetch them.
+/// Rejected arguments are only counted in the local log, never their names.
+fn queue_opens(app: &AppHandle, args: &[String], cwd: Option<&str>) {
+    let filtered = open_files::from_args(args, cwd);
+    if let Ok(dir) = app.path().app_local_data_dir() {
+        app_log(&lawyermind_core::pg::plain_path(&dir), &format!("arquivos recebidos do sistema: {} aceitos, {} recusados", filtered.accepted.len(), filtered.rejected.len()));
+    }
+    if filtered.accepted.is_empty() {
+        return;
+    }
+    if let Some(opens) = app.try_state::<Opens>() {
+        opens.0.push_all(filtered.accepted);
+    }
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+    let _ = app.emit_to("main", "lawyermind-open-files", ());
+}
+
+/// Port of the local server (0 until it is ready); every window may only navigate to it.
+#[derive(Clone)]
+struct ServerPort(Arc<AtomicU16>);
+
+/// Numbers the additional windows (`doc-1`, `doc-2`, …); never reused within a run.
+#[derive(Default)]
+struct WindowCounter(AtomicU32);
+
+/// Opens one allow-listed document screen (see `lawyermind_core::windows`) in an additional window, e.g. for a
+/// second monitor. The calling window is not touched, so nothing in it is lost; the new window talks to the same
+/// local server and session, and every request is authorized there per user, workspace and document.
+/// `async` because creating a window from a synchronous command can deadlock on Windows.
+#[tauri::command]
+async fn open_document_window(app: AppHandle, state: State<'_, AppState>, port: State<'_, ServerPort>, counter: State<'_, WindowCounter>, path: String) -> Result<String, String> {
+    let path = windows::validate_path(&path).map_err(|e| e.to_string())?.to_string();
+    let base = state.0.lock().map_err(|_| "estado indisponível".to_string())?.startup.url.clone().ok_or_else(|| "O servidor local ainda não está pronto.".to_string())?;
+    let open = app.webview_windows().keys().filter(|l| l.starts_with(windows::LABEL_PREFIX)).count();
+    if open >= windows::MAX_EXTRA_WINDOWS {
+        return Err(format!("Já há {} janelas extras abertas. Feche uma para abrir outra.", windows::MAX_EXTRA_WINDOWS));
+    }
+    let url: tauri::Url = format!("{base}{path}").parse().map_err(|_| "endereço inválido".to_string())?;
+    let label = windows::label(counter.0.fetch_add(1, Ordering::SeqCst) + 1);
+    let allowed = port.0.clone();
+    #[allow(unused_mut)]
+    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url));
+    // WebView2 requires every window of the process to share the same browser arguments: keep this identical to `main`.
+    #[cfg(windows)]
+    if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+        builder = builder.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection {extra}"));
+    }
+    builder
+        .title("LawyerMind")
+        .inner_size(1100.0, 800.0)
+        .min_inner_size(720.0, 520.0)
+        .on_navigation(move |url| {
+            let port = allowed.load(Ordering::SeqCst);
+            url.scheme() == "http" && url.host_str() == Some("127.0.0.1") && port != 0 && url.port() == Some(port)
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(label)
+}
+
+// Hands over, once, the paths waiting to be opened.
+#[tauri::command]
+fn take_pending_opens(opens: State<'_, Opens>) -> Vec<String> {
+    opens.0.take()
+}
 
 // Narrow platform metadata only (labels and keys of shortcuts): no shell, HTTP,
 // filesystem or credentials.
@@ -279,19 +356,29 @@ pub fn run() {
     }
 
     let state = AppState::default();
+    let opens = Opens::default();
+    // Windows/Linux: "Open with" passes the file as an argument of the first launch.
+    let cwd = std::env::current_dir().ok().map(|p| p.display().to_string());
+    opens.0.push_all(open_files::from_args(&args[1..], cwd.as_deref()).accepted);
     let server_port = Arc::new(AtomicU16::new(0));
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
                 let _ = w.set_focus();
             }
+            // A second launch with a file ("Open with" while the app is running) lands here.
+            queue_opens(app, args.get(1..).unwrap_or_default(), Some(&cwd));
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(state.clone())
+        .manage(opens.clone())
+        .manage(ServerPort(server_port.clone()))
+        .manage(WindowCounter::default())
         .setup({
             let state = state.clone();
             let server_port = server_port.clone();
+            let opens = opens.clone();
             move |app| {
                 let state_dir = lawyermind_core::pg::plain_path(&app.path().app_local_data_dir()?);
                 let resources = Resources::at(&app.path().resource_dir()?);
@@ -299,6 +386,7 @@ pub fn run() {
                     i.state_dir = Some(state_dir.clone());
                     i.startup = Startup { phase: "Iniciando o banco local…".into(), state_dir: Some(state_dir.display().to_string()), ..Default::default() };
                 }
+                app_log(&state_dir, &format!("arquivos recebidos do sistema: {} na partida", opens.0.len()));
                 // Only the splash screen (bundled) and the local server may be shown.
                 let allowed = server_port.clone();
                 #[allow(unused_mut)]
@@ -349,11 +437,24 @@ pub fn run() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform])
+        .invoke_handler(tauri::generate_handler![startup_status, pick_file, pick_folder, pick_save, desktop_platform, take_pending_opens, open_document_window])
         .build(context)
         .expect("falha ao iniciar o LawyerMind");
 
-    app.run(move |_handle, event| {
+    app.run(move |handle, event| {
+        // macOS delivers files through an open event, whether the app was closed or already running.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Opened { urls } = &event {
+            let args: Vec<String> = urls.iter().map(|u| u.to_string()).collect();
+            queue_opens(handle, &args, None);
+        }
+        // Closing the main window ends the app (server and PostgreSQL included), as before; closing an additional
+        // window does not.
+        if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
+            if label == "main" {
+                handle.exit(0);
+            }
+        }
         if let RunEvent::Exit = event {
             let mut i = match state.0.lock() { Ok(i) => i, Err(p) => p.into_inner() };
             if let (Some(stack), Some(dir)) = (i.stack.take(), i.state_dir.clone()) {

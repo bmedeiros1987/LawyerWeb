@@ -1,0 +1,10 @@
+.doc-ai{display:grid;gap:12px;max-width:880px}
+.doc-ai textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--border,#d6d9e0);border-radius:8px;background:var(--paper,#fff)}
+.doc-ai-provider{padding:10px 12px;border-radius:8px;border:1px solid var(--border,#d6d9e0)}
+.doc-ai-provider.off{background:rgba(120,120,120,.08)}
+.doc-ai-error{color:#9b1c1c}
+.doc-ai-nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.doc-ai-consent{display:flex;gap:8px;align-items:flex-start}
+.doc-ai-notice{font-weight:600}
+.doc-ai-suggestion{border:1px solid var(--border,#d6d9e0);border-radius:8px;padding:10px;display:grid;gap:6px}
+.doc-ai blockquote{margin:0;padding-left:10px;border-left:3px solid var(--border,#c9ccd3)}
