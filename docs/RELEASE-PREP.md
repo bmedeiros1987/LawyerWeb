@@ -61,5 +61,16 @@ A pasta de artefatos contém, para cada plataforma: o instalador real (`*-setup.
 
 Reverter: remover (ou renomear) `update-manifest.json` da release, ou transformá-la em rascunho/pré-lançamento — o app deixa de oferecer imediatamente.
 
+## Primeira execução sobre artefatos reais da CI (não é uma release)
+Execução [40255248704](https://github.com/bmedeiros1987/LawyerWeb/actions/runs/40255248704) do `desktop.yml` na cabeça `bb5062e`, com os três jobs verdes. A CI agora grava `dist-desktop/evidence/<alvo>.json` **somente depois** de os testes da plataforma passarem (instalação, autoteste offline, desinstalar preserva dados, reinstalar, GUI); `upgradeFromPrevious` sai como `not-run` e a assinatura de código como `false`.
+
+| Plataforma | Instalador | SHA-256 | Testes no app instalado | Assinatura de código | Atualizador (.sig) |
+|---|---|---|---|---|---|
+| Windows x64 | `LawyerMind_0.1.0-bb5062e_x64-setup.exe` | `7b40fc6f7346176af5e5be0b15fbd28cb3a8d478f26012a4b332a7768c10dbe6` | autoteste, desinstalar/reinstalar, associações, abrir arquivo, fechar janela: passaram | **não** | **não** |
+| Mac Apple Silicon | `LawyerMind_0.1.0-bb5062e_aarch64.dmg` | `dd619c145546390adc1d555f143c58fa4611ffdc95dff7720a7805de3af665fa` | idem (Info.plist `Alternate`, abrir arquivo): passaram | **não** (ad-hoc), sem notarização | **não** |
+| Mac Intel | — | — | sem job | — | — |
+
+`--channel test` sobre esses arquivos: **aprovado como build de teste, nunca anunciável** (sem `update-manifest.json`). `--channel production` sobre os **mesmos** arquivos: **NÃO APROVADO**, com os bloqueios exatos: sem chave pública e sem `.sig` do atualizador, `upgradeFromPrevious` não executado, sem assinatura de código (Windows e Mac) e sem notarização (Mac). Esses são os itens que dependem de contas, chaves e decisões do titular.
+
 ## Não verificado
 Nada foi construído, assinado ou publicado. Os testes (`tests/release-prep.test.ts`, 24) usam instaladores **sintéticos** e a chave pública de teste RFC 8032; provam os portões e a compatibilidade com o verificador do app, não a qualidade de um instalador real.

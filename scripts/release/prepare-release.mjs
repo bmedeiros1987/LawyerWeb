@@ -86,7 +86,11 @@ export function prepare({ root, tag, artifacts, notesFile, pubkeyFile, channel, 
   if (!found.size) fail("Nenhum instalador (.exe/.dmg) encontrado.");
 
   let pub = null;
-  try { pub = parsePublicKey(fs.readFileSync(pubkeyFile, "utf8")); } catch (e) { fail(`Chave pública do atualizador ausente ou inválida: ${e.message}`); }
+  try { pub = parsePublicKey(fs.readFileSync(pubkeyFile, "utf8")); }
+  catch (e) {
+    if (channel === "production") fail(`Chave pública do atualizador ausente ou inválida: ${e.message}`);
+    else warnings.push("Sem chave pública do atualizador: nenhuma assinatura foi verificada (aceitável só no canal test).");
+  }
 
   const entries = [], rows = [];
   for (const [target, a] of found) {
@@ -102,7 +106,9 @@ export function prepare({ root, tag, artifacts, notesFile, pubkeyFile, channel, 
       try {
         const sig = parseSignature(sigText);
         const msg = sig.algorithm === "ED" ? { blake2b512: crypto.createHash("blake2b512").update(fs.readFileSync(a.file)).digest() } : { bytes: fs.readFileSync(a.file) };
-        if (pub && verifySignature(pub, sig, msg)) row.signature = "válida"; else { row.signature = "INVÁLIDA"; fail(`Assinatura do atualizador de "${a.name}" não confere com a chave pública.`); }
+        if (!pub) row.signature = "não verificada (sem chave pública)";
+        else if (verifySignature(pub, sig, msg)) row.signature = "válida";
+        else { row.signature = "INVÁLIDA"; fail(`Assinatura do atualizador de "${a.name}" não confere com a chave pública.`); }
       } catch (e) { row.signature = "ilegível"; fail(`Assinatura de "${a.name}" ilegível: ${e.message}`); }
     } else if (channel === "production") fail(`Sem arquivo de assinatura "${a.name}.sig".`);
     else warnings.push(`${target}: sem assinatura do atualizador ("${a.name}.sig"); aceitável só no canal test, nunca anunciável.`);
@@ -169,9 +175,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, all) => (v.startsWith("--") ? [...acc, [v.slice(2), all[i + 1]?.startsWith("--") ? "true" : all[i + 1] ?? "true"]] : acc), []));
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   if (args["check-versions"]) { const p = checkVersions(args.root ?? root, args.tag ?? ""); console.log(p.length ? p.join("\n") : "versões consistentes"); process.exit(p.length ? 1 : 0); }
-  const need = ["tag", "artifacts", "notes", "pubkey", "channel", "out"].filter(k => !args[k]);
+  const need = ["tag", "artifacts", "notes", "channel", "out", ...(args.channel === "production" ? ["pubkey"] : [])].filter(k => !args[k]);
   if (need.length) { console.error(`Faltam: ${need.map(n => "--" + n).join(" ")}`); process.exit(2); }
-  const r = prepare({ root: args.root ?? root, tag: args.tag, artifacts: path.resolve(args.artifacts), notesFile: path.resolve(args.notes), pubkeyFile: path.resolve(args.pubkey), channel: args.channel, out: path.resolve(args.out), required: args.require ? args.require.split(",") : DEFAULT_REQUIRED });
+  const r = prepare({ root: args.root ?? root, tag: args.tag, artifacts: path.resolve(args.artifacts), notesFile: path.resolve(args.notes), pubkeyFile: path.resolve(args.pubkey ?? "/nonexistent-pubkey"), channel: args.channel, out: path.resolve(args.out), required: args.require ? args.require.split(",") : DEFAULT_REQUIRED });
   for (const f of r.failures) console.error("BLOQUEIO:", f);
   for (const w of r.warnings) console.log("aviso:", w);
   console.log(r.ok ? `ok (${args.channel}): ${r.written.join(", ")}` : "NÃO APROVADO: nada foi liberado.");
