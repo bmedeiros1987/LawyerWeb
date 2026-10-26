@@ -70,6 +70,9 @@ Reverter: remover (ou renomear) `update-manifest.json` da release, ou transform�
 - O formato foi provado contra a saída **real** do `tauri signer` (fixture em `tests/fixtures/tauri-signer/`, gerada com uma chave descartável): assinatura minisign pré-hash `ED`, base64.
 - Isto **não** é assinatura de código do sistema: o certificado do Windows e a Developer ID/notarização da Apple continuam sendo gates separados (contas e custos do titular).
 
+## Ensaio em tamanho real (sem chave de produção)
+`tests/real-artifacts-rehearsal.test.ts` (ignorado salvo com `LM_REHEARSAL_DIR`) passa instaladores reais pelo mesmo `downloadVerifiedPackage` do app, assinados pelo `tauri signer` real com uma chave **descartável**: nunca assine com a chave de produção builds que o sistema operacional não assinou. Resultado medido sobre os instaladores da execução 40255248704: `.dmg` de 176,9 MiB verificado em ~0,9 s e `.exe` de 65,1 MiB em ~0,3 s, sem crescimento relevante de memória (transmissão em fluxo), e um byte alterado é recusado pelo SHA-256 sem deixar arquivo. Com essas assinaturas, `prepare-release --channel production` deixa de bloquear por assinatura do atualizador e sobram só os gates humanos: assinatura de código (Windows), assinatura e notarização (Mac) e o teste de atualização de um instalador para o seguinte.
+
 ## Primeira execução sobre artefatos reais da CI (não é uma release)
 Execução [40255248704](https://github.com/bmedeiros1987/LawyerWeb/actions/runs/40255248704) do `desktop.yml` na cabeça `bb5062e`, com os três jobs verdes. A CI agora grava `dist-desktop/evidence/<alvo>.json` **somente depois** de os testes da plataforma passarem (instalação, autoteste offline, desinstalar preserva dados, reinstalar, GUI); `upgradeFromPrevious` sai como `not-run` e a assinatura de código como `false`.
 
