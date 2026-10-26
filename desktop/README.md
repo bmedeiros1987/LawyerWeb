@@ -207,6 +207,8 @@ em [docs/OFFLINE-DESKTOP.md](../docs/OFFLINE-DESKTOP.md); a aceitação desse ri
   distribuição exige assinatura Developer ID e notarização (ver "Assinatura e notarização").
 - **Linux** (`.deb`): `sudo apt install ./LawyerMind_<versão>_amd64.deb`.
 
+**Abrir com / aplicativo padrão (PDF e DOCX):** o instalador oferece o LawyerMind em "Abrir com" e nas listas de aplicativos do sistema, **sem se tornar o padrão**. Ao abrir um arquivo com ele, você revisa e confirma antes de importar uma cópia. Detalhes, limites e o que não foi verificado: [docs/FILE-ASSOCIATIONS.md](../docs/FILE-ASSOCIATIONS.md).
+
 No primeiro acesso, crie a conta proprietária e **guarde a chave de recuperação**; depois crie o
 workspace.
 
