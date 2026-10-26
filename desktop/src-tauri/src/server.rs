@@ -112,6 +112,9 @@ impl Server {
             .env("MBLZ_DESKTOP", "1")
             .env("MBLZ_DESKTOP_STATE_DIR", &paths.state_dir)
             .env("MBLZ_DESKTOP_VERSION", version)
+            // Public key (minisign) that downloaded update packages must be signed with. It is public by design;
+            // the private key is never in the repository. Without it the app refuses to download any package.
+            .env("MBLZ_UPDATER_PUBLIC_KEY", include_str!("../updater.pub").trim())
             .env("MBLZ_DESKTOP_MIGRATIONS_DIR", paths.server_dir.join("prisma").join("migrations"))
             .env("DATABASE_URL", database_url)
             .env("AUTH_SECRET", &secret)

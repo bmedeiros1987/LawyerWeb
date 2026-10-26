@@ -38,7 +38,7 @@ Nada instala: a instalação continua indisponível e depende do item 3.
 
 ## 3. O que falta e por que está parado (exige o que não foi autorizado)
 
-1. **Chave de assinatura do updater** (par minisign/Tauri). Não gerei nenhuma. A chave privada vai para um *secret* do repositório; a pública vai para `MBLZ_UPDATER_PUBLIC_KEY` e para `plugins.updater.pubkey`.
+1. **Chave de assinatura do updater** (par minisign/Tauri): **gerada**. A pública está em `desktop/src-tauri/updater.pub` e já é entregue ao servidor local como `MBLZ_UPDATER_PUBLIC_KEY`; a privada e a senha ficam fora do git com o titular (veja `docs/RELEASE-PREP.md`). Falta o plugin do Tauri (`plugins.updater.pubkey` usaria esta mesma chave).
 2. **Certificado Windows** (OV/EV ou Azure Artifact Signing) e **Developer ID + notarização Apple**: contas, identidade e custo do titular. Veja "Assinatura e notarização" em `desktop/README.md`.
 3. **Plugin do Tauri**: adicionar `tauri-plugin-updater`, `createUpdaterArtifacts`, capabilities e a chamada de instalação, e testar o fluxo N→N+1 com o app instalado em cada SO. Não compilei o Tauri neste ambiente (sem toolchain Rust/webkit), então isso não foi verificado aqui.
 4. **Job Intel nativo** no `desktop.yml` (por exemplo um runner macOS Intel) mais prova de que o autoteste do app instalado passa nele. Não editei o workflow para não duplicar nem alterar a CI da #60 sem aprovação; a mudança proposta é uma entrada nova na matriz com `bundles: app,dmg`.

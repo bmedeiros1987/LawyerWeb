@@ -61,6 +61,15 @@ A pasta de artefatos contém, para cada plataforma: o instalador real (`*-setup.
 
 Reverter: remover (ou renomear) `update-manifest.json` da release, ou transformá-la em rascunho/pré-lançamento — o app deixa de oferecer imediatamente.
 
+## Chave do atualizador (minisign / Tauri)
+- **Chave pública**, no repositório: `desktop/src-tauri/updater.pub`. O shell a entrega ao servidor local (`MBLZ_UPDATER_PUBLIC_KEY`) e o app **só baixa pacotes assinados por ela**. `prepare-release --channel production --pubkey desktop/src-tauri/updater.pub` usa o mesmo arquivo.
+- **Chave privada e senha**: geradas com o `tauri signer` do projeto e entregues **fora do git** (pasta `.deliverables/secrets/` da sessão; o `.gitignore` bloqueia `*.key`, `*.p12`, `*.pfx`, `*.pem`, `secrets/` e `updater-key-password*`, e um teste falha se qualquer cabeçalho de chave privada entrar no repositório). Guarde-as num cofre de senhas e cadastre como *secrets* do GitHub **somente se** um workflow de release assinar (ainda não existe).
+- **Perder a chave privada** impede que apps já instalados verifiquem atualizações novas (a chave pública está embutida no app): seria preciso reinstalar manualmente. Trocar a chave exige uma versão intermediária assinada pela chave antiga.
+- **Assinar um instalador** (localmente, com a chave privada e a senha em variáveis de ambiente, nunca em arquivo versionado):
+  `TAURI_SIGNING_PRIVATE_KEY="$(cat lawyermind-updater.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD='<senha>' npx tauri signer sign <instalador>` gera `<instalador>.sig`, que o `prepare-release` verifica.
+- O formato foi provado contra a saída **real** do `tauri signer` (fixture em `tests/fixtures/tauri-signer/`, gerada com uma chave descartável): assinatura minisign pré-hash `ED`, base64.
+- Isto **não** é assinatura de código do sistema: o certificado do Windows e a Developer ID/notarização da Apple continuam sendo gates separados (contas e custos do titular).
+
 ## Primeira execução sobre artefatos reais da CI (não é uma release)
 Execução [40255248704](https://github.com/bmedeiros1987/LawyerWeb/actions/runs/40255248704) do `desktop.yml` na cabeça `bb5062e`, com os três jobs verdes. A CI agora grava `dist-desktop/evidence/<alvo>.json` **somente depois** de os testes da plataforma passarem (instalação, autoteste offline, desinstalar preserva dados, reinstalar, GUI); `upgradeFromPrevious` sai como `not-run` e a assinatura de código como `false`.
 
