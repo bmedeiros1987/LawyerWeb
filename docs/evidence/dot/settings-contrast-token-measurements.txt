@@ -1,0 +1,6 @@
+Static opaque CSS token pairs, WCAG relative luminance formula. Not rendered coverage or app compliance.
+light body: 18.13:1 (#12161D/#FFFFFF)
+light auxiliary: 7.57:1 (#4a5564/#FFFFFF)
+dark body: 13.52:1 (#f3f5f8/#1a293a)
+dark auxiliary: 9.38:1 (#c5cfdd/#1a293a)
+sidebar auxiliary: 10.13:1 (#bdc7d3/#0E1B2C)

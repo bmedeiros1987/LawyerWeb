@@ -17,7 +17,7 @@ function Shell({label,icon,children}:{label:string;icon:"contract"|"document";ch
 export function QuickContractForm({workspaceId,clients,matters,members}:{workspaceId:string;clients:ClientOption[];matters:MatterOption[];members:MemberOption[]}) {
   const router=useRouter(); const [saving,setSaving]=useState(false); const [error,setError]=useState("");
   async function submit(e:FormEvent<HTMLFormElement>){
-    e.preventDefault();setSaving(true);setError("");const fd=new FormData(e.currentTarget);
+    e.preventDefault();const form=e.currentTarget;setSaving(true);setError("");const fd=new FormData(e.currentTarget);
     const amountRaw=String(fd.get("amount")||"").replace(",",".");
     const noticeRaw=String(fd.get("noticeDays")||"");
     const effectiveAt=String(fd.get("effectiveAt")||"");
@@ -35,7 +35,7 @@ export function QuickContractForm({workspaceId,clients,matters,members}:{workspa
     const r=await fetch("/api/contracts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){setError(data?.error??"Não foi possível cadastrar o contrato.");setSaving(false);return}
-    e.currentTarget.reset();setSaving(false);router.push("/app/contratos/"+data.contract.id);router.refresh();
+    form.reset();setSaving(false);router.push("/app/contratos/"+data.contract.id);router.refresh();
   }
   return <Shell label="Novo contrato" icon="contract"><form className="quick-form" onSubmit={submit}>
     <label><span>Nome do contrato</span><input name="title" required minLength={2} placeholder="Ex.: Prestação de serviços — Cliente X"/></label>
@@ -66,12 +66,12 @@ export function QuickContractForm({workspaceId,clients,matters,members}:{workspa
 export function QuickLegalDocumentForm({workspaceId,clients,matters}:{workspaceId:string;clients:ClientOption[];matters:MatterOption[]}) {
   const router=useRouter(); const [saving,setSaving]=useState(false); const [error,setError]=useState("");
   async function submit(e:FormEvent<HTMLFormElement>){
-    e.preventDefault();setSaving(true);setError("");const fd=new FormData(e.currentTarget);
+    e.preventDefault();const form=e.currentTarget;setSaving(true);setError("");const fd=new FormData(e.currentTarget);
     const body={workspaceId,name:fd.get("name"),kind:fd.get("kind"),status:fd.get("status"),clientId:fd.get("clientId")||undefined,matterId:fd.get("matterId")||undefined};
     const r=await fetch("/api/documents",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){setError(data?.error??"Não foi possível criar o documento.");setSaving(false);return}
-    e.currentTarget.reset();setSaving(false);router.push("/app/documentos/"+data.document.id);router.refresh();
+    form.reset();setSaving(false);router.push("/app/documentos/"+data.document.id);router.refresh();
   }
   return <Shell label="Novo documento" icon="document"><form className="quick-form" onSubmit={submit}>
     <label><span>Nome</span><input name="name" required minLength={2} placeholder="Ex.: Parecer jurídico — contratação"/></label>

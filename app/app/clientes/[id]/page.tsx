@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { P, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
+import { EditClientForm } from "@/components/record-edit-forms";
 
 export const dynamic="force-dynamic";
 
@@ -24,8 +25,10 @@ export default async function ClientPage({params}:{params:Promise<{id:string}>})
     },
   });
   if(!client) notFound();
+  const canEdit=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.CLIENTS_EDIT));
 
   return <div className="page-stack">
+    {canEdit&&<div style={{display:"flex",justifyContent:"flex-end"}}><EditClientForm client={{id:client.id,type:client.type,name:client.name,legalName:client.legalName,cpfCnpj:client.cpfCnpj,email:client.email,phone:client.phone,notes:client.notes}}/></div>}
     <section className="matter-hero client-hero">
       <div className="matter-hero-main">
         <div className="client-big-icon">{client.type==="INDIVIDUAL"?<UserRound size={26}/>:<Building2 size={26}/>}</div>

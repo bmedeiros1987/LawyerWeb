@@ -53,5 +53,7 @@ jobs:
         run: npx prisma db push
       - name: Security regression tests
         run: npm test
+      - name: Court sync and synthetic module tests (dot patches)
+        run: npm run test:desktop-courts && npm run test:synthetic
       - name: Build
         run: npm run build

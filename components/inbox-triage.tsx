@@ -91,7 +91,7 @@ export function InboxTriage({
       </div>
       {canGenerateAgentDraft&&<div className="inbox-agent-draft">
         <div className="inbox-agent-draft-head">
-          <div><Bot size={15}/><span><strong>MBLZ Agent</strong><small>Gera apenas um rascunho. Nada é enviado automaticamente.</small></span></div>
+          <div><Bot size={15}/><span><strong>LawyerMind Agent</strong><small>Gera apenas um rascunho. Nada é enviado automaticamente.</small></span></div>
           <button type="button" disabled={Boolean(busy)} onClick={generateDraft}><Bot size={13}/>{busy==="AGENT_DRAFT"?"Redigindo…":draft?"Gerar novamente":"Gerar rascunho"}</button>
         </div>
         {draft&&<div className="inbox-agent-draft-copy">

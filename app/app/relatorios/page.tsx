@@ -84,7 +84,7 @@ export default async function Page() {
         <article className="panel">
           <div className="panel-heading"><div><span className="eyebrow">Higiene operacional</span><h2>Assuntos sem atualização</h2></div><span className="status-pill quiet">90+ dias</span></div>
           {staleMatters.length===0?<div className="mini-empty">Nenhum assunto ativo está há mais de 90 dias sem atualização interna.</div>:<div className="simple-list">{staleMatters.slice(0,10).map(m=><Link href={"/app/processos/"+m.id} key={m.id}><span className="table-icon"><BriefcaseBusiness size={15}/></span><div><strong>{m.number??m.title}</strong><small>{m.client?.name??m.title} · atualizado {m.updatedAt.toLocaleDateString("pt-BR")}</small></div><span>›</span></Link>)}</div>}
-          <p className="report-caveat">Este indicador usa a última atualização do registro no MBLZ. Ele só será chamado de “sem movimentação processual” quando o módulo de andamentos judiciais estiver alimentando uma data oficial de movimentação.</p>
+          <p className="report-caveat">Este indicador usa a última atualização do registro no LawyerMind. Ele só será chamado de “sem movimentação processual” quando o módulo de andamentos judiciais estiver alimentando uma data oficial de movimentação.</p>
         </article>
       </aside>
     </section>

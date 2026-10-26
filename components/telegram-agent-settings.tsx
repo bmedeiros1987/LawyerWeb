@@ -81,7 +81,7 @@ export function TelegramAgentSettings({
 
     {!botReady&&canManage&&<form className="telegram-bot-connect quick-form" onSubmit={connectBot}>
       <label><span>Token do bot do escritório</span><input name="botToken" type="password" required autoComplete="new-password" placeholder="Cole o token fornecido pelo BotFather"/></label>
-      <p className="form-hint">O MBLZ valida o token, registra o webhook HTTPS automaticamente e armazena o segredo criptografado. O token não volta para o navegador.</p>
+      <p className="form-hint">O LawyerMind valida o token, registra o webhook HTTPS automaticamente e armazena o segredo criptografado. O token não volta para o navegador.</p>
       <button className="form-submit" disabled={busy==="bot"}><Send size={14}/>{busy==="bot"?"Configurando…":"Conectar bot Telegram"}</button>
     </form>}
 

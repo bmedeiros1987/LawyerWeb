@@ -1,0 +1,150 @@
+
+> lawyerweb@0.1.0 build
+> prisma generate && next build
+
+Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (7.10.0) to ./generated/prisma in 200ms
+
+▲ Next.js 16.3.8 (Turbopack)
+✓ Running next.config.ts took 869ms
+- Experiments (use with caution):
+  · cpus: 4
+  · staticGenerationMaxConcurrency: 4
+  · staticGenerationMinPagesPerWorker: 8
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.3s
+  Running TypeScript ...
+  Finished TypeScript in 1672ms ...
+  Collecting page data using 4 workers ...
+  Generating static pages using 4 workers (0/43) ...
+  Generating static pages using 4 workers (10/43)
+  Generating static pages using 4 workers (21/43)
+  Generating static pages using 4 workers (32/43)
+✓ Generating static pages using 4 workers (43/43) in 151ms
+Turbopack build encountered 1 warning:
+./lib/desktop/backup.ts:273:31
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m271 |[0m ...[36mnst[0m real = realPathLoose(target);
+  [90m272 |[0m ...[36mr[0m ([36mconst[0m reserved [36mof[0m [[32m"pgdata"[0m, [32m"backups"[0m, [32m"leitura"[0m]) {
+[33m[1m>[0m [90m273 |[0m ...[36mconst[0m r = realPathLoose(path.join(desktopStateDir(), reserved));
+  [90m    |[0m                            [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m274 |[0m ...[36mif[0m (isInside(r, real) || isInside(real, r)) [36mthrow[0m [36mnew[0m [33mDesktopError[0m([32m"Escolha uma pasta ...[0m
+  [90m275 |[0m ...
+  [90m276 |[0m ... (fs.existsSync(target)) {
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import traces:
+  App Route:
+    ./lib/desktop/backup.ts
+    ./app/api/desktop/backup/verify/route.ts
+
+  Instrumentation:
+    ./lib/desktop/backup.ts
+    ./lib/desktop/migrate.ts
+    ./instrumentation.ts
+
+
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/agenda/events
+├ ƒ /api/agenda/events/[id]
+├ ƒ /api/agent/chat
+├ ƒ /api/agent/email-draft
+├ ƒ /api/agent/preferences
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/clients
+├ ƒ /api/clients/[id]
+├ ƒ /api/contracts
+├ ƒ /api/contracts/[id]
+├ ƒ /api/cron/deadline-safety
+├ ƒ /api/cron/google-calendar-watch
+├ ƒ /api/cron/google-gmail-watch
+├ ƒ /api/deadlines
+├ ƒ /api/deadlines/[id]/complete
+├ ƒ /api/deadlines/[id]/confirm
+├ ƒ /api/desktop/accounts
+├ ƒ /api/desktop/accounts/[id]/password
+├ ƒ /api/desktop/auth/[action]
+├ ƒ /api/desktop/backup
+├ ƒ /api/desktop/backup/restore
+├ ƒ /api/desktop/backup/verify
+├ ƒ /api/desktop/courts/[id]
+├ ƒ /api/desktop/documents/import
+├ ƒ /api/desktop/documents/versions/[id]/export
+├ ƒ /api/desktop/documents/versions/[id]/open
+├ ƒ /api/desktop/status
+├ ƒ /api/desktop/storage/check
+├ ƒ /api/desktop/storage/root
+├ ƒ /api/documents
+├ ƒ /api/documents/[id]
+├ ƒ /api/health
+├ ƒ /api/health/database
+├ ƒ /api/inbox/triage
+├ ƒ /api/intake/share-target
+├ ƒ /api/integrations/google-calendar/callback
+├ ƒ /api/integrations/google-calendar/connect
+├ ƒ /api/integrations/google-calendar/disconnect
+├ ƒ /api/integrations/google-gmail/callback
+├ ƒ /api/integrations/google-gmail/connect
+├ ƒ /api/integrations/google-gmail/disconnect
+├ ƒ /api/integrations/openclaw
+├ ƒ /api/integrations/telegram
+├ ƒ /api/integrations/telegram/pair
+├ ƒ /api/integrations/whatsapp
+├ ƒ /api/integrations/whatsapp/pair
+├ ƒ /api/matters
+├ ƒ /api/matters/[id]
+├ ƒ /api/matters/[id]/records
+├ ƒ /api/push/subscriptions
+├ ƒ /api/tasks
+├ ƒ /api/tasks/[id]
+├ ƒ /api/webhooks/google-calendar
+├ ƒ /api/webhooks/google-gmail
+├ ƒ /api/webhooks/telegram/[id]
+├ ƒ /api/webhooks/whatsapp/[id]
+├ ƒ /api/workspaces
+├ ƒ /app
+├ ƒ /app/agenda
+├ ƒ /app/clientes
+├ ƒ /app/clientes/[id]
+├ ƒ /app/computador
+├ ƒ /app/contratos
+├ ƒ /app/contratos/[id]
+├ ƒ /app/documentos
+├ ƒ /app/documentos/[id]
+├ ƒ /app/equipe
+├ ƒ /app/financeiro
+├ ƒ /app/inbox
+├ ƒ /app/integrations
+├ ƒ /app/integrations/openclaw
+├ ƒ /app/inteligencia
+├ ƒ /app/prazos
+├ ƒ /app/processos
+├ ƒ /app/processos/[id]
+├ ƒ /app/relatorios
+├ ƒ /app/setup
+├ ƒ /app/tarefas
+├ ƒ /login
+├ ○ /manifest.webmanifest
+└ ○ /preview
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

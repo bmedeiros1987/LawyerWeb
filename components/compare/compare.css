@@ -1,0 +1,32 @@
+.cmp{display:grid;gap:12px}
+.cmp-safe{font-weight:600}
+.cmp-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:12px;align-items:end}
+.cmp-picker select{width:100%}
+.cmp-error{color:#9b1c1c}
+.cmp-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.cmp-meta small{display:block;overflow-wrap:anywhere}
+.cmp-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.cmp-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(260px,1.2fr);gap:16px;align-items:start}
+.cmp-scroll{max-height:70vh;overflow:auto;border:1px solid var(--border,#d6d9e0);border-radius:8px;padding:8px}
+.cmp-row{display:grid;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05)}
+.cmp-cell p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.cmp-cell.empty{opacity:.55}
+.cmp-page{display:block;opacity:.7}
+.cmp-row.k-inserted .cmp-cell:not(.empty){background:rgba(46,160,67,.12)}
+.cmp-row.k-deleted .cmp-cell:not(.empty){background:rgba(207,34,46,.10)}
+.cmp-row.k-moved .cmp-cell:not(.empty){background:rgba(130,80,223,.10)}
+.cmp mark{background:transparent;color:inherit;border-radius:3px}
+.cmp mark.chg{background:rgba(255,200,0,.35)}
+.cmp mark.src.attention{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:2px}
+.cmp mark.src.info{text-decoration:underline dotted}
+.cmp mark.active{outline:2px solid #1f6feb;background:rgba(31,111,235,.18)}
+.cmp-obs{max-height:70vh;overflow:auto}
+.cmp-obs ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cmp-obs li{border:1px solid var(--border,#d6d9e0);border-radius:8px}
+.cmp-obs li.active{border-color:#1f6feb}
+.cmp-obs-btn{all:unset;display:block;padding:8px;cursor:pointer;width:calc(100% - 16px);overflow-wrap:anywhere}
+.cmp-obs-btn:focus-visible{outline:2px solid #1f6feb}
+.cmp-obs-detail{padding:0 8px 8px}
+.cmp-obs-detail blockquote{margin:6px 0;padding-left:8px;border-left:3px solid var(--border,#c9ccd3);overflow-wrap:anywhere}
+@media (max-width:900px){.cmp-grid,.cmp-picker,.cmp-meta{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.cmp *{scroll-behavior:auto}}

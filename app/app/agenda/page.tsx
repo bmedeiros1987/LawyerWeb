@@ -98,7 +98,7 @@ export default async function Page() {
                     timeStyle: "short",
                     timeZone: member.workspace.timezone,
                   }) ?? "Horário não informado";
-              const source = event.source === "GOOGLE" ? "Google" : "MBLZ";
+              const source = event.source === "GOOGLE" ? "Google" : "LawyerMind";
               return <div key={event.id}>
                 <span className="table-icon"><Clock3 size={15}/></span>
                 <div>

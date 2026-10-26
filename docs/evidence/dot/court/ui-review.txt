@@ -1,0 +1,27 @@
+Production UI review, 2026-10-07, synthetic disposable cluster only.
+
+Passed:
+- Local login for court-ui@example.invalid into a newly provisioned database.
+- Process page displays both sources, manual-disabled mode and initial Never state.
+- DataJud availability button records a local attempt, displays unavailable, leaves
+  last complete success Never and communication count 0.
+- Reload preserves unavailable state and timestamp.
+- Navigating to a process in another workspace returns the application's 404 page.
+- Panel moved from narrow sidebar to full width and revalidated after production rebuild.
+- Real full-page screenshot saved locally as court-desktop.jpg.
+
+Limits:
+- Browser client blocked direct navigation to the JSON API path; no attempt to bypass.
+  Data access was verified through the UI, transactional store tests and production
+  component requests. Dedicated negative auth/CSRF route tests remain useful.
+- Browser automation later timed out during a scroll; the responsive-window override
+  was not reached (the preceding viewport screenshot file was not created).
+  Small-window, 200% zoom and complete keyboard/focus review remain pending.
+- Full-page screenshot places sticky header at the current scroll position.
+- Reference PR60 text snapshot omits binary branding assets; screenshot's missing
+  logo does not mean this patch removes the real PR60 assets.
+- No browser/device notification permission was requested, and no push was sent.
+
+Cleanup:
+Both UI runs were stopped using the provisioner's scoped stop file. Each runner
+stopped Next.js and its newly created PostgreSQL cluster, then discarded the cluster.

@@ -84,7 +84,7 @@ export function OpenClawAgentSettings({
           <label><span>ID do agente</span><input name="agentId" defaultValue="default" required/></label>
           <label><span>Token do Gateway</span><input name="gatewayToken" type="password" required autoComplete="new-password"/></label>
         </div>
-        <p className="form-hint">Use <strong>default</strong> para o agente padrão do Gateway ou informe o ID exato de um agente configurado. O token é enviado somente ao servidor MBLZ, fica criptografado e nunca é devolvido ao navegador.</p>
+        <p className="form-hint">Use <strong>default</strong> para o agente padrão do Gateway ou informe o ID exato de um agente configurado. O token é enviado somente ao servidor LawyerMind, fica criptografado e nunca é devolvido ao navegador.</p>
         <button className="form-submit" disabled={busy==="connect"}><Bot size={15}/>{busy==="connect"?"Testando…":"Conectar OpenClaw"}</button>
       </form>:<div className="mini-empty">A conexão do Gateway é configurada pelo responsável pelo workspace.</div>}
     </section>
@@ -111,12 +111,12 @@ export function OpenClawAgentSettings({
     </section>
 
     <section className="panel agent-test-panel">
-      <div className="panel-heading"><div><span className="eyebrow">Teste seguro</span><h2>Conversar com o agente MBLZ</h2></div><Bot size={18}/></div>
+      <div className="panel-heading"><div><span className="eyebrow">Teste seguro</span><h2>Conversar com o agente LawyerMind</h2></div><Bot size={18}/></div>
       {connected?<form className="agent-chat-form" onSubmit={ask}>
         <textarea name="message" rows={4} maxLength={12000} placeholder="Ex.: Quais são meus prazos e tarefas mais importantes de hoje?"/>
         <button className="new-button" disabled={busy==="chat"}><Send size={14}/>{busy==="chat"?"Consultando…":"Enviar"}</button>
       </form>:<div className="mini-empty">Conecte primeiro um Gateway OpenClaw.</div>}
-      {reply&&<div className="agent-reply"><strong>MBLZ Agent</strong><p>{reply}</p></div>}
+      {reply&&<div className="agent-reply"><strong>LawyerMind Agent</strong><p>{reply}</p></div>}
     </section>
 
     {error&&<section className="panel contract-alert"><div><strong>Não foi possível concluir.</strong><span>{error}</span></div></section>}

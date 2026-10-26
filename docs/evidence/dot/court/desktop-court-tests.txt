@@ -1,0 +1,182 @@
+
+> lawyerweb@0.1.0 test:desktop-courts
+> node --experimental-strip-types --test tests/desktop-court-sync.test.mjs tests/desktop-court-http.test.mjs
+
+TAP version 13
+# Subtest: transport is disabled by default, even with credentials
+ok 1 - transport is disabled by default, even with credentials
+  ---
+  duration_ms: 1.514625
+  type: 'test'
+  ...
+# Subtest: secret, inactive and missing credentials refuse before making a request
+ok 2 - secret, inactive and missing credentials refuse before making a request
+  ---
+  duration_ms: 0.208083
+  type: 'test'
+  ...
+# Subtest: DataJud uses fixed HTTPS origin, exact term, explicit key and no redirects
+ok 3 - DataJud uses fixed HTTPS origin, exact term, explicit key and no redirects
+  ---
+  duration_ms: 21.88875
+  type: 'test'
+  ...
+# Subtest: DataJud rejects no exact hit, ambiguous hit and malformed structure
+ok 4 - DataJud rejects no exact hit, ambiguous hit and malformed structure
+  ---
+  duration_ms: 0.964416
+  type: 'test'
+  ...
+# Subtest: 429 stops without retry and hides provider body
+ok 5 - 429 stops without retry and hides provider body
+  ---
+  duration_ms: 0.245333
+  type: 'test'
+  ...
+# Subtest: timeout, HTTP failure, invalid JSON and oversize response are explicit failures
+ok 6 - timeout, HTTP failure, invalid JSON and oversize response are explicit failures
+  ---
+  duration_ms: 1.595833
+  type: 'test'
+  ...
+# Subtest: DJEN remains dormant even when explicitly enabled, including backlog checkpoints
+ok 7 - DJEN remains dormant even when explicitly enabled, including backlog checkpoints
+  ---
+  duration_ms: 0.19425
+  type: 'test'
+  ...
+# Subtest: DJEN has no environment or credential path that activates it
+ok 8 - DJEN has no environment or credential path that activates it
+  ---
+  duration_ms: 0.087625
+  type: 'test'
+  ...
+# Subtest: DJEN arbitrary HTTPS links are never classified as official
+ok 9 - DJEN arbitrary HTTPS links are never classified as official
+  ---
+  duration_ms: 0.342333
+  type: 'test'
+  ...
+# Subtest: redelivery and concurrent calls dedupe capture and internal notice
+ok 10 - redelivery and concurrent calls dedupe capture and internal notice
+  ---
+  duration_ms: 3.335625
+  type: 'test'
+  ...
+# Subtest: same provider identity is isolated by workspace, matter and source
+ok 11 - same provider identity is isolated by workspace, matter and source
+  ---
+  duration_ms: 0.38725
+  type: 'test'
+  ...
+# Subtest: notification failure rolls back events and cursor; re-delivery retries
+ok 12 - notification failure rolls back events and cursor; re-delivery retries
+  ---
+  duration_ms: 0.404208
+  type: 'test'
+  ...
+# Subtest: partial response imports evidence without advancing cursor or last success
+ok 13 - partial response imports evidence without advancing cursor or last success
+  ---
+  duration_ms: 0.233541
+  type: 'test'
+  ...
+# Subtest: provider failures preserve cursor and success; private messages do not leak
+ok 14 - provider failures preserve cursor and success; private messages do not leak
+  ---
+  duration_ms: 0.201834
+  type: 'test'
+  ...
+# Subtest: missing credentials, rate limit and timeout are unavailable with no retry
+ok 15 - missing credentials, rate limit and timeout are unavailable with no retry
+  ---
+  duration_ms: 0.160125
+  type: 'test'
+  ...
+# Subtest: default production provider performs zero network requests
+ok 16 - default production provider performs zero network requests
+  ---
+  duration_ms: 0.1495
+  type: 'test'
+  ...
+# Subtest: ineligible scope never calls provider or records attempt
+ok 17 - ineligible scope never calls provider or records attempt
+  ---
+  duration_ms: 0.075083
+  type: 'test'
+  ...
+# Subtest: source mismatch and malformed response cannot advance cursor
+ok 18 - source mismatch and malformed response cannot advance cursor
+  ---
+  duration_ms: 0.336958
+  type: 'test'
+  ...
+# Subtest: preserves source date, invalid raw dates and capture timestamp separately
+ok 19 - preserves source date, invalid raw dates and capture timestamp separately
+  ---
+  duration_ms: 0.378125
+  type: 'test'
+  ...
+# Subtest: DataJud first snapshot is baseline evidence, identical second snapshot has zero new notices
+ok 20 - DataJud first snapshot is baseline evidence, identical second snapshot has zero new notices
+  ---
+  duration_ms: 0.768375
+  type: 'test'
+  ...
+# Subtest: DataJud more than 200 historical identities never become notices after bootstrap or reordering
+ok 21 - DataJud more than 200 historical identities never become notices after bootstrap or reordering
+  ---
+  duration_ms: 14.281625
+  type: 'test'
+  ...
+# Subtest: DataJud bounded checkpoints drain new identities without advancing complete cursor early
+ok 22 - DataJud bounded checkpoints drain new identities without advancing complete cursor early
+  ---
+  duration_ms: 3.879708
+  type: 'test'
+  ...
+# Subtest: DataJud checkpoint rolls back on notice failure and resumes safely after provider failure
+ok 23 - DataJud checkpoint rolls back on notice failure and resumes safely after provider failure
+  ---
+  duration_ms: 3.28575
+  type: 'test'
+  ...
+# Subtest: DataJud refuses legacy, other-source or changed-process baselines rather than reannouncing history
+ok 24 - DataJud refuses legacy, other-source or changed-process baselines rather than reannouncing history
+  ---
+  duration_ms: 2.6755
+  type: 'test'
+  ...
+# Subtest: DataJud bootstrap avoids history flood; late/undated/same-time events remain candidates
+ok 25 - DataJud bootstrap avoids history flood; late/undated/same-time events remain candidates
+  ---
+  duration_ms: 0.120125
+  type: 'test'
+  ...
+# Subtest: adapters reject a different process and expose truncation without false success
+ok 26 - adapters reject a different process and expose truncation without false success
+  ---
+  duration_ms: 1.153833
+  type: 'test'
+  ...
+# Subtest: DJEN strips executable HTML and keeps provider source and query window
+ok 27 - DJEN strips executable HTML and keeps provider source and query window
+  ---
+  duration_ms: 0.664792
+  type: 'test'
+  ...
+# Subtest: DJEN bootstrap preserves evidence and requests only one initial internal notice
+ok 28 - DJEN bootstrap preserves evidence and requests only one initial internal notice
+  ---
+  duration_ms: 0.148708
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 145.028167

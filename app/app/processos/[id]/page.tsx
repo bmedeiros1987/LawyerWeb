@@ -8,6 +8,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { P, canAccessMatter, memberWithPermission } from "@/lib/authz/permissions";
 import { getActiveMembership } from "@/lib/workspace/context";
+import { EditMatterForm } from "@/components/record-edit-forms";
+import { isDesktop } from "@/lib/desktop/env";
+import { DesktopCourtStatus } from "@/components/desktop/court-status";
 
 export const dynamic="force-dynamic";
 
@@ -47,7 +50,9 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
   const openTasks=matter.tasks.filter(t=>!["DONE","CANCELLED"].includes(t.status));
   const confirmedDeadlineCount=matter.deadlines.filter(d=>countsAsConfirmedDeadlineRecord(d.status)).length;
 
+  const canEditMatter=Boolean(await memberWithPermission(session.user.id,member.workspaceId,P.MATTERS_EDIT));
   return <div className="page-stack">
+    {canEditMatter&&<div style={{display:"flex",justifyContent:"flex-end"}}><EditMatterForm matter={{id:matter.id,number:matter.number,internalCode:matter.internalCode,title:matter.title,practiceArea:matter.practiceArea,court:matter.court,jurisdiction:matter.jurisdiction,courtUnit:matter.courtUnit,phase:matter.phase}}/></div>}
     <section className="matter-hero">
       <div className="matter-hero-main">
         <div className="matter-kicker">{matter.secrecy&&<LockKeyhole size={14}/>}<span>{matter.number||matter.internalCode||"Assunto interno"}</span></div>
@@ -67,6 +72,7 @@ export default async function MatterPage({params}:{params:Promise<{id:string}>})
       <article className="metric-card"><div className="metric-icon"><BellRing size={19}/></div><span>Comunicações</span><strong>{matter.communications.length}</strong><small>{matter.communications.filter(c=>c.status==="NEW").length} novas</small></article>
     </section>
 
+    {isDesktop() && <DesktopCourtStatus matterId={matter.id}/>}
     <section className="matter-layout">
       <article className="panel panel-wide">
         <div className="panel-heading"><div><span className="eyebrow">Timeline</span><h2>Histórico do assunto</h2></div><span className="status-pill quiet">{timeline.length} eventos</span></div>

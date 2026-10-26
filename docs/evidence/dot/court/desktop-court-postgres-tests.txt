@@ -1,0 +1,16 @@
+
+> lawyerweb@0.1.0 test:desktop-courts:db
+> node scripts/validate-desktop-courts.mjs
+
+
+ RUN  v3.2.4 /Users/marinamoura/Documents/Codex/2026-10-07/task-4/LawyerWeb-clean
+
+ ✓ tests/desktop-court-store-db.test.ts (11 tests | 1 skipped) 896ms
+   ✓ court store on an exclusive disposable PostgreSQL cluster > real bounded DataJud checkpoints drain 201 new identities exactly once  380ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed | 1 skipped (11)
+   Start at  08:41:54
+   Duration  1.10s (transform 115ms, setup 0ms, collect 67ms, tests 896ms, environment 0ms, prepare 39ms)
+
+Exclusive PostgreSQL cluster validated; no existing database used.

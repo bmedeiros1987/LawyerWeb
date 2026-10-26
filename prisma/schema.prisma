@@ -95,6 +95,7 @@ model User {
   agentExternalIdentities AgentExternalIdentity[]
   agentConversations AgentConversation[]
   agentChannelPreferences AgentChannelPreference[]
+  displayPreference UserDisplayPreference?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -889,4 +890,14 @@ model AgentChannelEvent {
   metadata Json?
   @@unique([channelConnectionId,externalEventId])
   @@index([workspaceId,channel,receivedAt])
+}
+
+/// Reading preferences of one person (text size, density, theme). Applied on every page.
+model UserDisplayPreference {
+  userId String @id
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  fontScale Int @default(100)
+  density String @default("comfortable")
+  theme String @default("system")
+  updatedAt DateTime @updatedAt
 }

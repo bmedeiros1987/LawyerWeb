@@ -183,7 +183,7 @@ export function WhatsAppAgentSettings({
       </div>
       <label><span>Token de acesso</span><input name="accessToken" type="password" required autoComplete="new-password"/></label>
       <label><span>Segredo do aplicativo</span><input name="appSecret" type="password" required autoComplete="new-password"/></label>
-      <p className="form-hint">Os segredos são enviados apenas ao servidor MBLZ e armazenados criptografados. A versão da Graph API é informada pelo administrador conforme o app configurado na Meta.</p>
+      <p className="form-hint">Os segredos são enviados apenas ao servidor LawyerMind e armazenados criptografados. A versão da Graph API é informada pelo administrador conforme o app configurado na Meta.</p>
       <button className="form-submit" disabled={busy === "configure"}><MessageCircle size={15}/>{busy === "configure" ? "Validando…" : pending ? "Configurar novamente" : "Configurar WhatsApp Cloud"}</button>
     </form>}
 
@@ -203,7 +203,7 @@ export function WhatsAppAgentSettings({
         <span className="agent-channel-icon"><MessageCircle size={18}/></span>
         <div>
           <strong>{paired ? "Seu WhatsApp está vinculado" : "Vincule seu WhatsApp"}</strong>
-          <span>{paired ? `Conectado como ${identity?.displayName ?? "usuário WhatsApp"}.` : "O link temporário associa somente o seu número ao seu usuário MBLZ."}</span>
+          <span>{paired ? `Conectado como ${identity?.displayName ?? "usuário WhatsApp"}.` : "O link temporário associa somente o seu número ao seu usuário LawyerMind."}</span>
         </div>
       </div>
 

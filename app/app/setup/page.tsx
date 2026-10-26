@@ -18,7 +18,7 @@ export default async function WorkspaceSetupPage() {
     <section className="setup-card">
       <span className="eyebrow">Primeiro acesso</span>
       <h1>Vamos configurar seu espaço jurídico.</h1>
-      <p>O MBLZ se adapta à estrutura do escritório. Você começa com perfis e proteção de prazos prontos, mas pode ajustar tudo depois.</p>
+      <p>O LawyerMind se adapta à estrutura do escritório. Você começa com perfis e proteção de prazos prontos, mas pode ajustar tudo depois.</p>
       <WorkspaceSetupForm/>
       <div className="setup-foot">
         <strong>O que é criado automaticamente</strong>

@@ -5,8 +5,8 @@ export default function Home() {
   return <main className="landing-page">
     <nav className="landing-nav">
       <div className="landing-brand">
-        <img src="/brand/mblz-app-icon.svg" alt="MBLZ"/>
-        <div><strong>MBLZ</strong><span>Legal Operating System</span></div>
+        <img src="/brand/lawyermind-app-icon.png" alt="LawyerMind"/>
+        <div><strong>LawyerMind</strong><span>Gestão jurídica</span></div>
       </div>
       <div className="landing-nav-actions">
         <Link className="landing-ghost" href="/preview">Ver demonstração</Link>
@@ -16,7 +16,7 @@ export default function Home() {
 
     <section className="landing-hero">
       <div className="landing-copy">
-        <span className="eyebrow">MBLZ Legal OS</span>
+        <span className="eyebrow">LawyerMind</span>
         <h1>O jurídico,<br/><em>sem ruído.</em></h1>
         <p>Processos, prazos, contratos, documentos, agenda e inteligência jurídica reunidos em uma experiência simples, rastreável e construída para o trabalho real.</p>
         <div className="landing-cta">
@@ -26,14 +26,14 @@ export default function Home() {
       </div>
 
       <div className="landing-visual">
-        <div className="landing-orb"><img src="/brand/mblz-eagle.svg" alt="Símbolo MBLZ"/></div>
+        <div className="landing-orb"><img src="/brand/lawyermind-symbol-cream.png" alt="Símbolo LawyerMind"/></div>
         <article className="landing-float one">
           <span className="landing-dot critical"/>
           <div><small>Deadline Safety</small><strong>Prazo crítico identificado</strong></div>
         </article>
         <article className="landing-float two">
           <Sparkles size={18}/>
-          <div><small>MBLZ Intelligence</small><strong>Revisão com contexto e fontes</strong></div>
+          <div><small>LawyerMind Intelligence</small><strong>Revisão com contexto e fontes</strong></div>
         </article>
         <article className="landing-float three">
           <CheckCircle2 size={18}/>

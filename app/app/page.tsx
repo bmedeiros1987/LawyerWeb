@@ -55,10 +55,10 @@ export default async function Dashboard(){
   ].sort((a,b)=>b.at.getTime()-a.at.getTime()).slice(0,5);
 
   return <div className="page-stack home-minimal">
-    <section className="welcome-row home-welcome"><div><span className="eyebrow">Hoje</span><h1>O que precisa da sua atenção.</h1><p>Sem painel de vaidade. Só o que muda sua próxima ação.</p></div><Link href="/app/inteligencia" className="ask-mblz"><Sparkles size={17}/>Perguntar ao MBLZ</Link></section>
+    <section className="welcome-row home-welcome"><div><span className="eyebrow">Hoje</span><h1>O que precisa da sua atenção.</h1><p>Sem painel de vaidade. Só o que muda sua próxima ação.</p></div><Link href="/app/inteligencia" className="ask-mblz"><Sparkles size={17}/>Perguntar ao LawyerMind</Link></section>
 
     <section className="home-pulse">
-      <div className="home-section-head"><div><span className="eyebrow">MBLZ Pulse</span><h2>Prioridades agora</h2></div><Link href="/app/inbox">Ver Caixa Jurídica <ArrowUpRight size={14}/></Link></div>
+      <div className="home-section-head"><div><span className="eyebrow">LawyerMind Pulse</span><h2>Prioridades agora</h2></div><Link href="/app/inbox">Ver Caixa Jurídica <ArrowUpRight size={14}/></Link></div>
       {pulse.length===0?<div className="home-calm"><CheckCircle2 size={18}/><div><strong>Nenhuma exceção importante.</strong><span>O Pulse fica silencioso quando não há nada que exija decisão.</span></div></div>:<div className="home-pulse-grid">{pulse.map((item,index)=>{
         const Icon=item.icon==="deadline"?Clock3:item.icon==="communication"?Gavel:item.icon==="contract"?FileText:CheckCircle2;
         return <Link href={item.href} className={"home-pulse-item "+(item.tone==="danger"?"critical":"")} key={item.icon+index}><span className="home-pulse-icon"><Icon size={17}/></span><div><strong>{item.title}</strong><span>{item.detail}</span></div><b className={"status-pill "+item.tone}>{item.label}</b></Link>
