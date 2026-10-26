@@ -104,10 +104,11 @@ export function prepare({ root, tag, artifacts, notesFile, pubkeyFile, channel, 
         const msg = sig.algorithm === "ED" ? { blake2b512: crypto.createHash("blake2b512").update(fs.readFileSync(a.file)).digest() } : { bytes: fs.readFileSync(a.file) };
         if (pub && verifySignature(pub, sig, msg)) row.signature = "válida"; else { row.signature = "INVÁLIDA"; fail(`Assinatura do atualizador de "${a.name}" não confere com a chave pública.`); }
       } catch (e) { row.signature = "ilegível"; fail(`Assinatura de "${a.name}" ilegível: ${e.message}`); }
-    } else fail(`Sem arquivo de assinatura "${a.name}.sig".`);
+    } else if (channel === "production") fail(`Sem arquivo de assinatura "${a.name}.sig".`);
+    else warnings.push(`${target}: sem assinatura do atualizador ("${a.name}.sig"); aceitável só no canal test, nunca anunciável.`);
     // Platform evidence: tests that ran on that platform, and how it is signed.
     const evFile = path.join(artifacts, "evidence", `${target}.json`);
-    if (!fs.existsSync(evFile)) { fail(`Sem evidência de testes/assinatura para ${target} (evidence/${target}.json).`); }
+    if (!fs.existsSync(evFile)) { if (channel === "production") fail(`Sem evidência de testes/assinatura para ${target} (evidence/${target}.json).`); else warnings.push(`${target}: sem evidence/${target}.json; os testes por plataforma não estão registrados.`); }
     else {
       const ev = evidenceSchema.safeParse(JSON.parse(fs.readFileSync(evFile, "utf8")));
       if (!ev.success) fail(`Evidência de ${target} malformada.`);

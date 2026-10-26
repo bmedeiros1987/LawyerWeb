@@ -347,6 +347,26 @@ jobs:
           echo "encerrar o app parou o servidor e o PostgreSQL" | tee "$EV/close-window.txt"
           cp "$data/logs/app.log" "$EV/app-gui.log"
 
+      # Machine-readable evidence for scripts/release/prepare-release.mjs. It exists ONLY if every step above (install,
+      # offline self-test, uninstall keeps data, reinstall, GUI) succeeded. Facts that are not tested here are recorded
+      # as such: no installer N→N+1 test, and these builds are never code-signed or notarized.
+      - name: Evidence file (only after this platform's tests passed)
+        if: success()
+        run: |
+          node -e '
+            const fs = require("fs");
+            const target = { "windows-x64": "windows-x86_64", "macos-arm64": "darwin-aarch64", "linux-x64": "linux-x86_64" }["${{ matrix.name }}"];
+            const e = {
+              target, version: JSON.parse(fs.readFileSync("desktop/package.json", "utf8")).version, builtFrom: process.env.CODE_SHA,
+              runUrl: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              tests: { installedSelfTest: "pass", upgradeFromPrevious: "not-run", uninstallKeepsData: "pass" },
+              signing: target.startsWith("darwin") ? { codeSigned: false, notarized: false } : { codeSigned: false },
+            };
+            fs.mkdirSync("dist-desktop/evidence", { recursive: true });
+            fs.writeFileSync("dist-desktop/evidence/" + target + ".json", JSON.stringify(e, null, 2) + "\n");
+            console.log(JSON.stringify(e));
+          '
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

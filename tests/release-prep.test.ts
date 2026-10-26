@@ -125,6 +125,14 @@ describe("test channel (reviewable, unsigned builds)", () => {
     const report = fs.readFileSync(path.join(s.out, "release-report-test.md"), "utf8");
     expect(report).toMatch(/build de TESTE \(nunca anunciável\)/); expect(report).toMatch(/NÃO assinado/);
   });
+  it("raw CI artifacts (no .sig, no evidence file) are reviewable as warnings in the test channel, and still blocked in production", () => {
+    const strip = (a: string) => { fs.rmSync(path.join(a, "evidence"), { recursive: true }); for (const f of fs.readdirSync(a)) if (f.endsWith(".sig")) fs.rmSync(path.join(a, f)); };
+    const s = scenario("t-raw", { mutate: strip });
+    const r = run(s, "test");
+    expect(r.code).toBe(0); expect(r.wrote).not.toContain("update-manifest.json");
+    expect(r.out).toMatch(/sem assinatura do atualizador/); expect(r.out).toMatch(/sem evidence\/windows-x86_64\.json/);
+    expect(run(scenario("t-raw-prod", { mutate: strip }), "production").code).toBe(1);
+  });
   it("still refuses facts that cannot be reviewed: hash mismatch and ambiguous names", () => {
     expect(run(scenario("t-hash", { mutate: a => edit(a, FILES.win, b => Buffer.concat([b, Buffer.from("!")])) }), "test").code).toBe(1);
   });
