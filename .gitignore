@@ -7,3 +7,11 @@ node_modules
 coverage
 generated/prisma
 *.tsbuildinfo
+
+# Never commit signing material (updater private key, certificates, passwords)
+*.key
+*.p12
+*.pfx
+*.pem
+**/secrets/
+updater-key-password*
