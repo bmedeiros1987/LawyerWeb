@@ -25,7 +25,7 @@ import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { prisma } from "@/lib/prisma";
 import { desktopStateDir, DesktopError } from "./env";
-import { containedPath, ensureContainedDir, fsyncDir, isInside, openContained, realDir, realPathLoose, safeName } from "./paths";
+import { alreadyWorkingCopyMessage, containedPath, ensureContainedDir, fsyncDir, isInside, openContained, realDir, realPathLoose, safeName } from "./paths";
 import { documentsRoot, setDocumentsRoot } from "./settings";
 import { withStoreLock } from "./lock";
 import { syncMarker } from "./sync";
@@ -33,6 +33,7 @@ import { syncMarker } from "./sync";
 export const SOURCE = "DESKTOP_IMPORT";
 export const OVERWRITE_CONFIRMATION = "SOBRESCREVER";
 const MAX_BYTES = 2 * 1024 ** 3;
+export const DERIVED_DIR = "derivados";
 
 const MIME: Record<string, string> = {
   ".pdf": "application/pdf", ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -51,6 +52,8 @@ export async function ensureWorkingRoot(client?: PoolClient): Promise<string> {
 type ImportInput = {
   userId: string; workspaceId: string; sourcePath: string;
   clientId?: string | null; matterId?: string | null; documentId?: string | null; name?: string | null; kind?: string | null;
+  /** Set only by the app's own tools (pdf-tools.ts): `sourcePath` is a file it just wrote under <dados>/derivados. */
+  derived?: { operation: string; fromVersionIds: string[] };
 };
 
 export async function importDocument(input: ImportInput) {
@@ -68,8 +71,11 @@ async function importLocked(input: ImportInput, client: PoolClient) {
   if (!source || !path.isAbsolute(source)) throw new DesktopError("Escolha o arquivo a importar.", 400);
   const root = await ensureWorkingRoot(client);
   const realSource = realPathLoose(source);
-  if (isInside(root, realSource)) throw new DesktopError("Este arquivo já é uma cópia de trabalho do LawyerMind.", 400);
-  if (isInside(realPathLoose(desktopStateDir()), realSource)) throw new DesktopError("Escolha um arquivo fora da pasta de dados do LawyerMind.", 400);
+  if (isInside(root, realSource)) throw new DesktopError(alreadyWorkingCopyMessage(root, realSource), 400, "inside-root");
+  const derivedDir = path.join(desktopStateDir(), DERIVED_DIR);
+  if (input.derived) {
+    if (!isInside(realPathLoose(derivedDir), realSource)) throw new DesktopError("Arquivo derivado fora da pasta de trabalho temporária.", 400);
+  } else if (isInside(realPathLoose(desktopStateDir()), realSource)) throw new DesktopError("Escolha um arquivo fora da pasta de dados do LawyerMind.", 400);
 
   // Read-only: the only handle ever opened on the original is "r".
   let fd: number;
@@ -96,7 +102,8 @@ async function importLocked(input: ImportInput, client: PoolClient) {
   const originalName = path.basename(source);
   const ext = path.extname(originalName).toLowerCase();
   const provenance = {
-    originalPath: path.resolve(source), originalSize: size, originalModifiedAt: before.mtime.toISOString(),
+    ...(input.derived ? { derived: input.derived } : {}),
+    originalPath: input.derived ? `(gerado no LawyerMind: ${input.derived.operation})` : path.resolve(source), originalSize: size, originalModifiedAt: before.mtime.toISOString(),
     originalInSyncFolder: syncMarker(source), importedAt: new Date().toISOString(), originalTreatedAsReadOnly: true,
   };
 
@@ -129,9 +136,10 @@ async function importLocked(input: ImportInput, client: PoolClient) {
         source: SOURCE, notes: JSON.stringify(provenance), createdByUserId: input.userId,
       } });
       await tx.activityLog.create({ data: {
-        workspaceId: input.workspaceId, userId: input.userId, type: "DOCUMENT_IMPORTED", entityType: "LegalDocument", entityId: documentId,
-        summary: `Cópia de trabalho importada: ${originalName} (versão ${version})`, source: "DESKTOP",
-        metadata: { sha256: digest, size, originalInSyncFolder: provenance.originalInSyncFolder },
+        workspaceId: input.workspaceId, userId: input.userId, type: input.derived ? "DOCUMENT_DERIVED" : "DOCUMENT_IMPORTED", entityType: "LegalDocument", entityId: documentId,
+        summary: input.derived ? `Cópia derivada (${input.derived.operation}): ${originalName} (versão ${version})` : `Cópia de trabalho importada: ${originalName} (versão ${version})`,
+        source: "DESKTOP",
+        metadata: { sha256: digest, size, originalInSyncFolder: provenance.originalInSyncFolder, ...(input.derived ? { derived: input.derived } : {}) },
       } });
       ensureContainedDir(root, key.split("/").slice(0, -1).join("/"));
       const dest = containedPath(root, key, "absent");

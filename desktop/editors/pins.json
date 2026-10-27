@@ -1,0 +1,34 @@
+{
+  "_comment": "Upstream sources, pinned by full commit SHA. Changing a pin requires re-reading the diff, regenerating the patches and updating LICENSES/ and docs/EDITORS.md.",
+  "pdf": {
+    "repo": "https://github.com/storytold/pdfcraft.git",
+    "sha": "1dd2737b47a9c1c9562f0af563053d1bf510e4bf",
+    "package": "pdfcraft",
+    "binary": "pdfcraft",
+    "output": "lawyermind-pdf"
+  },
+  "word": {
+    "repo": "https://github.com/storytold/wordcraft.git",
+    "sha": "2cf1d6c7ae94723a45bd6e7e8c884fe375148750",
+    "package": "wordcraft",
+    "binary": "wordcraft",
+    "output": "lawyermind-word"
+  },
+  "rust": "1.95.0",
+  "i18n": {
+    "_comment": "Interface translations for WordCraft (craft-i18n, MIT OR Apache-2.0). The commit is the one WordCraft itself pins in craft-i18n.rev; build.mjs verifies they match.",
+    "repo": "https://github.com/storytold/craft-i18n.git",
+    "sha": "9205108cfdced5177706264038848b68b2422d2b"
+  },
+  "dictionary": {
+    "_comment": "Brazilian Portuguese Hunspell dictionary (VERO), bundled UNMODIFIED. Licence: LGPLv3 / MPL (README_pt_BR.txt). Files are verified by SHA-256.",
+    "repoRaw": "https://raw.githubusercontent.com/LibreOffice/dictionaries",
+    "sha": "67032ee957631908098a72edf48dc81cac27e369",
+    "dir": "pt_BR",
+    "files": {
+      "pt_BR.aff": "21d8ad2a769a60e17e2b5ea4ef11d4d593a58b9e2a82d642ef82d6a4c5523865",
+      "pt_BR.dic": "a38bfb26b68ece2834e79fe83e48d5792652970ace12db89d1b9674bf9933183",
+      "README_pt_BR.txt": "9974ce691fdc1fe731717d7a2dc668244405fdc2bf9bf3367eb9b29e85177c88"
+    }
+  }
+}

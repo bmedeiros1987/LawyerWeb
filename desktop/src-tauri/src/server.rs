@@ -14,6 +14,8 @@ pub struct ServerPaths {
     pub node: PathBuf,
     pub server_dir: PathBuf,
     pub state_dir: PathBuf,
+    pub editors_dir: PathBuf,
+    pub runtime_dir: PathBuf,
 }
 
 pub struct Server {
@@ -26,6 +28,10 @@ pub struct Server {
 const PASS_ENV: &[&str] = &[
     "PATH", "SystemRoot", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
     "LOCALAPPDATA", "APPDATA", "LANG", "LC_ALL", "TZ", "OneDrive", "OneDriveCommercial", "OneDriveConsumer",
+    // System variables a graphical program started from here (the bundled editors) needs on Windows.
+    // No credentials or tokens: the server hands the editors only an allow-list of these (lib/desktop/editors.ts).
+    "SystemDrive", "ProgramData", "ALLUSERSPROFILE", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "COMSPEC", "PATHEXT",
+    "HOMEDRIVE", "HOMEPATH", "USERNAME", "USERDOMAIN", "COMPUTERNAME", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
     "XDG_RUNTIME_DIR", "DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS",
     // Set only by `--self-test`: documents are not opened in desktop programs.
     "MBLZ_DESKTOP_NO_LAUNCH",
@@ -114,6 +120,9 @@ impl Server {
             .env("MBLZ_DESKTOP_VERSION", version)
             // Public key (minisign) that downloaded update packages must be signed with. It is public by design;
             // the private key is never in the repository. Without it the app refuses to download any package.
+            .env("MBLZ_EDITORS_DIR", &paths.editors_dir)
+            .env("MBLZ_NODE_PATH", &paths.node)
+            .env("MBLZ_RUNTIME_DIR", &paths.runtime_dir)
             .env("MBLZ_UPDATER_PUBLIC_KEY", include_str!("../updater.pub").trim())
             .env("MBLZ_DESKTOP_MIGRATIONS_DIR", paths.server_dir.join("prisma").join("migrations"))
             .env("DATABASE_URL", database_url)

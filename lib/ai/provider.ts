@@ -9,6 +9,8 @@ export type ProviderStatus = {
   reason: string;
   /** True when the excerpt leaves this computer. Shown in the consent text. */
   sendsDataOutsideDevice: boolean;
+  /** The owner marked this as a free/unpaid plan: providers often let free-tier content be used to improve their products. */
+  freeTier?: boolean;
   /** Plain statements from the provider's official terms, once verified by a person. Never invented. */
   terms?: { retention?: string; training?: string; commercialUse?: string; checkedAt: string; source: string };
 };

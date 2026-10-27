@@ -4,6 +4,8 @@ import { getDisplayPreferences } from "@/lib/ui/preferences";
 import { PreferencesForm } from "@/components/ui/preferences-form";
 import { UpdatePanel } from "@/components/desktop/update-panel";
 import { DefaultAppsPanel } from "@/components/desktop/default-apps-panel";
+import { AiProviderPanel } from "@/components/desktop/ai-provider-panel";
+import { McpPanel } from "@/components/desktop/mcp-panel";
 import { desktopVersion, isDesktop } from "@/lib/desktop/env";
 
 export const dynamic = "force-dynamic";
@@ -15,5 +17,7 @@ export default async function SettingsPage() {
     <PreferencesForm initial={await getDisplayPreferences(session.user.id)}/>
     {isDesktop() && <UpdatePanel installedVersion={desktopVersion()}/>}
     {isDesktop() && <DefaultAppsPanel/>}
+    {isDesktop() && <AiProviderPanel/>}
+    {isDesktop() && <McpPanel/>}
   </div>;
 }

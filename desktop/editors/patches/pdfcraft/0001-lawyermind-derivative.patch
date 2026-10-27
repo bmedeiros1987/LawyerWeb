@@ -1,0 +1,1307 @@
+diff --git a/apps/pdfcraft/src/main.rs b/apps/pdfcraft/src/main.rs
+index f8e4e5b..3566daa 100644
+--- a/apps/pdfcraft/src/main.rs
++++ b/apps/pdfcraft/src/main.rs
+@@ -194,11 +194,6 @@ fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<S
+ }
+ 
+ fn main() -> eframe::Result {
+-    // Windows: the update helper is a copy of this program started with `--finish-update`.
+-    #[cfg(windows)]
+-    if let Some(result) = craft_update::self_update::finish(&craft_update::suite::PDFCRAFT, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
+-        std::process::exit(i32::from(result.is_err()));
+-    }
+     // First, so the panic hook and every start-up warning are recorded (`logging`).
+     let logger = logging::install();
+     // Last-resort guard (AGENTS.md §4): commands, edits, opens and saves catch panics and report
+@@ -340,7 +335,7 @@ fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
+ /// The window and renderer settings for one run.
+ fn native_options(integrated: bool, app_frame: bool, renderer: eframe::Renderer) -> eframe::NativeOptions {
+     let mut viewport = egui::ViewportBuilder::default()
+-        .with_title("PdfCraft")
++        .with_title("LawyerMind PDF")
+         .with_inner_size([1440.0, 920.0])
+         .with_min_inner_size([820.0, 520.0])
+         .with_drag_and_drop(true)
+@@ -423,7 +418,7 @@ fn app_creator<'a>(
+         {
+             app.motion.source = Some(motion::source());
+         }
+-        app.set_startup_update_check(true);
++        app.set_startup_update_check(false);
+         app.printer_source = Some(pdfcraft_ui_egui::system_printers());
+         app.os_key_store_ids = cfg!(any(target_os = "macos", target_os = "windows"));
+         #[cfg(target_os = "macos")]
+diff --git a/crates/engine/src/commands.rs b/crates/engine/src/commands.rs
+index 1f25c23..f59bcfd 100644
+--- a/crates/engine/src/commands.rs
++++ b/crates/engine/src/commands.rs
+@@ -393,11 +393,6 @@ pub const COMMANDS: &[CommandSpec] = &[
+     c("page.split", "Split document…", PAGES, None, Assembly, "scissors"),
+     c("page.number", "Number pages…", PAGES, None, Assembly, "hash"),
+     c("help.shortcuts", "Keyboard shortcuts", HELP, None, Nothing, "circle-help"),
+-    c("help.discord", "Join the ArtCraft Discord", HELP, None, Nothing, "messages-square"),
+-    c("help.app_page", "PdfCraft web page", HELP, None, Nothing, "globe"),
+-    c("help.github", "PdfCraft on GitHub", HELP, None, Nothing, "code-xml"),
+-    c("help.website", "ArtCraft website", HELP, None, Nothing, "external-link"),
+-    c("help.check_updates", "Check for updates…", HELP, None, Nothing, "cloud"),
+     c("help.about", "About PdfCraft", HELP, None, Nothing, "info"),
+ ];
+ 
+diff --git a/crates/engine/src/links.rs b/crates/engine/src/links.rs
+index e1d54d5..ecd4d4f 100644
+--- a/crates/engine/src/links.rs
++++ b/crates/engine/src/links.rs
+@@ -23,12 +23,8 @@ pub struct Link {
+ }
+ 
+ /// In the order they are shown. Discord comes first: it is where people get help fastest.
+-pub const LINKS: &[Link] = &[
+-    Link { command: "help.discord", label: "Join the ArtCraft Discord", url: DISCORD, icon: "messages-square" },
+-    Link { command: "help.app_page", label: "PdfCraft web page", url: APP_PAGE, icon: "globe" },
+-    Link { command: "help.github", label: "PdfCraft on GitHub", url: GITHUB, icon: "code-xml" },
+-    Link { command: "help.website", label: "ArtCraft website", url: WEBSITE, icon: "external-link" },
+-];
++// LawyerMind build: no community, website or repository links are shown or opened by the app.
++pub const LINKS: &[Link] = &[];
+ 
+ pub fn for_command(id: &str) -> Option<&'static Link> {
+     LINKS.iter().find(|l| l.command == id)
+diff --git a/crates/ui-egui/src/chrome.rs b/crates/ui-egui/src/chrome.rs
+index b81ac2d..9b590b5 100644
+--- a/crates/ui-egui/src/chrome.rs
++++ b/crates/ui-egui/src/chrome.rs
+@@ -302,10 +302,6 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+                     if icons::button(ui, "circle-help", button, false, tl!("Keyboard shortcuts")).clicked() {
+                         app.dialog = Some(Dialog::Shortcuts);
+                     }
+-                    // One click to the community, from anywhere in the app.
+-                    if widgets::ghost_button_sized(ui, "messages-square", "Discord", tab_h).on_hover_text(pdfcraft_engine::links::DISCORD).clicked() {
+-                        app.execute("help.discord");
+-                    }
+                 });
+             });
+         });
+diff --git a/crates/ui-egui/src/dialogs.rs b/crates/ui-egui/src/dialogs.rs
+index d0e9482..0f9a286 100644
+--- a/crates/ui-egui/src/dialogs.rs
++++ b/crates/ui-egui/src/dialogs.rs
+@@ -1346,7 +1346,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
+                         ui.horizontal(|ui| {
+                             widgets::artcraft_mark(ui, 40.0);
+                             ui.vertical(|ui| {
+-                                ui.label(egui::RichText::new("PdfCraft").font(theme::semibold(20.0)));
++                                ui.label(egui::RichText::new("LawyerMind PDF").font(theme::semibold(20.0)));
+                                 ui.label(crate::i18n::fmt(tl!("Version {v}"), &[("v", &pdfcraft_engine::build_info::version())]));
+                             });
+                         });
+@@ -1360,10 +1360,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
+                             .small(),
+                         );
+                         ui.add_space(12.0);
+-                        ui.horizontal(|ui| {
+-                            ui.label(egui::RichText::new(tl!("Part of")).color(t.text_muted));
+-                            widgets::artcraft_logo(ui, 16.0);
+-                        });
++                        ui.label(egui::RichText::new("Derivado do PdfCraft (MIT OR Apache-2.0), incluído no LawyerMind. Licenças e avisos: pasta LICENSES do aplicativo.").color(t.text_muted).small());
+                         ui.add_space(6.0);
+                         if let Some(cmd) = widgets::community_links(ui) {
+                             link_command = Some(cmd);
+diff --git a/crates/ui-egui/src/home.rs b/crates/ui-egui/src/home.rs
+index 390b059..eb09263 100644
+--- a/crates/ui-egui/src/home.rs
++++ b/crates/ui-egui/src/home.rs
+@@ -32,34 +32,6 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+                     .font(theme::regular(14.0)),
+             );
+             ui.add_space(14.0);
+-            if !app.community_card_closed {
+-                egui::Frame::NONE
+-                    .fill(t.card)
+-                    .stroke(Stroke::new(1.0, t.border))
+-                    .corner_radius(CornerRadius::same(12))
+-                    .inner_margin(egui::Margin::same(14))
+-                    .show(ui, |ui| {
+-                        ui.set_width(ui.available_width());
+-                        ui.horizontal(|ui| {
+-                            widgets::artcraft_mark(ui, 28.0);
+-                            ui.vertical(|ui| {
+-                                ui.label(egui::RichText::new(tl!("Join the ArtCraft community")).font(theme::semibold(15.0)));
+-                                ui.label(egui::RichText::new(tl!("Get help, share feedback and follow development on Discord.")).color(t.text_muted));
+-                            });
+-                            // Closed for this run only: the card is back on the next launch.
+-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+-                                if icons::button(ui, "x", 24.0, false, tl!("Close")).clicked() {
+-                                    app.community_card_closed = true;
+-                                }
+-                            });
+-                        });
+-                        ui.add_space(8.0);
+-                        if let Some(cmd) = widgets::community_links(ui) {
+-                            app.execute(cmd);
+-                        }
+-                    });
+-                ui.add_space(22.0);
+-            }
+ 
+             egui::Frame::NONE
+                 .fill(t.card)
+diff --git a/crates/ui-egui/src/i18n/ar.tsv b/crates/ui-egui/src/i18n/ar.tsv
+index 3e6d735..bca9c9f 100644
+--- a/crates/ui-egui/src/i18n/ar.tsv
++++ b/crates/ui-egui/src/i18n/ar.tsv
+@@ -96,7 +96,6 @@
+ 	Side panels	اللوحات الجانبية
+ 	Enable Acrobat JavaScript	تفعيل Acrobat JavaScript
+ 	OK	موافق
+-	Join our Discord	انضم إلى خادمنا على Discord
+ 	Close	إغلاق
+ 	Next / previous match	التطابق التالي / السابق
+ 	Copy selected text	نسخ النص المحدد
+@@ -167,8 +166,6 @@
+ 	Zoom — type a percentage and press Enter	التكبير — اكتب نسبة مئوية واضغط Enter
+ 	Welcome to PdfCraft	مرحبًا بك في PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	منضدة عمل مفتوحة المصدر لملفات PDF — محلية وخاصة وقابلة للبرمجة.
+-	Join the ArtCraft community	انضم إلى مجتمع ArtCraft
+-	Get help, share feedback and follow development on Discord.	احصل على المساعدة وشارك ملاحظاتك وتابع التطوير على Discord.
+ 	Recommended tools	أدوات مقترحة
+ 	Use now	استخدم الآن
+ 	Open file	فتح ملف
+@@ -322,10 +319,8 @@
+ 	Split document…	تقسيم المستند…
+ 	Number pages…	ترقيم الصفحات…
+ 	Keyboard shortcuts	اختصارات لوحة المفاتيح
+-	Join the ArtCraft Discord	انضم إلى خادم ArtCraft على Discord
+ 	PdfCraft web page	صفحة PdfCraft على الويب
+ 	PdfCraft on GitHub	PdfCraft على GitHub
+-	ArtCraft website	موقع ArtCraft
+ 	Check for updates…	التحقق من التحديثات…
+ 	About PdfCraft	حول PdfCraft
+ 	Export a PDF	تصدير ملف PDF
+diff --git a/crates/ui-egui/src/i18n/bg.tsv b/crates/ui-egui/src/i18n/bg.tsv
+index ec0339f..0206037 100644
+--- a/crates/ui-egui/src/i18n/bg.tsv
++++ b/crates/ui-egui/src/i18n/bg.tsv
+@@ -1881,13 +1881,8 @@
+ 	Split document…	Раздели документа…
+ 	Number pages…	Номерирай страниците…
+ 	Keyboard shortcuts	Клавишни комбинации
+-	Join the ArtCraft Discord	Присъедини се към ArtCraft в Discord
+-	Join the ArtCraft community	Присъедини се към общността на ArtCraft
+-	Get help, share feedback and follow development on Discord.	Получете помощ, споделете мнение и следете разработката в Discord.
+-	Join our Discord	Присъедини се към нашия Discord
+ 	PdfCraft web page	Уебстраница на PdfCraft
+ 	PdfCraft on GitHub	PdfCraft в GitHub
+-	ArtCraft website	Уебсайт на ArtCraft
+ 	Check for updates…	Провери за актуализации…
+ 	About PdfCraft	За PdfCraft
+ 	JavaScript console…	JavaScript конзола…
+diff --git a/crates/ui-egui/src/i18n/ca.tsv b/crates/ui-egui/src/i18n/ca.tsv
+index 0cacae3..172e1c1 100644
+--- a/crates/ui-egui/src/i18n/ca.tsv
++++ b/crates/ui-egui/src/i18n/ca.tsv
+@@ -91,7 +91,6 @@
+ 	Flatten Fill & Sign when saving	Aplana Omple i signa en desar
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	El text, les marques i les signatures passen a formar part de la pàgina. Els altres comentaris continuen sent editables.
+ 	OK	D'acord
+-	Join our Discord	Uneix-te al nostre Discord
+ 	Close	Tanca
+ 	Next / previous match	Coincidència següent / anterior
+ 	Copy selected text	Copia el text seleccionat
+@@ -161,8 +160,6 @@
+ 	Current page — type a page number or label (such as iv) and press Enter	Pàgina actual — escriu un número o una etiqueta de pàgina (com ara iv) i prem Retorn
+ 	Welcome to PdfCraft	Et donem la benvinguda a PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Un banc de treball de PDF de codi obert — local, privat i programable.
+-	Join the ArtCraft community	Uneix-te a la comunitat d'ArtCraft
+-	Get help, share feedback and follow development on Discord.	Obtén ajuda, comparteix comentaris i segueix el desenvolupament a Discord.
+ 	Recommended tools	Eines recomanades
+ 	Use now	Utilitza-ho ara
+ 	Open file	Obre el fitxer
+@@ -316,10 +313,8 @@
+ 	Split document…	Divideix el document…
+ 	Number pages…	Numera les pàgines…
+ 	Keyboard shortcuts	Dreceres de teclat
+-	Join the ArtCraft Discord	Uneix-te al Discord d'ArtCraft
+ 	PdfCraft web page	Pàgina web de PdfCraft
+ 	PdfCraft on GitHub	PdfCraft a GitHub
+-	ArtCraft website	Lloc web d'ArtCraft
+ 	Check for updates…	Cerca actualitzacions…
+ 	About PdfCraft	Quant a PdfCraft
+ 	Export a PDF	Exporta un PDF
+diff --git a/crates/ui-egui/src/i18n/ckb.tsv b/crates/ui-egui/src/i18n/ckb.tsv
+index 71c0c62..2d65d54 100644
+--- a/crates/ui-egui/src/i18n/ckb.tsv
++++ b/crates/ui-egui/src/i18n/ckb.tsv
+@@ -96,7 +96,6 @@
+ 	Side panels	پانێڵە لاوەکییەکان
+ 	Enable Acrobat JavaScript	چالاککردنی Acrobat JavaScript
+ 	OK	باشە
+-	Join our Discord	بەشداریکردن لە Discordی ئێمە
+ 	Close	داخستن
+ 	Next / previous match	گونجاوی داهاتوو / پێشوو
+ 	Copy selected text	کۆپیکردنی دەقی هەڵبژێردراو
+@@ -167,8 +166,6 @@
+ 	Zoom — type a percentage and press Enter	زووم — ڕێژەیەکی سەدی بنووسە و Enter دابگرە
+ 	Welcome to PdfCraft	بەخێربێیت بۆ PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	مێزێکی کاری سەرچاوەکراوە بۆ PDF — ناوخۆیی، تایبەت و بەرنامەڕێژکراو.
+-	Join the ArtCraft community	بەشداریکردن لە کۆمەڵگەی ArtCraft
+-	Get help, share feedback and follow development on Discord.	یارمەتی وەربگرە، بۆچوونەکانت بڵاو بکەرەوە و بەدوای پەرەپێداندا بکەوە لە Discord.
+ 	Recommended tools	ئامرازی پێشنیارکراو
+ 	Use now	ئێستا بەکاری بهێنە
+ 	Open file	کردنەوەی فایل
+@@ -322,10 +319,8 @@
+ 	Split document…	دابەشکردنی بەڵگەنامە…
+ 	Number pages…	ژمارەدان بە پەڕەکان…
+ 	Keyboard shortcuts	کورتەڕێگاکانی تەختەکلیل
+-	Join the ArtCraft Discord	بەشداریکردن لە Discordی ArtCraft
+ 	PdfCraft web page	لاپەڕەی وێبی PdfCraft
+ 	PdfCraft on GitHub	PdfCraft لە GitHub
+-	ArtCraft website	ماڵپەڕی ArtCraft
+ 	Check for updates…	پشکنین بۆ نوێکردنەوەکان…
+ 	About PdfCraft	دەربارەی PdfCraft
+ 	Export a PDF	هەناردەکردنی PDFێک
+diff --git a/crates/ui-egui/src/i18n/cs.tsv b/crates/ui-egui/src/i18n/cs.tsv
+index ed6d051..cc18f0b 100644
+--- a/crates/ui-egui/src/i18n/cs.tsv
++++ b/crates/ui-egui/src/i18n/cs.tsv
+@@ -117,10 +117,8 @@
+ 	Split document…	Rozdělit dokument…
+ 	Number pages…	Očíslovat stránky…
+ 	Keyboard shortcuts	Klávesové zkratky
+-	Join the ArtCraft Discord	Připojit se ke komunitě ArtCraft na Discordu
+ 	PdfCraft web page	Webová stránka PdfCraft
+ 	PdfCraft on GitHub	PdfCraft na GitHubu
+-	ArtCraft website	Web ArtCraft
+ 	Check for updates…	Zkontrolovat aktualizace…
+ 	About PdfCraft	O aplikaci PdfCraft
+ 	Auto	Automaticky
+@@ -230,7 +228,6 @@ key	Space	Mezerník
+ 	{folder} is already pinned to Home	Složka {folder} už je připnutá na úvodní obrazovce
+ 	You can pin up to {n} folders. Unpin one first.	Připnout lze nejvýše {n} složek. Nejdříve některou odepněte.
+ 	Pinned {folder} to Home	Složka {folder} je připnutá na úvodní obrazovce
+-	Join our Discord	Připojit se k našemu Discordu
+ 	Close	Zavřít
+ 	Next / previous match	Další / předchozí shoda
+ 	Copy selected text	Kopírovat vybraný text
+@@ -288,8 +285,6 @@ key	Space	Mezerník
+ 	Zoom — type a percentage and press Enter	Lupa — zadejte procenta a stiskněte Enter
+ 	Welcome to PdfCraft	Vítá vás PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Open-source dílna pro PDF — lokální, soukromá a skriptovatelná.
+-	Join the ArtCraft community	Připojte se ke komunitě ArtCraft
+-	Get help, share feedback and follow development on Discord.	Získejte pomoc, sdílejte zpětnou vazbu a sledujte vývoj na Discordu.
+ 	Recommended tools	Doporučené nástroje
+ 	Use now	Použít
+ 	Open file	Otevřít soubor
+diff --git a/crates/ui-egui/src/i18n/de.tsv b/crates/ui-egui/src/i18n/de.tsv
+index 8586a21..0380df1 100644
+--- a/crates/ui-egui/src/i18n/de.tsv
++++ b/crates/ui-egui/src/i18n/de.tsv
+@@ -69,7 +69,6 @@
+ 	Flatten Fill & Sign when saving	Ausfüllen und unterschreiben beim Speichern reduzieren
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	Text, Markierungen und Unterschriften werden Teil der Seite. Andere Kommentare bleiben bearbeitbar.
+ 	OK	OK
+-	Join our Discord	Unserem Discord beitreten
+ 	Close	Schließen
+ 	Next / previous match	Nächster / vorheriger Treffer
+ 	Copy selected text	Ausgewählten Text kopieren
+@@ -140,8 +139,6 @@
+ 	Zoom — type a percentage and press Enter	Zoom – gib einen Prozentwert ein und drücke die Eingabetaste
+ 	Welcome to PdfCraft	Willkommen bei PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Eine Open-Source-PDF-Werkbank – lokal, privat und skriptfähig.
+-	Join the ArtCraft community	Tritt der ArtCraft-Community bei
+-	Get help, share feedback and follow development on Discord.	Hol dir Hilfe, gib Feedback und verfolge die Entwicklung auf Discord.
+ 	Recommended tools	Empfohlene Werkzeuge
+ 	Use now	Jetzt verwenden
+ 	Open file	Datei öffnen
+@@ -295,10 +292,8 @@
+ 	Split document…	Dokument teilen…
+ 	Number pages…	Seiten nummerieren…
+ 	Keyboard shortcuts	Tastenkürzel
+-	Join the ArtCraft Discord	Dem ArtCraft-Discord beitreten
+ 	PdfCraft web page	PdfCraft-Webseite
+ 	PdfCraft on GitHub	PdfCraft auf GitHub
+-	ArtCraft website	ArtCraft-Website
+ 	Check for updates…	Nach Updates suchen…
+ 	About PdfCraft	Über PdfCraft
+ 	Export a PDF	PDF exportieren
+diff --git a/crates/ui-egui/src/i18n/el.tsv b/crates/ui-egui/src/i18n/el.tsv
+index e3eac77..5c0cfe2 100644
+--- a/crates/ui-egui/src/i18n/el.tsv
++++ b/crates/ui-egui/src/i18n/el.tsv
+@@ -81,7 +81,6 @@
+ 	Side panels	Πλευρικοί πίνακες
+ 	Enable Acrobat JavaScript	Ενεργοποίηση Acrobat JavaScript
+ 	OK	Εντάξει
+-	Join our Discord	Ελάτε στο Discord μας
+ 	Close	Κλείσιμο
+ 	Next / previous match	Επόμενο / προηγούμενο αποτέλεσμα
+ 	Copy selected text	Αντιγραφή επιλεγμένου κειμένου
+@@ -144,8 +143,6 @@
+ 	Previous page	Προηγούμενη σελίδα
+ 	Welcome to PdfCraft	Καλώς ορίσατε στο PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Ένα εργαλείο PDF ανοιχτού κώδικα — τοπικό, ιδιωτικό και αυτοματοποιήσιμο.
+-	Join the ArtCraft community	Γίνετε μέλος της κοινότητας ArtCraft
+-	Get help, share feedback and follow development on Discord.	Βρείτε βοήθεια, μοιραστείτε σχόλια και παρακολουθήστε την ανάπτυξη στο Discord.
+ 	Recommended tools	Προτεινόμενα εργαλεία
+ 	Use now	Χρήση τώρα
+ 	Open file	Άνοιγμα αρχείου
+@@ -1692,10 +1689,8 @@
+ 	Extract pages…	Εξαγωγή σελίδων…
+ 	Split document…	Διαχωρισμός εγγράφου…
+ 	Number pages…	Αρίθμηση σελίδων…
+-	Join the ArtCraft Discord	Συμμετοχή στο Discord του ArtCraft
+ 	PdfCraft web page	Ιστότοπος του PdfCraft
+ 	PdfCraft on GitHub	PdfCraft στο GitHub
+-	ArtCraft website	Ιστότοπος ArtCraft
+ 	Check for updates…	Έλεγχος για ενημερώσεις…
+ 	Export a PDF	Εξαγωγή PDF
+ 	Export to	Εξαγωγή σε
+diff --git a/crates/ui-egui/src/i18n/es.tsv b/crates/ui-egui/src/i18n/es.tsv
+index 0d4e505..e0ec289 100644
+--- a/crates/ui-egui/src/i18n/es.tsv
++++ b/crates/ui-egui/src/i18n/es.tsv
+@@ -92,7 +92,6 @@
+ 	Flatten Fill & Sign when saving	Acoplar Rellenar y firmar al guardar
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	El texto, las marcas y las firmas pasan a formar parte de la página. Los demás comentarios siguen siendo editables.
+ 	OK	Aceptar
+-	Join our Discord	Únete a nuestro Discord
+ 	Close	Cerrar
+ 	Next / previous match	Coincidencia siguiente / anterior
+ 	Copy selected text	Copiar el texto seleccionado
+@@ -163,8 +162,6 @@
+ 	Zoom — type a percentage and press Enter	Zoom: escribe un porcentaje y pulsa Intro
+ 	Welcome to PdfCraft	Te damos la bienvenida a PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Un banco de trabajo PDF de código abierto: local, privado y automatizable.
+-	Join the ArtCraft community	Únete a la comunidad de ArtCraft
+-	Get help, share feedback and follow development on Discord.	Recibe ayuda, comparte tu opinión y sigue el desarrollo en Discord.
+ 	Recommended tools	Herramientas recomendadas
+ 	Use now	Usar ahora
+ 	Open file	Abrir archivo
+@@ -318,10 +315,8 @@
+ 	Split document…	Dividir documento…
+ 	Number pages…	Numerar páginas…
+ 	Keyboard shortcuts	Atajos de teclado
+-	Join the ArtCraft Discord	Únete al Discord de ArtCraft
+ 	PdfCraft web page	Página web de PdfCraft
+ 	PdfCraft on GitHub	PdfCraft en GitHub
+-	ArtCraft website	Sitio web de ArtCraft
+ 	Check for updates…	Buscar actualizaciones…
+ 	About PdfCraft	Acerca de PdfCraft
+ 	Export a PDF	Exportar un PDF
+diff --git a/crates/ui-egui/src/i18n/fa.tsv b/crates/ui-egui/src/i18n/fa.tsv
+index 5cfc217..1a6aa20 100644
+--- a/crates/ui-egui/src/i18n/fa.tsv
++++ b/crates/ui-egui/src/i18n/fa.tsv
+@@ -102,7 +102,6 @@
+ 	Flatten Fill & Sign when saving	ادغام کردن پر کردن و امضا هنگام ذخیره
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	متن، نشانه‌ها و امضا‌ها بخشی از صفحه می‌شوند. سایر یادداشت‌ها قابل‌ویرایش می‌مانند.
+ 	OK	تأیید
+-	Join our Discord	به دیسکورد ما بپیوندید
+ 	Close	بستن
+ 	Next / previous match	تطابق بعدی / قبلی
+ 	Copy selected text	رونوشت متن انتخاب‌شده
+@@ -173,8 +172,6 @@
+ 	Zoom — type a percentage and press Enter	بزرگنمایی — یک درصد وارد کنید و Enter را فشار دهید
+ 	Welcome to PdfCraft	به PdfCraft خوش آمدید
+ 	An open-source PDF workbench — local, private, and scriptable.	یک میزکار PDF متن باز — محلی، خصوصی و قابل اسکریپت‌نویسی.
+-	Join the ArtCraft community	به جامعه ArtCraft بپیوندید
+-	Get help, share feedback and follow development on Discord.	کمک بگیرید، بازخورد بدهید و توسعه را در دیسکورد دنبال کنید.
+ 	Recommended tools	ابزار‌های پیشنهادی
+ 	Use now	همین حالا استفاده کنید
+ 	Open file	باز کردن فایل
+@@ -319,10 +316,8 @@
+ 	Split document…	تقسیم سند…
+ 	Number pages…	شماره‌گذاری صفحه‌ها…
+ 	Keyboard shortcuts	میانبر‌های صفحه کلید
+-	Join the ArtCraft Discord	به دیسکورد ArtCraft بپیوندید
+ 	PdfCraft web page	صفحه وب PdfCraft
+ 	PdfCraft on GitHub	PdfCraft در GitHub
+-	ArtCraft website	وبسایت ArtCraft
+ 	Check for updates…	بررسی به‌روز‌رسانی‌ها…
+ 	About PdfCraft	درباره PdfCraft
+ 	Export a PDF	برونبرد یک PDF
+diff --git a/crates/ui-egui/src/i18n/fi.tsv b/crates/ui-egui/src/i18n/fi.tsv
+index a542ee9..bf91241 100644
+--- a/crates/ui-egui/src/i18n/fi.tsv
++++ b/crates/ui-egui/src/i18n/fi.tsv
+@@ -91,7 +91,6 @@
+ 	Side panels	Sivupaneelit
+ 	Enable Acrobat JavaScript	Ota Acrobat JavaScript käyttöön
+ 	OK	OK
+-	Join our Discord	Liity Discordiimme
+ 	Close	Sulje
+ 	Next / previous match	Seuraava / edellinen osuma
+ 	Copy selected text	Kopioi valittu teksti
+@@ -161,8 +160,6 @@
+ 	Current page — type a page number or label (such as iv) and press Enter	Nykyinen sivu – kirjoita sivunumero tai -tunniste (kuten iv) ja paina Enter
+ 	Welcome to PdfCraft	Tervetuloa PdfCraftiin
+ 	An open-source PDF workbench — local, private, and scriptable.	Avoimen lähdekoodin PDF-työpöytä – paikallinen, yksityinen ja skriptattava.
+-	Join the ArtCraft community	Liity ArtCraft-yhteisöön
+-	Get help, share feedback and follow development on Discord.	Hae apua, anna palautetta ja seuraa kehitystä Discordissa.
+ 	Recommended tools	Suositellut työkalut
+ 	Use now	Käytä nyt
+ 	Open file	Avaa tiedosto
+@@ -316,10 +313,8 @@
+ 	Split document…	Jaa asiakirja…
+ 	Number pages…	Numeroi sivut…
+ 	Keyboard shortcuts	Pikanäppäimet
+-	Join the ArtCraft Discord	Liity ArtCraftin Discordiin
+ 	PdfCraft web page	PdfCraftin verkkosivu
+ 	PdfCraft on GitHub	PdfCraft GitHubissa
+-	ArtCraft website	ArtCraftin verkkosivusto
+ 	Check for updates…	Tarkista päivitykset…
+ 	About PdfCraft	Tietoja PdfCraftista
+ 	Export a PDF	Vie PDF
+diff --git a/crates/ui-egui/src/i18n/fr.tsv b/crates/ui-egui/src/i18n/fr.tsv
+index 61c8b51..64f6385 100644
+--- a/crates/ui-egui/src/i18n/fr.tsv
++++ b/crates/ui-egui/src/i18n/fr.tsv
+@@ -69,7 +69,6 @@
+ 	Flatten Fill & Sign when saving	Aplatir Remplir et signer à l'enregistrement
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	Le texte, les marques et les signatures deviennent partie de la page. Les autres commentaires restent modifiables.
+ 	OK	OK
+-	Join our Discord	Rejoindre notre Discord
+ 	Close	Fermer
+ 	Next / previous match	Correspondance suivante / précédente
+ 	Copy selected text	Copier le texte sélectionné
+@@ -140,8 +139,6 @@
+ 	Zoom — type a percentage and press Enter	Zoom — saisissez un pourcentage et appuyez sur Entrée
+ 	Welcome to PdfCraft	Bienvenue dans PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Un atelier PDF open source — local, privé et automatisable.
+-	Join the ArtCraft community	Rejoindre la communauté ArtCraft
+-	Get help, share feedback and follow development on Discord.	Obtenez de l'aide, partagez vos retours et suivez le développement sur Discord.
+ 	Recommended tools	Outils recommandés
+ 	Use now	Utiliser
+ 	Open file	Ouvrir un fichier
+@@ -295,10 +292,8 @@
+ 	Split document…	Fractionner le document…
+ 	Number pages…	Numéroter les pages…
+ 	Keyboard shortcuts	Raccourcis clavier
+-	Join the ArtCraft Discord	Rejoindre le Discord ArtCraft
+ 	PdfCraft web page	Page web de PdfCraft
+ 	PdfCraft on GitHub	PdfCraft sur GitHub
+-	ArtCraft website	Site web d'ArtCraft
+ 	Check for updates…	Rechercher des mises à jour…
+ 	About PdfCraft	À propos de PdfCraft
+ 	Export a PDF	Exporter un PDF
+diff --git a/crates/ui-egui/src/i18n/hi.tsv b/crates/ui-egui/src/i18n/hi.tsv
+index e9d627a..e636d5e 100644
+--- a/crates/ui-egui/src/i18n/hi.tsv
++++ b/crates/ui-egui/src/i18n/hi.tsv
+@@ -75,7 +75,6 @@
+ 	Side panels	साइड पैनल
+ 	Enable Acrobat JavaScript	Acrobat JavaScript सक्षम करें
+ 	OK	ठीक है
+-	Join our Discord	हमारे Discord से जुड़ें
+ 	Close	बंद करें
+ 	Next / previous match	अगला / पिछला मिलान
+ 	Copy selected text	चयनित टेक्स्ट कॉपी करें
+@@ -145,8 +144,6 @@
+ 	Current page — type a page number or label (such as iv) and press Enter	वर्तमान पृष्ठ — पृष्ठ संख्या या लेबल (जैसे iv) टाइप करें और Enter दबाएँ
+ 	Welcome to PdfCraft	PdfCraft में आपका स्वागत है
+ 	An open-source PDF workbench — local, private, and scriptable.	एक ओपन-सोर्स पीडीएफ़ वर्कबेंच — स्थानीय, निजी और स्क्रिप्टेबल।
+-	Join the ArtCraft community	ArtCraft समुदाय से जुड़ें
+-	Get help, share feedback and follow development on Discord.	Discord पर सहायता प्राप्त करें, प्रतिक्रिया साझा करें और विकास पर नज़र रखें।
+ 	Recommended tools	अनुशंसित टूल
+ 	Use now	अभी उपयोग करें
+ 	Open file	फ़ाइल खोलें
+@@ -300,10 +297,8 @@
+ 	Split document…	दस्तावेज़ विभाजित करें…
+ 	Number pages…	पृष्ठों पर नंबर लगाएँ…
+ 	Keyboard shortcuts	कीबोर्ड शॉर्टकट
+-	Join the ArtCraft Discord	ArtCraft Discord से जुड़ें
+ 	PdfCraft web page	PdfCraft वेबपेज
+ 	PdfCraft on GitHub	GitHub पर PdfCraft
+-	ArtCraft website	ArtCraft वेबसाइट
+ 	Check for updates…	अपडेट की जाँच करें…
+ 	About PdfCraft	PdfCraft के बारे में
+ 	Export a PDF	पीडीएफ़ निर्यात करें
+diff --git a/crates/ui-egui/src/i18n/hu.tsv b/crates/ui-egui/src/i18n/hu.tsv
+index 6b37b91..800751b 100644
+--- a/crates/ui-egui/src/i18n/hu.tsv
++++ b/crates/ui-egui/src/i18n/hu.tsv
+@@ -67,7 +67,6 @@
+ 	Side panels	Oldalsó panelek
+ 	Enable Acrobat JavaScript	Acrobat JavaScript engedélyezése
+ 	OK	OK
+-	Join our Discord	Csatlakozás a Discordhoz
+ 	Close	Bezárás
+ 	Next / previous match	Következő / előző találat
+ 	Copy selected text	Kijelölt szöveg másolása
+@@ -138,8 +137,6 @@
+ 	Zoom — type a percentage and press Enter	Nagyítás – írjon be egy százalékértéket, és nyomja meg az Entert
+ 	Welcome to PdfCraft	Üdvözöljük a PdfCraftban
+ 	An open-source PDF workbench — local, private, and scriptable.	Nyílt forráskódú PDF-munkapad — helyi, privát és parancsfájlokkal vezérelhető.
+-	Join the ArtCraft community	Csatlakozz az ArtCraft közösséghez
+-	Get help, share feedback and follow development on Discord.	Kérj segítséget, oszd meg a véleményed, és kövesd a fejlesztést a Discordon.
+ 	Recommended tools	Ajánlott eszközök
+ 	Use now	Használat most
+ 	Open file	Fájl megnyitása
+@@ -293,10 +290,8 @@
+ 	Split document…	Dokumentum felosztása…
+ 	Number pages…	Oldalak számozása…
+ 	Keyboard shortcuts	Billentyűparancsok
+-	Join the ArtCraft Discord	Csatlakozás az ArtCraft Discordhoz
+ 	PdfCraft web page	A PdfCraft weblapja
+ 	PdfCraft on GitHub	PdfCraft a GitHubon
+-	ArtCraft website	Az ArtCraft webhelye
+ 	Check for updates…	Frissítések keresése…
+ 	About PdfCraft	A PdfCraftról
+ 	Export a PDF	PDF exportálása
+diff --git a/crates/ui-egui/src/i18n/id.tsv b/crates/ui-egui/src/i18n/id.tsv
+index 292b336..84abf0f 100644
+--- a/crates/ui-egui/src/i18n/id.tsv
++++ b/crates/ui-egui/src/i18n/id.tsv
+@@ -603,7 +603,6 @@
+ 	From {file}	Dari {file}
+ 	From:	Dari:
+ 	Front side only	Hanya sisi depan
+-	Get help, share feedback and follow development on Discord.	Dapatkan bantuan, berikan masukan, dan ikuti pengembangan di Discord.
+ 	Go to a page view	Ke tampilan halaman
+ 	Go to page {p}	Ke halaman {p}
+ 	Go to the page	Ke halaman tersebut
+@@ -655,8 +654,6 @@
+ 	JavaScript Console	Konsol JavaScript
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript dimatikan (Preferensi > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, misalnya getField("total").value
+-	Join our Discord	Gabung ke Discord kami
+-	Join the ArtCraft community	Gabung ke komunitas ArtCraft
+ 	Justify	Ratakan kanan-kiri
+ 	Keep source fonts	Pertahankan font sumber
+ 	Keep tool selected	Pertahankan alat terpilih
+@@ -1336,7 +1333,6 @@
+ 	Archive documents	Arsipkan dokumen
+ 	Area	Luas
+ 	Arrow	Panah
+-	ArtCraft website	Situs ArtCraft
+ 	Ask about this document	Tanyakan tentang dokumen ini
+ 	Attach a file	Lampirkan file
+ 	Attach file	Lampirkan file
+@@ -1475,7 +1471,6 @@
+ 	Insert text	Sisipkan teks
+ 	JavaScript	JavaScript
+ 	JavaScript console…	Konsol JavaScript…
+-	Join the ArtCraft Discord	Gabung ke Discord ArtCraft
+ 	Light gray	Abu-abu muda
+ 	Line	Garis
+ 	Link	Tautan
+diff --git a/crates/ui-egui/src/i18n/it.tsv b/crates/ui-egui/src/i18n/it.tsv
+index 20729ba..aaa0ec3 100644
+--- a/crates/ui-egui/src/i18n/it.tsv
++++ b/crates/ui-egui/src/i18n/it.tsv
+@@ -93,7 +93,6 @@
+ 	Side panels	Pannelli laterali
+ 	Enable Acrobat JavaScript	Abilita JavaScript di Acrobat
+ 	OK	OK
+-	Join our Discord	Unisciti al nostro Discord
+ 	Close	Chiudi
+ 	Next / previous match	Risultato successivo/precedente
+ 	Copy selected text	Copia testo selezionato
+@@ -164,8 +163,6 @@
+ 	Zoom — type a percentage and press Enter	Zoom: digita una percentuale e premi Invio
+ 	Welcome to PdfCraft	Benvenuto in PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Un banco di lavoro PDF open source: locale, riservato e programmabile.
+-	Join the ArtCraft community	Unisciti alla community di ArtCraft
+-	Get help, share feedback and follow development on Discord.	Chiedi aiuto, condividi commenti e segui lo sviluppo su Discord.
+ 	Recommended tools	Strumenti consigliati
+ 	Use now	Usa ora
+ 	Open file	Apri file
+@@ -319,10 +316,8 @@
+ 	Split document…	Dividi documento…
+ 	Number pages…	Numera pagine…
+ 	Keyboard shortcuts	Scorciatoie da tastiera
+-	Join the ArtCraft Discord	Unisciti al Discord di ArtCraft
+ 	PdfCraft web page	Pagina web di PdfCraft
+ 	PdfCraft on GitHub	PdfCraft su GitHub
+-	ArtCraft website	Sito web di ArtCraft
+ 	Check for updates…	Verifica aggiornamenti…
+ 	About PdfCraft	Informazioni su PdfCraft
+ 	Export a PDF	Esporta un PDF
+diff --git a/crates/ui-egui/src/i18n/ja.tsv b/crates/ui-egui/src/i18n/ja.tsv
+index 1ed4d43..9d3fc71 100644
+--- a/crates/ui-egui/src/i18n/ja.tsv
++++ b/crates/ui-egui/src/i18n/ja.tsv
+@@ -96,7 +96,6 @@
+ 	Side panels	サイドパネル
+ 	Enable Acrobat JavaScript	Acrobat JavaScript を有効にする
+ 	OK	OK
+-	Join our Discord	Discord に参加
+ 	Close	閉じる
+ 	Next / previous match	次／前の検索結果
+ 	Copy selected text	選択したテキストをコピー
+@@ -167,8 +166,6 @@
+ 	Zoom — type a percentage and press Enter	ズーム — パーセンテージを入力して Enter キーを押します
+ 	Welcome to PdfCraft	PdfCraft へようこそ
+ 	An open-source PDF workbench — local, private, and scriptable.	ローカルで処理し、プライバシーを守る、スクリプト対応のオープンソース PDF ツール。
+-	Join the ArtCraft community	ArtCraft コミュニティに参加
+-	Get help, share feedback and follow development on Discord.	Discord で質問やフィードバックを共有し、開発の進捗を確認できます。
+ 	Recommended tools	おすすめのツール
+ 	Use now	使用する
+ 	Open file	ファイルを開く
+@@ -322,10 +319,8 @@
+ 	Split document…	文書を分割…
+ 	Number pages…	ページ番号を設定…
+ 	Keyboard shortcuts	キーボードショートカット
+-	Join the ArtCraft Discord	ArtCraft の Discord に参加
+ 	PdfCraft web page	PdfCraft の Web 版
+ 	PdfCraft on GitHub	GitHub の PdfCraft
+-	ArtCraft website	ArtCraft のウェブサイト
+ 	Check for updates…	更新を確認…
+ 	About PdfCraft	PdfCraft について
+ 	Export a PDF	PDF を書き出す
+diff --git a/crates/ui-egui/src/i18n/kk.tsv b/crates/ui-egui/src/i18n/kk.tsv
+index 9022c35..8d82aa5 100644
+--- a/crates/ui-egui/src/i18n/kk.tsv
++++ b/crates/ui-egui/src/i18n/kk.tsv
+@@ -70,7 +70,6 @@
+ 	Side panels	Бүйірлік панельдер
+ 	Enable Acrobat JavaScript	Acrobat JavaScript-ті қосу
+ 	OK	ОК
+-	Join our Discord	Discord-қа қосылыңыз
+ 	Close	Жабу
+ 	Next / previous match	Келесі / алдыңғы сәйкестік
+ 	Copy selected text	Таңдалған мәтінді көшіру
+@@ -128,8 +127,6 @@
+ 	Zoom — type a percentage and press Enter	Масштаб — пайызды енгізіп, Enter пернесін басыңыз
+ 	Welcome to PdfCraft	PdfCraft-ге қош келдіңіз
+ 	An open-source PDF workbench — local, private, and scriptable.	Ашық бастапқы кодты PDF жұмыс орны — жергілікті, жеке әрі скрипттерді қолдайтын.
+-	Join the ArtCraft community	ArtCraft қауымдастығына қосылыңыз
+-	Get help, share feedback and follow development on Discord.	Көмек алыңыз, пікір бөлісіңіз және Discord-тағы әзірлеуді қадағалаңыз.
+ 	Recommended tools	Ұсынылған құралдар
+ 	Use now	Дәл қазір пайдалану
+ 	Open file	Файлды ашу
+@@ -282,10 +279,8 @@
+ 	Split document…	Құжатты бөлу…
+ 	Number pages…	Беттерді нөмірлеу…
+ 	Keyboard shortcuts	Пернетақта тіркесімдері
+-	Join the ArtCraft Discord	ArtCraft Discord-ына қосылыңыз
+ 	PdfCraft web page	PdfCraft веб-сайты
+ 	PdfCraft on GitHub	GitHub-тағы PdfCraft
+-	ArtCraft website	ArtCraft веб-сайты
+ 	Check for updates…	Жаңартуларды тексеру…
+ 	About PdfCraft	PdfCraft туралы
+ 	Export a PDF	PDF экспорттау
+diff --git a/crates/ui-egui/src/i18n/ko.tsv b/crates/ui-egui/src/i18n/ko.tsv
+index 09b9cad..37677ec 100644
+--- a/crates/ui-egui/src/i18n/ko.tsv
++++ b/crates/ui-egui/src/i18n/ko.tsv
+@@ -75,7 +75,6 @@
+ 	Side panels	측면 패널
+ 	Enable Acrobat JavaScript	Acrobat JavaScript 사용
+ 	OK	확인
+-	Join our Discord	Discord 참여하기
+ 	Close	닫기
+ 	Next / previous match	다음 / 이전 일치 항목
+ 	Copy selected text	선택한 텍스트 복사
+@@ -145,8 +144,6 @@
+ 	Current page — type a page number or label (such as iv) and press Enter	현재 페이지 — 페이지 번호나 레이블(예: iv)을 입력한 후 Enter 키를 누르세요
+ 	Welcome to PdfCraft	PdfCraft에 오신 것을 환영합니다
+ 	An open-source PDF workbench — local, private, and scriptable.	오픈소스 PDF 워크벤치 — 로컬에서 작동하고, 프라이버시를 지키며, 스크립트를 지원합니다.
+-	Join the ArtCraft community	ArtCraft 커뮤니티 참여
+-	Get help, share feedback and follow development on Discord.	Discord에서 도움을 받고, 피드백을 공유하고, 개발 현황을 팔로우하세요.
+ 	Recommended tools	추천 도구
+ 	Use now	지금 사용
+ 	Open file	파일 열기
+@@ -300,10 +297,8 @@
+ 	Split document…	문서 분할…
+ 	Number pages…	페이지 번호 매기기…
+ 	Keyboard shortcuts	키보드 단축키
+-	Join the ArtCraft Discord	ArtCraft Discord 참여하기
+ 	PdfCraft web page	PdfCraft 웹 페이지
+ 	PdfCraft on GitHub	GitHub의 PdfCraft
+-	ArtCraft website	ArtCraft 웹사이트
+ 	Check for updates…	업데이트 확인…
+ 	About PdfCraft	PdfCraft 정보
+ 	Export a PDF	PDF 내보내기
+diff --git a/crates/ui-egui/src/i18n/lo.tsv b/crates/ui-egui/src/i18n/lo.tsv
+index 964467d..997d830 100644
+--- a/crates/ui-egui/src/i18n/lo.tsv
++++ b/crates/ui-egui/src/i18n/lo.tsv
+@@ -95,7 +95,6 @@
+ 	Side panels	ແຜງດ້ານຂ້າງ
+ 	Enable Acrobat JavaScript	ເປີດໃຊ້ງານ Acrobat JavaScript
+ 	OK	ຕົກລົງ
+-	Join our Discord	ເຂົ້າຮ່ວມ Discord ຂອງພວກເຮົາ
+ 	Close	ປິດ
+ 	Next / previous match	ຜົນການຄົ້ນຫາ ຖັດໄປ / ກ່ອນໜ້າ
+ 	Copy selected text	ສຳເນົາຂໍ້ຄວາມທີ່ເລືອກ
+@@ -165,8 +164,6 @@
+ 	Current page — type a page number or label (such as iv) and press Enter	ໜ້າປັດຈຸບັນ — ພິມໝາຍເລກໜ້າ ຫຼື ປ້າຍຊື່ (ເຊັ່ນ: iv) ແລ້ວກົດ Enter
+ 	Welcome to PdfCraft	ຍິນດີຕ້ອນຮັບສູ່ PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	ເຄື່ອງມືຈັດການ PDF ແບບໂອເພນຊອຣ໌ສ — ເຮັດວຽກໃນເຄື່ອງ, ເປັນສ່ວນຕົວ ແລະ ຂຽນສະຄຣິບໄດ້.
+-	Join the ArtCraft community	ເຂົ້າຮ່ວມຊຸມຊົນ ArtCraft
+-	Get help, share feedback and follow development on Discord.	ຂໍຄວາມຊ່ວຍເຫຼືອ, ແບ່ງປັນຄຳຕິຊົມ ແລະ ຕິດຕາມການພັດທະນາໄດ້ທີ່ Discord.
+ 	Recommended tools	ເຄື່ອງມືແນະນຳ
+ 	Use now	ໃຊ້ງານຕອນນີ້
+ 	Open file	ເປີດໄຟລ໌
+@@ -320,10 +317,8 @@
+ 	Split document…	ແບ່ງເອກະສານ…
+ 	Number pages…	ໃສ່ເລກໜ້າ…
+ 	Keyboard shortcuts	ປຸ່ມລັດແປ້ນພິມ
+-	Join the ArtCraft Discord	ເຂົ້າຮ່ວມ Discord ຂອງ ArtCraft
+ 	PdfCraft web page	ໜ້າເວັບ PdfCraft
+ 	PdfCraft on GitHub	PdfCraft ເທິງ GitHub
+-	ArtCraft website	ເວັບໄຊຕ໌ ArtCraft
+ 	Check for updates…	ກວດສອບການອັບເດດ…
+ 	About PdfCraft	ກ່ຽວກັບ PdfCraft
+ 	Export a PDF	ສົ່ງອອກ PDF
+diff --git a/crates/ui-egui/src/i18n/lt.tsv b/crates/ui-egui/src/i18n/lt.tsv
+index 43749f4..541fbb6 100644
+--- a/crates/ui-egui/src/i18n/lt.tsv
++++ b/crates/ui-egui/src/i18n/lt.tsv
+@@ -619,7 +619,6 @@
+ 	From {file}	Iš {file}
+ 	From:	Nuo:
+ 	Front side only	Tik priekinė pusė
+-	Get help, share feedback and follow development on Discord.	Gaukite pagalbos, pateikite atsiliepimų ir sekite naujienas „Discord“.
+ 	Go to a page view	Pereiti į puslapio rodinį
+ 	Go to page {p}	Pereiti į puslapį {p}
+ 	Go to the page	Pereiti į puslapį
+@@ -673,8 +672,6 @@
+ 	JavaScript Console	JavaScript konsolė
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript išjungtas (Nuostatos > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, pvz., getField("total").value
+-	Join our Discord	Prisijunkite prie mūsų „Discord“ serverio
+-	Join the ArtCraft community	Prisijunkite prie „ArtCraft“ bendruomenės
+ 	Justify	Abipusė lygiuotė
+ 	Keep source fonts	Išsaugoti šaltinio šriftus
+ 	Keep tool selected	Palikti įrankį pasirinktą
+@@ -1396,7 +1393,6 @@
+ 	Archive documents	Archyvuoti dokumentus
+ 	Area	Plotas
+ 	Arrow	Rodyklė
+-	ArtCraft website	„ArtCraft“ svetainė
+ 	Ask about this document	Klausti apie šį dokumentą
+ 	Attach a file	Pridėti failą
+ 	Attach file	Pridėti failą
+@@ -1535,7 +1531,6 @@
+ 	Insert text	Įterpti tekstą
+ 	JavaScript	JavaScript
+ 	JavaScript console…	JavaScript konsolė…
+-	Join the ArtCraft Discord	Prisijungti prie „ArtCraft“ „Discord“ serverio
+ 	Light gray	Šviesiai pilka
+ 	Line	Linija
+ 	Link	Saitas
+diff --git a/crates/ui-egui/src/i18n/nb.tsv b/crates/ui-egui/src/i18n/nb.tsv
+index 6f17399..61f58c3 100644
+--- a/crates/ui-egui/src/i18n/nb.tsv
++++ b/crates/ui-egui/src/i18n/nb.tsv
+@@ -612,7 +612,6 @@
+ 	From {file}	Fra {file}
+ 	From:	Fra:
+ 	Front side only	Bare forsiden
+-	Get help, share feedback and follow development on Discord.	Få hjelp, gi tilbakemelding og følg utviklingen på Discord.
+ 	Go to a page view	Gå til en sidevisning
+ 	Go to page {p}	Gå til side {p}
+ 	Go to the page	Gå til siden
+@@ -664,8 +663,6 @@
+ 	JavaScript Console	JavaScript-konsoll
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript er slått av (Innstillinger > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, f.eks. getField("total").value
+-	Join our Discord	Bli med på Discord-serveren vår
+-	Join the ArtCraft community	Bli med i ArtCraft-fellesskapet
+ 	Justify	Blokkjuster
+ 	Keep source fonts	Behold kildeskrifter
+ 	Keep tool selected	Behold verktøyet valgt
+@@ -1347,7 +1344,6 @@
+ 	Archive documents	Arkiver dokumenter
+ 	Area	Areal
+ 	Arrow	Pil
+-	ArtCraft website	ArtCraft-nettsted
+ 	Ask about this document	Spør om dette dokumentet
+ 	Attach a file	Legg ved en fil
+ 	Attach file	Legg ved fil
+@@ -1486,7 +1482,6 @@
+ 	Insert text	Sett inn tekst
+ 	JavaScript	JavaScript
+ 	JavaScript console…	JavaScript-konsoll…
+-	Join the ArtCraft Discord	Bli med i ArtCraft-Discorden
+ 	Light gray	Lys grå
+ 	Line	Linje
+ 	Link	Lenke
+diff --git a/crates/ui-egui/src/i18n/pl.tsv b/crates/ui-egui/src/i18n/pl.tsv
+index 963d717..afc8680 100644
+--- a/crates/ui-egui/src/i18n/pl.tsv
++++ b/crates/ui-egui/src/i18n/pl.tsv
+@@ -92,7 +92,6 @@
+ 	Side panels	Panele boczne
+ 	Enable Acrobat JavaScript	Włącz Acrobat JavaScript
+ 	OK	OK
+-	Join our Discord	Dołącz do naszego Discorda
+ 	Close	Zamknij
+ 	Next / previous match	Następne / poprzednie dopasowanie
+ 	Copy selected text	Kopiuj zaznaczony tekst
+@@ -163,8 +162,6 @@
+ 	Zoom — type a percentage and press Enter	Powiększenie — wpisz wartość procentową i naciśnij Enter
+ 	Welcome to PdfCraft	Witamy w PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Otwarty zestaw narzędzi do PDF — lokalny, prywatny i obsługujący skrypty.
+-	Join the ArtCraft community	Dołącz do społeczności ArtCraft
+-	Get help, share feedback and follow development on Discord.	Uzyskaj pomoc, podziel się opinią i śledź rozwój na Discordzie.
+ 	Recommended tools	Polecane narzędzia
+ 	Use now	Użyj teraz
+ 	Open file	Otwórz plik
+@@ -317,10 +314,8 @@
+ 	Split document…	Podziel dokument…
+ 	Number pages…	Ponumeruj strony…
+ 	Keyboard shortcuts	Skróty klawiaturowe
+-	Join the ArtCraft Discord	Dołącz do Discorda ArtCraft
+ 	PdfCraft web page	Strona internetowa PdfCraft
+ 	PdfCraft on GitHub	PdfCraft na GitHubie
+-	ArtCraft website	Strona internetowa ArtCraft
+ 	Check for updates…	Sprawdź aktualizacje…
+ 	About PdfCraft	O PdfCraft
+ 	Export a PDF	Eksportuj PDF
+diff --git a/crates/ui-egui/src/i18n/pt-br.tsv b/crates/ui-egui/src/i18n/pt-br.tsv
+index c34ae83..6195a94 100644
+--- a/crates/ui-egui/src/i18n/pt-br.tsv
++++ b/crates/ui-egui/src/i18n/pt-br.tsv
+@@ -1754,13 +1754,8 @@
+ 	Split document…	Dividir documento…
+ 	Number pages…	Numerar páginas…
+ 	Keyboard shortcuts	Atalhos de teclado
+-	Join the ArtCraft Discord	Entrar no Discord do ArtCraft
+-	Join the ArtCraft community	Entrar na comunidade ArtCraft
+-	Get help, share feedback and follow development on Discord.	Obtenha ajuda, compartilhe comentários e acompanhe o desenvolvimento no Discord.
+-	Join our Discord	Entrar em nosso Discord
+ 	PdfCraft web page	Página da Web do PdfCraft
+ 	PdfCraft on GitHub	PdfCraft no GitHub
+-	ArtCraft website	Site do ArtCraft
+ 	Check for updates…	Verificar atualizações…
+ 	About PdfCraft	Sobre o PdfCraft
+ 	JavaScript console…	Console JavaScript…
+diff --git a/crates/ui-egui/src/i18n/ro.tsv b/crates/ui-egui/src/i18n/ro.tsv
+index 78d2298..eb37bfc 100644
+--- a/crates/ui-egui/src/i18n/ro.tsv
++++ b/crates/ui-egui/src/i18n/ro.tsv
+@@ -612,7 +612,6 @@
+ 	From {file}	Din {file}
+ 	From:	De la:
+ 	Front side only	Doar față
+-	Get help, share feedback and follow development on Discord.	Primiți ajutor, trimiteți păreri și urmăriți dezvoltarea pe Discord.
+ 	Go to a page view	Salt la o vizualizare de pagină
+ 	Go to page {p}	Salt la pagina {p}
+ 	Go to the page	Salt la pagină
+@@ -664,8 +663,6 @@
+ 	JavaScript Console	Consolă JavaScript
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript este dezactivat (Preferințe > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, de ex. getField("total").value
+-	Join our Discord	Intrați pe Discord-ul nostru
+-	Join the ArtCraft community	Alăturați-vă comunității ArtCraft
+ 	Justify	Aliniere stânga-dreapta
+ 	Keep source fonts	Păstrare fonturi sursă
+ 	Keep tool selected	Instrumentul rămâne selectat
+@@ -1345,7 +1342,6 @@
+ 	Archive documents	Arhivare documente
+ 	Area	Arie
+ 	Arrow	Săgeată
+-	ArtCraft website	Site-ul ArtCraft
+ 	Ask about this document	Întrebări despre acest document
+ 	Attach a file	Atașare fișier
+ 	Attach file	Atașare fișier
+@@ -1484,7 +1480,6 @@
+ 	Insert text	Inserare text
+ 	JavaScript	JavaScript
+ 	JavaScript console…	Consolă JavaScript…
+-	Join the ArtCraft Discord	Intrați pe Discord-ul ArtCraft
+ 	Light gray	Gri deschis
+ 	Line	Linie
+ 	Link	Link
+diff --git a/crates/ui-egui/src/i18n/ru.tsv b/crates/ui-egui/src/i18n/ru.tsv
+index 274232d..85a64a4 100644
+--- a/crates/ui-egui/src/i18n/ru.tsv
++++ b/crates/ui-egui/src/i18n/ru.tsv
+@@ -89,7 +89,6 @@
+ 	Flatten Fill & Sign when saving	Расплющить «Заполнить и подписать» при сохранении
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	Текст, пометки и подписи становятся частью страницы. Остальные комментарии можно по-прежнему править.
+ 	OK	OK
+-	Join our Discord	Присоединяйтесь к нашему Discord
+ 	Close	Закрыть
+ 	Next / previous match	Следующее / предыдущее совпадение
+ 	Copy selected text	Копировать выделенный текст
+@@ -160,8 +159,6 @@
+ 	Zoom — type a percentage and press Enter	Масштаб — введите процент и нажмите Enter
+ 	Welcome to PdfCraft	Добро пожаловать в PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Открытый PDF-редактор — локальный, приватный и программируемый.
+-	Join the ArtCraft community	Присоединяйтесь к сообществу ArtCraft
+-	Get help, share feedback and follow development on Discord.	Получайте помощь, делитесь отзывами и следите за разработкой в Discord.
+ 	Recommended tools	Рекомендуемые инструменты
+ 	Use now	Использовать сейчас
+ 	Open file	Открыть файл
+@@ -315,10 +312,8 @@
+ 	Split document…	Разделить документ…
+ 	Number pages…	Пронумеровать страницы…
+ 	Keyboard shortcuts	Горячие клавиши
+-	Join the ArtCraft Discord	Присоединяйтесь к Discord ArtCraft
+ 	PdfCraft web page	Веб-страница PdfCraft
+ 	PdfCraft on GitHub	PdfCraft на GitHub
+-	ArtCraft website	Веб-сайт ArtCraft
+ 	Check for updates…	Проверить обновления…
+ 	About PdfCraft	О программе PdfCraft
+ 	Export a PDF	Экспортировать PDF
+diff --git a/crates/ui-egui/src/i18n/sl.tsv b/crates/ui-egui/src/i18n/sl.tsv
+index 420e6a5..162e055 100644
+--- a/crates/ui-egui/src/i18n/sl.tsv
++++ b/crates/ui-egui/src/i18n/sl.tsv
+@@ -235,7 +235,6 @@
+ 	Archive documents	Arhiviraj dokumente
+ 	Area	Ploščina
+ 	Arrow	Puščica
+-	ArtCraft website	Spletna stran ArtCraft
+ 	Ask about this document	Vprašaj o tem dokumentu
+ 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Vpraša GitHub za najnovejšo izdajo. Ničesar se ne prenese ali namesti samodejno.
+ 	Associated with content	Povezano z vsebino
+@@ -882,7 +881,6 @@
+ 	Full screen mode	Celozaslonski način
+ 	General	Splošno
+ 	Geospatial location	Geoprostorska lokacija
+-	Get help, share feedback and follow development on Discord.	Poiščite pomoč, delite povratne informacije in spremljajte razvoj na Discordu.
+ 	Go to a page view	Pojdi na pogled strani
+ 	Go to page {p}	Pojdi na stran {p}
+ 	Go to page…	Pojdi na stran…
+@@ -990,9 +988,6 @@
+ 	JavaScript console…	Konzola JavaScript…
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript je izklopljen (Nastavitve > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, npr. getField("total").value
+-	Join our Discord	Discord kanal
+-	Join the ArtCraft Discord	Pridružite se Discordu ArtCraft
+-	Join the ArtCraft community	Pridružite se skupnosti ArtCraft
+ 	July	Julij
+ 	June	Junij
+ 	Justify	Obojestransko poravnano
+diff --git a/crates/ui-egui/src/i18n/sq.tsv b/crates/ui-egui/src/i18n/sq.tsv
+index ba7c9dc..cf4eb74 100644
+--- a/crates/ui-egui/src/i18n/sq.tsv
++++ b/crates/ui-egui/src/i18n/sq.tsv
+@@ -229,7 +229,6 @@
+ 	Archive documents	Arkivo dokumentet
+ 	Area	Sipërfaqja
+ 	Arrow	Shigjetë
+-	ArtCraft website	Faqja e internetit e ArtCraft
+ 	Ask about this document	Pyet për këtë dokument
+ 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	I kërkon GitHub-it versionin më të fundit. Asgjë nuk shkarkohet ose instalohet automatikisht.
+ 	Associated with content	E lidhur me përmbajtjen
+@@ -871,7 +870,6 @@
+ 	Full screen mode	Modaliteti me ekran të plotë
+ 	General	Të përgjithshme
+ 	Geospatial location	Vendndodhja gjeohapësinore
+-	Get help, share feedback and follow development on Discord.	Merr ndihmë, ndaj komente dhe ndiq zhvillimin në Discord.
+ 	Go to a page view	Shko te një pamje faqeje
+ 	Go to page {p}	Shko te faqja {p}
+ 	Go to page…	Shko te faqja…
+@@ -977,9 +975,6 @@
+ 	JavaScript console…	Konsola JavaScript…
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript është çaktivizuar (Preferencat > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, p.sh. getField("total").value
+-	Join our Discord	Bashkohu me Discord-in tonë
+-	Join the ArtCraft Discord	Bashkohu me Discord-in e ArtCraft
+-	Join the ArtCraft community	Bashkohu me komunitetin e ArtCraft
+ 	July	Korrik
+ 	June	Qershor
+ 	Justify	Drejto në të dyja anët
+diff --git a/crates/ui-egui/src/i18n/te.tsv b/crates/ui-egui/src/i18n/te.tsv
+index 7f33998..b31a3e1 100644
+--- a/crates/ui-egui/src/i18n/te.tsv
++++ b/crates/ui-egui/src/i18n/te.tsv
+@@ -73,7 +73,6 @@ comment menu	Edit	సవరించు
+ 	Side panels	సైడ్ ప్యానెల్‌లు
+ 	Enable Acrobat JavaScript	Acrobat JavaScriptను ప్రారంభించు
+ 	OK	సరే
+-	Join our Discord	మా Discordలో చేరండి
+ 	Close	మూసివేయి
+ 	Next / previous match	తదుపరి / మునుపటి సరిపోలిక
+ 	Copy selected text	ఎంచుకున్న టెక్స్ట్‌ను కాపీ చేయి
+@@ -144,8 +143,6 @@ comment menu	Edit	సవరించు
+ 	Zoom — type a percentage and press Enter	జూమ్ — శాతాన్ని టైప్ చేసి Enter నొక్కండి
+ 	Welcome to PdfCraft	PdfCraftకు స్వాగతం
+ 	An open-source PDF workbench — local, private, and scriptable.	ఓపెన్-సోర్స్ PDF వర్క్‌బెంచ్ — మీ కంప్యూటర్‌లోనే నడుస్తుంది, గోప్యంగా ఉంటుంది, స్క్రిప్ట్‌లతో ఆటోమేట్ చేయవచ్చు.
+-	Join the ArtCraft community	ArtCraft కమ్యూనిటీలో చేరండి
+-	Get help, share feedback and follow development on Discord.	Discordలో సహాయం పొందండి, మీ అభిప్రాయాన్ని పంచుకోండి, అభివృద్ధిని అనుసరించండి.
+ 	Recommended tools	సిఫార్సు చేసిన సాధనాలు
+ 	Use now	ఇప్పుడే ఉపయోగించు
+ 	Open file	ఫైల్‌ను తెరువు
+@@ -299,10 +296,8 @@ comment menu	Edit	సవరించు
+ 	Split document…	పత్రాన్ని విభజించు…
+ 	Number pages…	పేజీలకు సంఖ్యలు వేయి…
+ 	Keyboard shortcuts	కీబోర్డ్ షార్ట్‌కట్‌లు
+-	Join the ArtCraft Discord	ArtCraft Discordలో చేరండి
+ 	PdfCraft web page	PdfCraft వెబ్ పేజీ
+ 	PdfCraft on GitHub	GitHubలో PdfCraft
+-	ArtCraft website	ArtCraft వెబ్‌సైట్
+ 	Check for updates…	అప్‌డేట్‌ల కోసం తనిఖీ చేయి…
+ 	About PdfCraft	PdfCraft గురించి
+ 	Export a PDF	PDFను ఎగుమతి చేయి
+diff --git a/crates/ui-egui/src/i18n/th.tsv b/crates/ui-egui/src/i18n/th.tsv
+index 2c9b892..de29872 100644
+--- a/crates/ui-egui/src/i18n/th.tsv
++++ b/crates/ui-egui/src/i18n/th.tsv
+@@ -85,7 +85,6 @@
+ 	Side panels	แผงด้านข้าง
+ 	Enable Acrobat JavaScript	เปิดใช้ Acrobat JavaScript
+ 	OK	ตกลง
+-	Join our Discord	เข้าร่วม Discord ของเรา
+ 	Close	ปิด
+ 	Next / previous match	ผลลัพธ์ถัดไป / ก่อนหน้า
+ 	Copy selected text	คัดลอกข้อความที่เลือก
+@@ -155,8 +154,6 @@
+ 	Current page — type a page number or label (such as iv) and press Enter	หน้าปัจจุบัน — พิมพ์เลขหน้าหรือป้ายหน้า (เช่น iv) แล้วกด Enter
+ 	Welcome to PdfCraft	ยินดีต้อนรับสู่ PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	โต๊ะทำงาน PDF แบบโอเพนซอร์ส — ทำงานในเครื่อง เป็นส่วนตัว และเขียนสคริปต์ได้
+-	Join the ArtCraft community	เข้าร่วมชุมชน ArtCraft
+-	Get help, share feedback and follow development on Discord.	ขอความช่วยเหลือ ส่งความคิดเห็น และติดตามการพัฒนาได้ที่ Discord
+ 	Recommended tools	เครื่องมือแนะนำ
+ 	Use now	ใช้ตอนนี้
+ 	Open file	เปิดไฟล์
+@@ -310,10 +307,8 @@
+ 	Split document…	แบ่งเอกสาร…
+ 	Number pages…	ใส่เลขหน้า…
+ 	Keyboard shortcuts	แป้นพิมพ์ลัด
+-	Join the ArtCraft Discord	เข้าร่วม Discord ของ ArtCraft
+ 	PdfCraft web page	หน้าเว็บ PdfCraft
+ 	PdfCraft on GitHub	PdfCraft บน GitHub
+-	ArtCraft website	เว็บไซต์ ArtCraft
+ 	Check for updates…	ตรวจหาการอัปเดต…
+ 	About PdfCraft	เกี่ยวกับ PdfCraft
+ 	Export a PDF	ส่งออก PDF
+diff --git a/crates/ui-egui/src/i18n/tr.tsv b/crates/ui-egui/src/i18n/tr.tsv
+index a2ecaea..61187de 100644
+--- a/crates/ui-egui/src/i18n/tr.tsv
++++ b/crates/ui-egui/src/i18n/tr.tsv
+@@ -60,7 +60,6 @@
+ 	Flatten Fill & Sign when saving	Kaydederken Doldur ve İmzala'yı düzleştir
+ 	Text, marks and signatures become part of the page. Other comments stay editable.	Metin, işaretler ve imzalar sayfanın bir parçası olur. Diğer yorumlar düzenlenebilir kalır.
+ 	OK	Tamam
+-	Join our Discord	Discord'umuza katılın
+ 	Close	Kapat
+ 	Next / previous match	Sonraki / önceki eşleşme
+ 	Copy selected text	Seçilen metni kopyala
+@@ -125,8 +124,6 @@
+ 	Zoom — type a percentage and press Enter	Yakınlaştırma — bir yüzde yazıp Enter tuşuna basın
+ 	Welcome to PdfCraft	PdfCraft'a Hoş Geldiniz
+ 	An open-source PDF workbench — local, private, and scriptable.	Açık kaynaklı bir PDF çalışma alanı — yerel, gizli ve komut dosyalarıyla yönetilebilir.
+-	Join the ArtCraft community	ArtCraft topluluğuna katılın
+-	Get help, share feedback and follow development on Discord.	Discord'da yardım alın, geri bildirim paylaşın ve geliştirmeyi takip edin.
+ 	Recommended tools	Önerilen araçlar
+ 	Use now	Şimdi kullan
+ 	Open file	Dosya aç
+@@ -280,10 +277,8 @@
+ 	Split document…	Belgeyi böl…
+ 	Number pages…	Sayfaları numaralandır…
+ 	Keyboard shortcuts	Klavye kısayolları
+-	Join the ArtCraft Discord	ArtCraft Discord'una katıl
+ 	PdfCraft web page	PdfCraft web sayfası
+ 	PdfCraft on GitHub	GitHub'da PdfCraft
+-	ArtCraft website	ArtCraft web sitesi
+ 	Check for updates…	Güncellemeleri denetle…
+ 	About PdfCraft	PdfCraft hakkında
+ 	Export a PDF	PDF'i dışa aktar
+diff --git a/crates/ui-egui/src/i18n/uk.tsv b/crates/ui-egui/src/i18n/uk.tsv
+index 9c76868..3b67164 100644
+--- a/crates/ui-egui/src/i18n/uk.tsv
++++ b/crates/ui-egui/src/i18n/uk.tsv
+@@ -94,7 +94,6 @@
+ 	Side panels	Бічні панелі
+ 	Enable Acrobat JavaScript	Увімкнути Acrobat JavaScript
+ 	OK	OK
+-	Join our Discord	Приєднатися до нашого Discord
+ 	Close	Закрити
+ 	Next / previous match	Наступний / попередній збіг
+ 	Copy selected text	Копіювати виділений текст
+@@ -165,8 +164,6 @@
+ 	Zoom — type a percentage and press Enter	Масштаб — введіть відсоток і натисніть Enter
+ 	Welcome to PdfCraft	Вітаємо в PdfCraft
+ 	An open-source PDF workbench — local, private, and scriptable.	Відкритий інструментарій для PDF — локальний, приватний і з підтримкою сценаріїв.
+-	Join the ArtCraft community	Приєднатися до спільноти ArtCraft
+-	Get help, share feedback and follow development on Discord.	Отримуйте допомогу, діліться відгуками й стежте за розробкою в Discord.
+ 	Recommended tools	Рекомендовані інструменти
+ 	Use now	Використати зараз
+ 	Open file	Відкрити файл
+@@ -320,10 +317,8 @@
+ 	Split document…	Розділити документ…
+ 	Number pages…	Пронумерувати сторінки…
+ 	Keyboard shortcuts	Клавіатурні скорочення
+-	Join the ArtCraft Discord	Приєднатися до Discord ArtCraft
+ 	PdfCraft web page	Вебсторінка PdfCraft
+ 	PdfCraft on GitHub	PdfCraft на GitHub
+-	ArtCraft website	Вебсайт ArtCraft
+ 	Check for updates…	Перевірити оновлення…
+ 	About PdfCraft	Про PdfCraft
+ 	Export a PDF	Експортувати PDF
+diff --git a/crates/ui-egui/src/i18n/vi.tsv b/crates/ui-egui/src/i18n/vi.tsv
+index 973ba87..17c9803 100644
+--- a/crates/ui-egui/src/i18n/vi.tsv
++++ b/crates/ui-egui/src/i18n/vi.tsv
+@@ -615,7 +615,6 @@ theme	Appearance	Giao diện
+ 	From {file}	Từ {file}
+ 	From:	Từ:
+ 	Front side only	Chỉ mặt trước
+-	Get help, share feedback and follow development on Discord.	Nhận trợ giúp, chia sẻ phản hồi và theo dõi quá trình phát triển trên Discord.
+ 	Go to a page view	Đi tới một chế độ xem trang
+ 	Go to page {p}	Đi tới trang {p}
+ 	Go to the page	Đi tới trang
+@@ -669,8 +668,6 @@ theme	Appearance	Giao diện
+ 	JavaScript Console	Bảng điều khiển JavaScript
+ 	JavaScript is turned off (Preferences ▸ JavaScript).	JavaScript đã bị tắt (Tùy chọn > JavaScript).
+ 	JavaScript, e.g. getField("total").value	JavaScript, ví dụ getField("total").value
+-	Join our Discord	Tham gia Discord của chúng tôi
+-	Join the ArtCraft community	Tham gia cộng đồng ArtCraft
+ 	Justify	Căn đều
+ 	Keep source fonts	Giữ phông chữ nguồn
+ 	Keep tool selected	Giữ công cụ được chọn
+@@ -1385,7 +1382,6 @@ theme	Appearance	Giao diện
+ 	Archive documents	Lưu trữ tài liệu
+ 	Area	Diện tích
+ 	Arrow	Mũi tên
+-	ArtCraft website	Trang web ArtCraft
+ 	Ask about this document	Hỏi về tài liệu này
+ 	Attach a file	Đính kèm một tệp
+ 	Attach file	Đính kèm tệp
+@@ -1524,7 +1520,6 @@ theme	Appearance	Giao diện
+ 	Insert text	Chèn văn bản
+ 	JavaScript	JavaScript
+ 	JavaScript console…	Bảng điều khiển JavaScript…
+-	Join the ArtCraft Discord	Tham gia Discord của ArtCraft
+ 	Light gray	Xám nhạt
+ 	Line	Đường thẳng
+ 	Link	Liên kết
+diff --git a/crates/ui-egui/src/i18n/zh-hans.tsv b/crates/ui-egui/src/i18n/zh-hans.tsv
+index d77c8f6..b49fa15 100644
+--- a/crates/ui-egui/src/i18n/zh-hans.tsv
++++ b/crates/ui-egui/src/i18n/zh-hans.tsv
+@@ -1888,13 +1888,8 @@
+ 	Split document…	拆分文档…
+ 	Number pages…	页面编号…
+ 	Keyboard shortcuts	键盘快捷键
+-	Join the ArtCraft Discord	加入 ArtCraft Discord
+-	Join the ArtCraft community	加入 ArtCraft 社区
+-	Get help, share feedback and follow development on Discord.	在 Discord 上获取帮助、分享反馈并关注开发动态。
+-	Join our Discord	加入我们的 Discord
+ 	PdfCraft web page	PdfCraft 网页
+ 	PdfCraft on GitHub	GitHub 上的 PdfCraft
+-	ArtCraft website	ArtCraft 官网
+ 	Check for updates…	检查更新…
+ 	About PdfCraft	关于 PdfCraft
+ 	JavaScript console…	JavaScript 控制台…
+diff --git a/crates/ui-egui/src/i18n/zh-hant.tsv b/crates/ui-egui/src/i18n/zh-hant.tsv
+index ce3b939..dd026fb 100644
+--- a/crates/ui-egui/src/i18n/zh-hant.tsv
++++ b/crates/ui-egui/src/i18n/zh-hant.tsv
+@@ -1832,13 +1832,8 @@
+ 	Split document…	分割文件…
+ 	Number pages…	編訂頁碼…
+ 	Keyboard shortcuts	鍵盤快速鍵
+-	Join the ArtCraft Discord	加入 ArtCraft Discord
+-	Join the ArtCraft community	加入 ArtCraft 社群
+-	Get help, share feedback and follow development on Discord.	在 Discord 取得協助、提供意見並追蹤開發進度。
+-	Join our Discord	加入 Discord 社群
+ 	PdfCraft web page	PdfCraft 網頁
+ 	PdfCraft on GitHub	GitHub 上的 PdfCraft
+-	ArtCraft website	ArtCraft 網站
+ 	Check for updates…	尋找更新…
+ 	About PdfCraft	關於 PdfCraft
+ 	JavaScript console…	JavaScript 主控台…
+diff --git a/crates/ui-egui/src/menus.rs b/crates/ui-egui/src/menus.rs
+index d7c8bef..8bb1caf 100644
+--- a/crates/ui-egui/src/menus.rs
++++ b/crates/ui-egui/src/menus.rs
+@@ -222,7 +222,7 @@ const SIGN: &[&str] = &[
+ ];
+ const WINDOW: &[&str] = &["view.next_tab", "view.previous_tab"];
+ const HELP: &[&str] =
+-    &["help.shortcuts", SEP, "help.app_page", "help.github", "help.website", "help.discord", SEP, "help.check_updates", SEP, "help.about"];
++    &["help.shortcuts", SEP, "help.about"];
+ 
+ /// A registry shortcut as a craft-keymap chord: `command` is ⌘ (Ctrl elsewhere) and `mac_ctrl`
+ /// the Control key on macOS. `None` for a key craft-keymap doesn't name.
+diff --git a/crates/ui-egui/src/platform/updates.rs b/crates/ui-egui/src/platform/updates.rs
+index fa59f9a..7ab6067 100644
+--- a/crates/ui-egui/src/platform/updates.rs
++++ b/crates/ui-egui/src/platform/updates.rs
+@@ -8,7 +8,7 @@ use egui::{Align, Layout};
+ use crate::{PdfCraftApp, theme, widgets};
+ 
+ /// Where every PdfCraft release is listed.
+-pub const RELEASES_PAGE: &str = "https://github.com/storytold/pdfcraft/releases";
++pub const RELEASES_PAGE: &str = "";
+ 
+ /// Stands in for the network in tests.
+ #[cfg(not(target_arch = "wasm32"))]
+@@ -55,20 +55,14 @@ impl PdfCraftApp {
+ 
+     /// Help ▸ Check for updates: ask for the latest release and show the outcome.
+     pub fn check_for_updates(&mut self) {
+-        #[cfg(not(target_arch = "wasm32"))]
+-        {
+-            self.updates.open = true;
+-            self.updates.check_requested = true;
+-        }
+-        #[cfg(target_arch = "wasm32")]
+-        {
+-            self.open_url(RELEASES_PAGE);
+-        }
++        // LawyerMind build: updates come only from the LawyerMind installer; this app never
++        // contacts a release server.
+     }
+ 
+     /// Starts the checks and picks up their answers (each frame).
+     pub(crate) fn poll_updates(&mut self) {
+-        #[cfg(not(target_arch = "wasm32"))]
++        // LawyerMind build: no update checks (see `check_for_updates`).
++        #[cfg(any())]
+         {
+             let Some(ctx) = self.ctx.clone() else { return };
+             let updates = &mut self.updates;
+diff --git a/crates/ui-egui/src/widgets.rs b/crates/ui-egui/src/widgets.rs
+index cb34b59..bf8e7e1 100644
+--- a/crates/ui-egui/src/widgets.rs
++++ b/crates/ui-egui/src/widgets.rs
+@@ -555,40 +555,22 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
+     cancel
+ }
+ 
+-/// The ArtCraft wordmark (Storyteller's brand, docs/brand/; not open source), sized to `height`.
+-pub fn artcraft_logo(ui: &mut egui::Ui, height: f32) -> Response {
+-    let dark = ui.visuals().dark_mode;
+-    let (uri, bytes): (&str, &'static [u8]) = if dark {
+-        ("bytes://artcraft-logo-white.svg", include_bytes!("../../../docs/brand/artcraft-logo-white.svg"))
+-    } else {
+-        ("bytes://artcraft-logo.svg", include_bytes!("../../../docs/brand/artcraft-logo.svg"))
+-    };
+-    ui.add(egui::Image::from_bytes(uri, bytes).max_height(height).alt_text("ArtCraft"))
++/// LawyerMind build: the ArtCraft brand assets are not shipped (docs/brand/ is not open source); nothing is drawn.
++#[allow(dead_code)]
++pub fn artcraft_logo(ui: &mut egui::Ui, _height: f32) -> Response {
++    ui.allocate_response(vec2(0.0, 0.0), Sense::hover())
+ }
+ 
+-/// The ArtCraft mark (brand blue, works on light and dark), `size` points square.
+-pub fn artcraft_mark(ui: &mut egui::Ui, size: f32) -> Response {
+-    ui.add(
+-        egui::Image::from_bytes("bytes://artcraft-mark.svg", include_bytes!("../../../docs/brand/artcraft-mark.svg"))
+-            .fit_to_exact_size(vec2(size, size))
+-            .alt_text("ArtCraft"),
+-    )
++/// LawyerMind build: see [`artcraft_logo`].
++pub fn artcraft_mark(ui: &mut egui::Ui, _size: f32) -> Response {
++    ui.allocate_response(vec2(0.0, 0.0), Sense::hover())
+ }
+ 
+ /// Buttons for every community link (`pdfcraft_engine::links`), Discord first and prominent.
+ /// Returns the registry command of the one clicked.
+-pub fn community_links(ui: &mut egui::Ui) -> Option<&'static str> {
+-    let mut clicked = None;
+-    ui.horizontal_wrapped(|ui| {
+-        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+-        for (i, l) in pdfcraft_engine::links::LINKS.iter().enumerate() {
+-            let resp = if i == 0 { icon_pill(ui, l.icon, tl!("Join our Discord"), true) } else { icon_pill(ui, l.icon, tl!(l.label), false) };
+-            if resp.on_hover_text(l.url).clicked() {
+-                clicked = Some(l.command);
+-            }
+-        }
+-    });
+-    clicked
++pub fn community_links(_ui: &mut egui::Ui) -> Option<&'static str> {
++    // LawyerMind build: no community links.
++    None
+ }
+ 
+ /// [`icon_pill`] with a ▾ part at its end that opens a menu of related choices. Returns the

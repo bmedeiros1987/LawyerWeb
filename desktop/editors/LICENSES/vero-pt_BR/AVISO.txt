@@ -1,0 +1,6 @@
+Dicionário ortográfico do português do Brasil (VERO), de Raimundo Santos Moura e equipe.
+Distribuído SEM modificação (pt_BR.aff, pt_BR.dic), obtido de https://github.com/LibreOffice/dictionaries
+(pasta pt_BR, commit 67032ee957631908098a72edf48dc81cac27e369). SHA-256 conferidos na montagem do instalador.
+Licença: GNU Lesser General Public License versão 3 (texto em LGPL-3.txt) e Mozilla Public License, conforme
+README_pt_BR.txt. O LawyerMind usa a opção LGPLv3. O dicionário é um arquivo de dados lido pelo editor de
+texto; você pode substituí-lo por outro dicionário Hunspell colocando-o na pasta de dicionários.

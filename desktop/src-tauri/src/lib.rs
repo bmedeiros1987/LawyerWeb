@@ -32,6 +32,8 @@ pub struct Resources {
     pub node: PathBuf,
     pub server_dir: PathBuf,
     pub runtime_dir: PathBuf,
+    /// Bundled PDF/Word editors (`resources/editors`); the server offers them only if the binaries exist.
+    pub editors_dir: PathBuf,
 }
 
 impl Resources {
@@ -44,6 +46,7 @@ impl Resources {
             node,
             server_dir: root.join("server"),
             runtime_dir: root.join("runtime"),
+            editors_dir: root.join("editors"),
         }
     }
 }
@@ -63,7 +66,7 @@ pub fn start_stack(res: &Resources, state_dir: &Path) -> Result<Stack, String> {
     let t = Instant::now();
     let pg = LocalPostgres::start(PgPaths { bin_dir: res.pg_bin.clone(), state_dir: state_dir.to_path_buf() }).map_err(|e| e.to_string())?;
     app_log(state_dir, &format!("postgres pronto na porta {} ({} ms)", pg.port(), t.elapsed().as_millis()));
-    let paths = ServerPaths { node: res.node.clone(), server_dir: res.server_dir.clone(), state_dir: state_dir.to_path_buf() };
+    let paths = ServerPaths { node: res.node.clone(), server_dir: res.server_dir.clone(), state_dir: state_dir.to_path_buf(), editors_dir: res.editors_dir.clone(), runtime_dir: res.runtime_dir.clone() };
     match Server::start(&paths, &pg.database_url(), APP_VERSION) {
         Ok(server) => {
             app_log(state_dir, &format!("servidor pronto em {} ({} ms)", server.url(), t.elapsed().as_millis()));

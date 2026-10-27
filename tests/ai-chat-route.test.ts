@@ -6,6 +6,8 @@ const m = vi.hoisted(() => ({
 vi.mock("@/lib/desktop/access", () => ({ documentsMember: m.documentsMember }));
 vi.mock("@/lib/ai/document-text", () => ({ authorizedVersionText: m.authorizedVersionText }));
 vi.mock("@/lib/prisma", () => ({ prisma: { activityLog: { create: m.activityCreate } } }));
+// No stored provider settings: the provider lookup reads desktop.local_setting.
+vi.mock("@/lib/desktop/db", () => ({ withClient: async (fn: (c: { query: () => Promise<{ rows: never[] }> }) => unknown) => fn({ query: async () => ({ rows: [] }) }) }));
 vi.mock("@/auth", () => ({ auth: m.auth }));
 vi.mock("@/lib/workspace/context", () => ({ getActiveMembership: vi.fn() }));
 import { GET, POST } from "@/app/api/desktop/ai-chat/route";
@@ -74,5 +76,17 @@ describe("/api/desktop/ai-chat", () => {
     vi.stubEnv("MBLZ_AI_PROVIDER", "dbl");
     expect((await post({ ...body, end: 9999 })).status).toBe(400);
     expect(complete).not.toHaveBeenCalled();
+  });
+  it("free plan: needs the extra acknowledgement (428) and never calls the provider without it", async () => {
+    const complete = vi.fn().mockResolvedValue({ answer: "ok", citations: [{ quote: "A rescisão" }], suggestions: [], uncertainty: { level: "low", notes: [] } });
+    registerProvider("dbl", () => ({ status: () => ({ id: "dbl", label: "d", state: "available", reason: "ok", sendsDataOutsideDevice: true, freeTier: true }), complete }));
+    vi.stubEnv("MBLZ_AI_PROVIDER", "dbl");
+    const denied = await post(body);
+    expect(denied.status).toBe(428);
+    expect((await denied.json()).code).toBe("free-tier-ack");
+    expect(complete).not.toHaveBeenCalled();
+    expect(m.authorizedVersionText).not.toHaveBeenCalled(); // not even the document text is read
+    expect((await post({ ...body, freeTierAck: true })).status).toBe(200);
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 });

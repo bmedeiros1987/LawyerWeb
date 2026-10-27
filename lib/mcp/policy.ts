@@ -21,6 +21,11 @@ export type Decision = { allow: true } | { allow: false; reason: "wrong-user" | 
 export const READ_ONLY_TOOLS: readonly McpTool[] = Object.freeze([
   { name: "documents.list_visible", mutates: false, scope: "documents:read", permission: "documents.view" },
   { name: "documents.read_excerpt", mutates: false, scope: "documents:read", permission: "documents.view" },
+  // Names exposed over MCP (tools.ts). All read-only; every one needs documents.view on EACH call.
+  { name: "list_documents", mutates: false, scope: "documents:read", permission: "documents.view" },
+  { name: "search_documents", mutates: false, scope: "documents:read", permission: "documents.view" },
+  { name: "read_document", mutates: false, scope: "documents:read", permission: "documents.view" },
+  { name: "compare_versions", mutates: false, scope: "documents:read", permission: "documents.view" },
 ]);
 
 export function stableJson(value: unknown): string {
