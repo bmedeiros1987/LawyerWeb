@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { editorAvailability, editorBinary, editorEnv, editorKindFor, openWithEditor } from "@/lib/desktop/editors";
+import { editorAvailability, editorBinary, editorEnv, editorKindFor, launchEnv, openWithEditor } from "@/lib/desktop/editors";
 
 const dirs: string[] = [];
 const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "lm-ed-")); dirs.push(d); return d; };
@@ -58,5 +58,15 @@ describe.skipIf(process.platform === "win32")("abrir o editor: só diz 'aberto' 
     const d = tmp(); fs.writeFileSync(path.join(d, "lawyermind-pdf"), "não é executável", { mode: 0o644 }); process.env.MBLZ_EDITORS_DIR = d;
     const r = await openWithEditor("pdf", "/tmp/x.pdf", 1500);
     expect(r).toMatchObject({ ok: false, reason: "failed" });
+  });
+});
+
+describe("dicionários do Word", () => {
+  it("o Word recebe a pasta de dicionários que vem junto do programa; o PDF não", () => {
+    const d = tmp(); fs.mkdirSync(path.join(d, "dictionaries"));
+    const bin = path.join(d, "lawyermind-word");
+    expect(launchEnv("word", bin, { PATH: "/bin" }).WORDCRAFT_DICTIONARIES).toBe(path.join(d, "dictionaries"));
+    expect(launchEnv("pdf", bin, { PATH: "/bin" })).not.toHaveProperty("WORDCRAFT_DICTIONARIES");
+    expect(launchEnv("word", path.join(tmp(), "lawyermind-word"), { PATH: "/bin" })).not.toHaveProperty("WORDCRAFT_DICTIONARIES");
   });
 });

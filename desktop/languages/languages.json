@@ -1,0 +1,17 @@
+{
+  "_comment": "Spelling dictionaries (Hunspell) offered by the separate language-pack installer. Each entry is fetched from a pinned commit and verified by SHA-256; it is bundled UNMODIFIED with its own license files. To add a language: add an entry, review its license, add the license files under desktop/editors/LICENSES/ (or here), run the language-pack workflow. Interface translations are NOT part of the pack (they are compiled into each editor).",
+  "version": "0.1.0",
+  "languages": [
+    {
+      "id": "pt_BR",
+      "name": "Português (Brasil)",
+      "license": "LGPLv3 / MPL (VERO)",
+      "source": { "repoRaw": "https://raw.githubusercontent.com/LibreOffice/dictionaries", "sha": "67032ee957631908098a72edf48dc81cac27e369", "dir": "pt_BR" },
+      "files": {
+        "pt_BR.aff": "21d8ad2a769a60e17e2b5ea4ef11d4d593a58b9e2a82d642ef82d6a4c5523865",
+        "pt_BR.dic": "a38bfb26b68ece2834e79fe83e48d5792652970ace12db89d1b9674bf9933183"
+      },
+      "licenseFiles": ["../editors/LICENSES/vero-pt_BR/README_pt_BR.txt", "../editors/LICENSES/vero-pt_BR/LGPL-3.txt", "../editors/LICENSES/vero-pt_BR/AVISO.txt"]
+    }
+  ]
+}

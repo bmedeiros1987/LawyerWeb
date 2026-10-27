@@ -32,6 +32,25 @@ index bc66c94..cb814a3 100644
              load_prefs(&mut app);
              load_user_dictionary(&mut app);
              // A region chosen in File › Options replaces the system's for the first blank
+diff --git a/crates/engine/src/cmd/file.rs b/crates/engine/src/cmd/file.rs
+index 7b1ac56..7c2a355 100644
+--- a/crates/engine/src/cmd/file.rs
++++ b/crates/engine/src/cmd/file.rs
+@@ -266,10 +266,12 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
+     } else {
+         crate::io::open_path_in(std::path::Path::new(path), password, &s.region()).map_err(CmdError::Failed)?
+     };
+-    // Plain text and Markdown carry no language: they are in the editing language.
++    // Plain text and Markdown carry no language: they are in the editing language. LawyerMind build: so are
++    // Word files that name no default language (many generated documents), otherwise a Portuguese contract
++    // would be proofed as English and every word flagged.
+     let ext = std::path::Path::new(path).extension().and_then(std::ffi::OsStr::to_str).unwrap_or("").to_ascii_lowercase();
+     if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref())
+-        && matches!(ext.as_str(), "txt" | "text" | "md" | "markdown")
++        && (matches!(ext.as_str(), "txt" | "text" | "md" | "markdown") || super::doc_lang(&doc).is_none())
+     {
+         doc.styles.default_chr.lang = Some(lang.clone());
+     }
 diff --git a/crates/engine/src/sample.rs b/crates/engine/src/sample.rs
 index fd5ac64..15271e6 100644
 --- a/crates/engine/src/sample.rs
@@ -45,6 +64,30 @@ index fd5ac64..15271e6 100644
      );
      add(&mut h, " for events.", CharProps::default());
      b.push(Block::Para(h));
+diff --git a/crates/engine/src/session/layout.rs b/crates/engine/src/session/layout.rs
+index 197fdb4..d038748 100644
+--- a/crates/engine/src/session/layout.rs
++++ b/crates/engine/src/session/layout.rs
+@@ -205,6 +205,19 @@ impl Session {
+                 self.made_rev = self.rev;
+             }
+             self.relayout();
++        } else if let Some(lang) = self.editing_lang.clone()
++            && !self.dirty
++            && crate::cmd::doc_lang(&self.doc).is_none()
++        {
++            // LawyerMind build: a document that names no language (many generated Word files, or one opened before
++            // the interface language was applied) follows the editing language, so a Portuguese contract is not
++            // proofed as English. Not an edit: the document stays as clean as it was.
++            self.doc.styles.default_chr.lang = Some(lang);
++            self.rev = self.rev.wrapping_add(1);
++            if self.made_rev == self.rev.wrapping_sub(1) {
++                self.made_rev = self.rev;
++            }
++            self.relayout();
+         }
+     }
+ }
 diff --git a/crates/formats/src/latex/export.rs b/crates/formats/src/latex/export.rs
 index 7b62ce0..8f495de 100644
 --- a/crates/formats/src/latex/export.rs
@@ -133,6 +176,21 @@ index 9ed3627..ae728d6 100644
          "Table Design" => {
              vec![m("Shading", "table.shading"), m("Borders", "table.borders"), c("Border Painter", "table.borderPainter")]
          }
+diff --git a/crates/ui-egui/src/lib.rs b/crates/ui-egui/src/lib.rs
+index eef1725..6e8b9c5 100644
+--- a/crates/ui-egui/src/lib.rs
++++ b/crates/ui-egui/src/lib.rs
+@@ -317,7 +317,9 @@ impl Default for UiState {
+             show_discord: true,
+             author: String::new(),
+             window: None,
+-            language: i18n::AUTO.into(),
++            // LawyerMind build: the interface starts in Brazilian Portuguese (File > Options > Interface
++            // language still offers every language and "auto"). A saved preference overrides this.
++            language: "pt-br".into(),
+             editing: wordcraft_engine::Prefs::default(),
+             read_aloud_rate: 1.0,
+             read_aloud_skip_citations: true,
 diff --git a/crates/ui-egui/src/ribbon/review.rs b/crates/ui-egui/src/ribbon/review.rs
 index 3ae9257..55bf45c 100644
 --- a/crates/ui-egui/src/ribbon/review.rs

@@ -1,0 +1,116 @@
+name: Language pack (dictionaries)
+
+# Separate installer for the spelling dictionaries used by the bundled editors. Unsigned test builds.
+# Windows .exe (NSIS, per-user) and Linux .deb are built on Linux; the Windows one is then INSTALLED and
+# UNINSTALLED on a real Windows runner. The macOS .pkg is built and installed on a macOS runner.
+
+on:
+  pull_request:
+    paths:
+      - "desktop/languages/**"
+      - "desktop/editors/LICENSES/vero-pt_BR/**"
+      - ".github/workflows/language-pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: language-pack-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: build windows+linux packs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Tools
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Build Windows .exe and Linux .deb
+        run: |
+          mkdir -p out
+          node desktop/languages/build-pack.mjs --target windows --out out
+          node desktop/languages/build-pack.mjs --target linux --out out
+          ls -la out
+      - name: Linux .deb installs the dictionaries and removes them
+        run: |
+          set -e
+          sudo dpkg -i out/*.deb
+          test -s /usr/share/hunspell/pt_BR.dic && test -s /usr/share/hunspell/pt_BR.aff
+          sha256sum /usr/share/hunspell/pt_BR.dic | grep -q a38bfb26b68ece2834e79fe83e48d5792652970ace12db89d1b9674bf9933183
+          test -s /usr/share/doc/lawyermind-idiomas/pt_BR-LGPL-3.txt
+          sudo dpkg -r lawyermind-idiomas
+          ! test -e /usr/share/hunspell/pt_BR.dic
+          echo "deb: instala e remove" | tee out/deb-check.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: language-pack-linux-and-windows
+          path: |
+            out/*.exe
+            out/*.deb
+            out/deb-check.txt
+          retention-days: 30
+
+  windows:
+    name: install/uninstall on Windows
+    needs: linux
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: language-pack-linux-and-windows, path: pack }
+      - name: Install silently, verify, uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem pack -Filter *_windows.exe | Select-Object -First 1
+          $dir = Join-Path $env:LOCALAPPDATA 'hunspell'
+          $p = Start-Process -Wait -PassThru -FilePath $exe.FullName -ArgumentList '/S'
+          if ($p.ExitCode -ne 0) { throw "instalador falhou $($p.ExitCode)" }
+          foreach ($f in 'pt_BR.aff','pt_BR.dic') { if (-not (Test-Path (Join-Path $dir $f))) { throw "ausente apos instalar: $f" } }
+          $h = (Get-FileHash (Join-Path $dir 'pt_BR.dic') -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne 'a38bfb26b68ece2834e79fe83e48d5792652970ace12db89d1b9674bf9933183') { throw "hash do dicionario instalado difere: $h" }
+          "instalado: $dir" | Tee-Object pack\windows-check.txt
+          $un = Join-Path $env:LOCALAPPDATA 'LawyerMind-Idiomas\desinstalar.exe'
+          if (-not (Test-Path $un)) { throw "desinstalador ausente" }
+          $p = Start-Process -Wait -PassThru -FilePath $un -ArgumentList '/S'
+          # The NSIS uninstaller re-launches itself from a temp copy and returns at once: wait for it to finish.
+          for ($i = 0; $i -lt 40 -and (Test-Path (Join-Path $dir 'pt_BR.dic')); $i++) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path (Join-Path $dir 'pt_BR.dic')) { throw "dicionario ainda presente apos desinstalar" }
+          "desinstalado: dicionario removido; pasta hunspell preservada para outros programas" | Tee-Object pack\windows-check.txt -Append
+      - uses: actions/upload-artifact@v4
+        with: { name: language-pack-windows-check, path: pack/windows-check.txt }
+
+  macos:
+    name: build and install .pkg on macOS
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build .pkg
+        run: |
+          mkdir -p out
+          node desktop/languages/build-pack.mjs --target macos --out out
+          pkgutil --payload-files out/*.pkg | tee out/pkg-payload.txt
+      - name: Install .pkg, verify, remove files
+        run: |
+          set -e
+          sudo installer -pkg out/*.pkg -target /
+          test -s /Library/Spelling/pt_BR.dic && test -s /Library/Spelling/pt_BR.aff
+          shasum -a 256 /Library/Spelling/pt_BR.dic | grep -q a38bfb26b68ece2834e79fe83e48d5792652970ace12db89d1b9674bf9933183
+          echo "pkg: instalado em /Library/Spelling" | tee out/pkg-check.txt
+          sudo rm -f /Library/Spelling/pt_BR.dic /Library/Spelling/pt_BR.aff
+      - uses: actions/upload-artifact@v4
+        with:
+          name: language-pack-macos
+          path: |
+            out/*.pkg
+            out/pkg-payload.txt
+            out/pkg-check.txt
+          retention-days: 30

@@ -51,24 +51,37 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit, editors }:
   <article className="panel panel-wide">
     <div className="panel-heading"><div><span className="eyebrow">Computador</span><h2>Cópias de trabalho</h2></div>{canEdit && <button className="desktop-secondary" onClick={newVersion} disabled={busy}><Upload size={15}/>Importar nova versão</button>}</div>
     {versions.length === 0 ? <div className="mini-empty">Nenhum arquivo importado neste computador.</div> :
-      <div className="desktop-rows stack">{versions.map(v => <div key={v.id}>
-        <div><strong><FileText size={13}/> Versão {v.version} · {v.originalName}</strong>
-          <small>{v.provenance.derived ? "Gerado no LawyerMind" : "Original (somente leitura)"}: <span className="desktop-path">{v.provenance.originalPath ?? "—"}</span>{v.provenance.originalInSyncFolder ? " · pasta sincronizada" : ""}</small>
-          <small>SHA-256 na importação: <span className="desktop-path">{v.sha256?.slice(0, 16)}…</span> · {new Date(v.createdAt).toLocaleString("pt-BR")}</small></div>
+      <div className="desktop-versions">{versions.map((v, idx) => {
+        const kind = /\.pdf$/i.test(v.originalName ?? "") ? editors?.pdf : /\.docx$/i.test(v.originalName ?? "") ? editors?.word : false;
+        return <div className="desktop-version" key={v.id}>
+          <div className="desktop-version-head">
+            <span className="desktop-badge">Versão {v.version}{idx === 0 ? " · atual" : ""}</span>
+            <strong className="desktop-version-name"><FileText size={14}/> {v.originalName ?? "arquivo"}</strong>
+          </div>
+          <p className="desktop-meta">{v.provenance.derived ? "Gerado no LawyerMind" : "Importado"} em {new Date(v.createdAt).toLocaleString("pt-BR")} · SHA-256 <span className="desktop-path">{v.sha256?.slice(0, 12)}…</span>{v.provenance.originalInSyncFolder ? " · pasta sincronizada" : ""}</p>
+          <details className="desktop-origin"><summary>{v.provenance.derived ? "Como foi gerado" : "De onde veio (original, somente leitura)"}</summary><span className="desktop-path">{v.provenance.originalPath ?? "—"}</span></details>
+          <div className="desktop-actions">
+            {canEdit && (kind
+              ? <button className="desktop-primary-sm" onClick={() => open(v.id, "editor")} disabled={busy}><Pencil size={14}/>Editar no LawyerMind</button>
+              : <button className="desktop-primary-sm" onClick={() => open(v.id, "edit")} disabled={busy}><ExternalLink size={14}/>Abrir para editar</button>)}
+            {canEdit && kind && <button className="desktop-secondary" onClick={() => open(v.id, "edit")} disabled={busy}><ExternalLink size={14}/>Abrir no programa padrão</button>}
+            <button className="desktop-secondary" onClick={() => open(v.id, "read")} disabled={busy}><Eye size={14}/>Somente leitura</button>
+            <a className="desktop-secondary" href={`/app/documentos/${documentId}/assistente/${v.id}`}>Conversar sobre o texto (IA)</a>
+            {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit", true)} disabled={busy}><FolderOpen size={14}/>Mostrar pasta</button>}
+            <button className="desktop-secondary" onClick={() => exportClick(v)} disabled={busy}><Save size={14}/>Exportar…</button>
+          </div>
+        </div>;
+      })}</div>}
+    {versions.length >= 2 && <div className="desktop-subpanel">
+      <strong>Comparar versões</strong>
+      <div className="desktop-form desktop-compare">
+        <label><span>Esquerda</span><select value={cmpL} onChange={e => setCmpL(e.target.value)}>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label>
+        <label><span>Direita</span><select value={cmpR} onChange={e => setCmpR(e.target.value)}>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label>
         <div className="desktop-actions">
-          {canEdit && (/\.pdf$/i.test(v.originalName ?? "") ? editors?.pdf : /\.docx$/i.test(v.originalName ?? "") ? editors?.word : false) && <button className="desktop-secondary" onClick={() => open(v.id, "editor")} disabled={busy}><Pencil size={14}/>Editar no LawyerMind</button>}
-          {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit")} disabled={busy}><ExternalLink size={14}/>Abrir cópia para editar</button>}
-          <button className="desktop-secondary" onClick={() => open(v.id, "read")} disabled={busy}><Eye size={14}/>Abrir somente leitura</button>
-          <a className="desktop-secondary" href={`/app/documentos/${documentId}/assistente/${v.id}`}>Conversar sobre o texto (IA)</a>
-          {canEdit && <button className="desktop-secondary" onClick={() => open(v.id, "edit", true)} disabled={busy}><FolderOpen size={14}/>Mostrar pasta</button>}
-          <button className="desktop-secondary" onClick={() => exportClick(v)} disabled={busy}><Save size={14}/>Exportar…</button>
+          <a className="desktop-secondary" href={comparePath(cmpL, cmpR)} aria-disabled={cmpL === cmpR}>Lado a lado</a>
+          <button className="desktop-secondary" onClick={compareTwoWindows} disabled={busy || cmpL === cmpR}>Em duas janelas</button>
         </div>
-      </div>)}</div>}
-    {versions.length >= 2 && <div className="desktop-form" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr)) auto auto", alignItems: "end", marginTop: 12 }}>
-      <label><span>Comparar (esquerda)</span><select value={cmpL} onChange={e => setCmpL(e.target.value)}>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label>
-      <label><span>com (direita)</span><select value={cmpR} onChange={e => setCmpR(e.target.value)}>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label>
-      <a className="desktop-secondary" href={comparePath(cmpL, cmpR)} aria-disabled={cmpL === cmpR}>Comparar lado a lado</a>
-      <button className="desktop-secondary" onClick={compareTwoWindows} disabled={busy || cmpL === cmpR}>Abrir em duas janelas</button>
+      </div>
     </div>}
     {message && <p className={"desktop-note " + message.tone} role="status" style={{ marginTop: 12 }}>{message.text}</p>}
     {pending && <div className="desktop-form" style={{ maxWidth: 460 }}>

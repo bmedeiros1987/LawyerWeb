@@ -64,6 +64,20 @@ Os projetos de origem usam **bibliotecas de terceiros** (egui, hayro e outras). 
 - `epaint_default_fonts` embute fontes sob **OFL-1.1** e **Ubuntu Font Licence**, que têm condições próprias de redistribuição.
 - O inventário é automático (campo `license` dos pacotes), de Linux x86_64; pacotes só de Windows/macOS podem faltar. **Não é parecer jurídico** e `cargo-deny`/`cargo-about` ainda não foram executados.
 
+### Português (Brasil) e revisão de texto no Word
+
+- **Interface em português**: o WordCraft embute as traduções no momento da compilação (repositório `craft-i18n`, MIT OR Apache-2.0, no commit que o próprio WordCraft fixa). O nosso script não as incluía e por isso a primeira versão saiu em inglês; agora `build.mjs` as baixa, **remove as linhas que citam o Discord ou o site do ArtCraft** (mantém só o aviso de direitos autorais exigido pelo NOTICE) e compila com `CRAFT_I18N_REQUIRED=1` (falha se faltar). O idioma inicial é **pt-BR**; em Arquivo › Opções o usuário ainda pode escolher outro.
+- **Corretor ortográfico em português**: usa o dicionário Hunspell **VERO pt_BR**, que vai no instalador **sem modificação** (`editors/dictionaries/`), conferido por SHA-256 na montagem. Licença: **LGPLv3 / MPL** (texto e créditos em `LICENSES/vero-pt_BR`). O Word o encontra pela variável `WORDCRAFT_DICTIONARIES`, que o LawyerMind define ao abrir o editor.
+- **Documentos sem idioma**: um `.docx` que não informa o idioma era tratado como inglês, e o corretor de inglês marcava todo o português. O derivado faz esses documentos seguirem o idioma de edição (pt-BR), sem marcar o documento como alterado. Documentos que já trazem o idioma (por exemplo, os gerados pelo Word em português) não são mexidos.
+- **Verificado** (Linux, tela virtual): interface em português na faixa de opções. O corretor ortográfico em português foi conferido em captura de tela; veja o estado abaixo.
+- **Não verificado**: a qualidade do corretor com textos jurídicos reais (termos técnicos e latinismos podem ser marcados como erro; o usuário pode adicionar ao dicionário do usuário), e o comportamento no Windows e no macOS.
+
+### Pacote de idiomas separado (instalador só de dicionários)
+
+`desktop/languages/` gera um instalador **separado e pequeno (~1,2 MB)** que coloca dicionários do corretor nas pastas padrão que os editores já consultam, sem reinstalar o aplicativo: Windows `%LOCALAPPDATA%\hunspell` (instalação por usuário, sem administrador; o desinstalador remove só os arquivos do pacote), macOS `/Library/Spelling` (`.pkg`, pede senha de administrador) e Linux `/usr/share/hunspell` (`.deb`). Hoje contém **só o português do Brasil**. Para incluir outro idioma: adicionar uma entrada em `languages.json` (commit fixado e SHA-256), revisar a licença do dicionário (cada um tem a sua) e rodar o workflow `language-pack.yml`.
+
+**O que o pacote NÃO faz**: as **traduções da interface** dos editores ficam compiladas dentro de cada editor e não podem ser instaladas à parte; só o corretor ortográfico é separável.
+
 ### Estado e limites (leia antes de confiar)
 
 - Os dois projetos se declaram **alfa**. O PdfCraft afirma que o fuzzing ainda encontra travamentos com arquivos hostis. Por isso rodam como processo separado e só sobre a cópia de trabalho; o travamento do editor não derruba o LawyerMind.

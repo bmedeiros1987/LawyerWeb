@@ -53,6 +53,24 @@
 /* Rows with many buttons: text on top at full width, buttons wrapping below (the two-column layout squeezed the text). */
 .desktop-rows.stack>div{grid-template-columns:minmax(0,1fr)}
 .desktop-path{overflow-wrap:anywhere}
+/* Document files: one card per version, one prominent action, the rest secondary. */
+.desktop-versions{display:grid;gap:10px;margin-top:6px}
+.desktop-version{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--surface)}
+.desktop-version-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.desktop-version-name{display:inline-flex;gap:6px;align-items:center;overflow-wrap:anywhere;font-size:calc(16px * var(--fs,1))}
+.desktop-badge{font-size:calc(13px * var(--fs,1));font-weight:600;padding:3px 10px;border-radius:999px;background:var(--gold-tint);color:var(--ink);white-space:nowrap}
+.desktop-meta{margin:6px 0 0;color:var(--secondary);font-size:calc(14px * var(--fs,1))}
+.desktop-meta .desktop-path{font-size:calc(13px * var(--fs,1))}
+.desktop-origin{margin-top:6px;font-size:calc(13.5px * var(--fs,1));color:var(--secondary)}
+.desktop-origin summary{cursor:pointer;width:max-content;max-width:100%}
+.desktop-origin .desktop-path{display:block;margin-top:4px;font-size:calc(13px * var(--fs,1))}
+.desktop-version .desktop-actions{margin-top:12px}
+.desktop-primary-sm{height:40px;border-radius:8px;background:var(--navy);color:var(--paper);font-size:calc(15.5px * var(--fs,1));font-weight:600;cursor:pointer;padding:0 16px;display:inline-flex;align-items:center;gap:7px}
+.desktop-primary-sm:disabled{opacity:.6;cursor:default}
+.desktop-subpanel{margin-top:16px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2,var(--surface))}
+.desktop-subpanel>strong{font-size:calc(15px * var(--fs,1))}
+.desktop-compare{grid-template-columns:repeat(2,minmax(0,220px)) auto;align-items:end;margin-top:10px}
+@media(max-width:760px){.desktop-compare{grid-template-columns:1fr}}
 .desktop-rows small{display:block;color:var(--secondary);font-size:calc(14.5px * var(--fs,1));margin-top:2px}
 @media(max-width:1100px){.desktop-grid{grid-template-columns:1fr}}
 .lawyermind-login-symbol{height:64px;width:auto;margin-right:6px}

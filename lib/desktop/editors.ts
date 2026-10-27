@@ -38,6 +38,14 @@ export function editorEnv(source: Record<string, string | undefined> = process.e
   return env;
 }
 
+/** The editor's environment plus, for Word, the bundled spelling dictionaries (Hunspell pt_BR) next to the program. */
+export function launchEnv(kind: EditorKind, bin: string, source: Record<string, string | undefined> = process.env): Record<string, string> {
+  const env = editorEnv(source);
+  const dict = path.join(path.dirname(bin), "dictionaries");
+  if (kind === "word" && fs.existsSync(dict)) env.WORDCRAFT_DICTIONARIES = dict;
+  return env;
+}
+
 export type EditorLaunch = { ok: true; pid: number | null; log: string | null } | { ok: false; reason: "not-installed" | "failed"; message: string; log: string | null };
 const SETTLE_MS = 2500;
 
@@ -64,7 +72,7 @@ export function openWithEditor(kind: EditorKind, file: string, settleMs = SETTLE
   return new Promise<EditorLaunch>(resolve => {
     let done = false;
     const finish = (r: EditorLaunch) => { if (done) return; done = true; if (fd !== null) { try { fs.closeSync(fd); } catch { /* already closed */ } } resolve(r); };
-    const child = spawn(bin, [file], { detached: true, stdio: ["ignore", fd ?? "ignore", fd ?? "ignore"], shell: false, env: editorEnv() as NodeJS.ProcessEnv, windowsHide: false });
+    const child = spawn(bin, [file], { detached: true, stdio: ["ignore", fd ?? "ignore", fd ?? "ignore"], shell: false, env: launchEnv(kind, bin) as NodeJS.ProcessEnv, windowsHide: false });
     child.on("error", e => finish({ ok: false, reason: "failed", message: `não foi possível iniciar (${(e as NodeJS.ErrnoException).code ?? e.name})`, log }));
     child.on("exit", (code, signal) => finish({ ok: false, reason: "failed", message: `fechou logo ao abrir (${signal ? `sinal ${signal}` : `código ${code}`})`, log }));
     setTimeout(() => { if (!done) { child.unref(); finish({ ok: true, pid: child.pid ?? null, log }); } }, settleMs);

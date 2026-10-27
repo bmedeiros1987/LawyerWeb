@@ -47,7 +47,7 @@ export function PdfToolsPanel({ versions, pdfVersions }: { versions: Version[]; 
   return <article className="panel panel-wide">
     <div className="panel-heading"><div><span className="eyebrow">Ferramentas PDF</span><h2>Páginas</h2></div></div>
     <p className="desktop-note">Funciona no seu computador, sem enviar nada para fora. O resultado é sempre uma cópia nova.</p>
-    <div className="desktop-form" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))", marginTop: 8 }}>
+    <div className="desktop-form" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", marginTop: 8, alignItems: "end" }}>
       <label><span>Versão</span><select value={versionId} onChange={e => setVersionId(e.target.value)}>{pdfVersions.map(v => <option key={v.id} value={v.id}>Versão {v.version} · {v.originalName}</option>)}</select></label>
       <label><span>Ferramenta</span><select value={tool} onChange={e => setTool(e.target.value as Tool)}>
         <option value="rotate">Girar páginas</option><option value="delete">Remover páginas</option><option value="extract">Extrair / reordenar</option>
@@ -59,9 +59,9 @@ export function PdfToolsPanel({ versions, pdfVersions }: { versions: Version[]; 
         <label><span>Juntar depois com</span><select value={other} onChange={e => setOther(e.target.value)}><option value="">Escolha…</option>{others.map(v => <option key={v.id} value={v.id}>Versão {v.version} · {v.originalName}</option>)}</select></label>
         <label><span>Nome do novo documento (opcional)</span><input value={name} onChange={e => setName(e.target.value)} maxLength={120}/></label></>}
     </div>
-    <small>{HELP[tool]}</small>
-    <div className="desktop-actions" style={{ marginTop: 8 }}>
-      <button className="desktop-secondary" onClick={run} disabled={busy || !versionId || (tool === "merge" && !other)}><Scissors size={14}/>Aplicar</button>
+    <small className="desktop-meta" style={{ display: "block", marginTop: 10 }}>{HELP[tool]}</small>
+    <div className="desktop-actions" style={{ marginTop: 10 }}>
+      <button className="desktop-primary-sm" onClick={run} disabled={busy || !versionId || (tool === "merge" && !other)}><Scissors size={14}/>Aplicar</button>
     </div>
     {message && <p className={"desktop-note " + message.tone} role="status" style={{ marginTop: 12 }}>{message.text}</p>}
   </article>;
