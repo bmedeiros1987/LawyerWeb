@@ -17,7 +17,7 @@ describe.skipIf(!RUN)("desktop PDF tools", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lm-pdft-"));
   const state = path.join(tmp, "estado"), work = path.join(tmp, "trabalho");
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  let m: any = {}; let owner: any, viewer: any, v1: any, v2: any, original: string, original2: string, txt: any;
+  let m: any = {}; let owner: any, viewer: any, v1: any, v2: any, secretPdf: any, original: string, original2: string, txt: any;
 
   const pdf = async (pages: number) => { const d = await PDFDocument.create(); for (let i = 0; i < pages; i++) d.addPage([200 + i, 100]); return Buffer.from(await d.save()); };
   const copyOf = (key: string) => path.join(state, "documentos", ...key.split("/"));
@@ -45,6 +45,10 @@ describe.skipIf(!RUN)("desktop PDF tools", () => {
     original2 = path.join(work, "Anexo.pdf"); fs.writeFileSync(original2, await pdf(2));
     v1 = await m.importDocument({ userId: u1.id, workspaceId: ws.id, sourcePath: original, name: "Contrato" });
     v2 = await m.importDocument({ userId: u1.id, workspaceId: ws.id, sourcePath: original2, name: "Anexo" });
+    const secretMatter = await p.matter.create({ data: { workspaceId: ws.id, title: "Processo sigiloso", secrecy: true } });
+    await p.matterAccess.create({ data: { matterId: secretMatter.id, memberId: owner.member.id } });
+    const secretPath = path.join(work, "Sigiloso.pdf"); fs.writeFileSync(secretPath, await pdf(1));
+    secretPdf = await m.importDocument({ userId: u1.id, workspaceId: ws.id, sourcePath: secretPath, name: "Sigiloso", matterId: secretMatter.id });
     const t = path.join(work, "nota.txt"); fs.writeFileSync(t, "texto"); txt = await m.importDocument({ userId: u1.id, workspaceId: ws.id, sourcePath: t, name: "Nota" });
   }, 120_000);
 
@@ -79,6 +83,13 @@ describe.skipIf(!RUN)("desktop PDF tools", () => {
     const stored = await m.prisma.documentVersion.findUniqueOrThrow({ where: { id: j.created[0].versionId }, include: { document: true } });
     expect(stored.document.name).toBe("Contrato com anexo");
     expect(await pagesOf(stored.storageKey)).toBe(7);
+  });
+
+  it("juntar falha fechado entre contextos de acesso diferentes e não cria documento derivado", async () => {
+    const before = await m.prisma.legalDocument.count();
+    const e = await fail(m.runPdfTool({ ...owner, request: { tool: "merge", versionIds: [v1.versionId, secretPdf.versionId], name: "Misturado" } }), 409);
+    expect(e.message).toMatch(/preservar sigilo/i);
+    expect(await m.prisma.legalDocument.count()).toBe(before);
   });
 
   it("exige documents.edit e recusa o que não é PDF, intervalo inválido e versões repetidas", async () => {

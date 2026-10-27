@@ -63,12 +63,24 @@ export async function createToken(input: { userId: string; workspaceId: string; 
   return { token: `lmcp_${id}.${secret}`, id, name, expiresAt: now + days * 86_400_000 };
 }
 
-/** Revokes a token of this user (or any token when `any`, for the owner). */
+/** Revokes a token of this user (or any token when `any`, for the owner).
+ * The update is atomic: a concurrent verify/touch can never write an older JSON value over revocation.
+ */
 export async function revokeToken(id: string, userId: string, any = false, now = Date.now()): Promise<boolean> {
+  const changed = await withClient(async c => (await c.query<{ value: string }>(
+    `update desktop.local_setting
+       set value = jsonb_set(value::jsonb, '{revokedAt}', to_jsonb($2::bigint), true)::text,
+           updated_at = now()
+     where key = $1
+       and ($3::boolean or value::jsonb->>'userId' = $4)
+       and value::jsonb->>'revokedAt' is null
+     returning value`,
+    [PREFIX + id, now, any, userId],
+  )).rows[0]);
+  if (changed) return true;
+  // Preserve idempotent revoke semantics without ever writing a stale row.
   const row = await read(id);
-  if (!row || (!any && row.userId !== userId)) return false;
-  if (row.revokedAt == null) await write({ ...row, revokedAt: now });
-  return true;
+  return Boolean(row && (any || row.userId === userId) && row.revokedAt != null);
 }
 
 export type Verified = { grant: Grant; tokenId: string; name: string };
@@ -77,13 +89,40 @@ export type Verified = { grant: Grant; tokenId: string; name: string };
 export async function verifyToken(raw: string, now = Date.now()): Promise<Verified | null> {
   const p = parseToken(raw);
   if (!p) return null;
-  const row = await read(p.id);
-  const given = Buffer.from(sha(p.secret)), want = Buffer.from(row?.hash ?? "0".repeat(64));
+  const snapshot = await read(p.id);
+  const tokenHash = sha(p.secret);
+  const given = Buffer.from(tokenHash), want = Buffer.from(snapshot?.hash ?? "0".repeat(64));
   const equal = given.length === want.length && crypto.timingSafeEqual(given, want);
-  if (!row || !equal) return null;
-  if (!(await isMcpEnabled())) return null;
-  if (row.revokedAt != null || row.expiresAt <= now) return null;
-  // Remember the last use (at most once a minute) so the owner can spot unused or unexpected access.
-  if (!row.lastUsedAt || now - row.lastUsedAt > 60_000) await write({ ...row, lastUsedAt: now });
+  if (!snapshot || !equal) return null;
+
+  // Re-check every security-relevant field in ONE atomic statement while touching lastUsedAt.
+  // If revoke wins the row lock first, this UPDATE matches zero rows and verification fails;
+  // therefore a stale snapshot can never resurrect a revoked token.
+  const current = await withClient(async c => (await c.query<{ value: string }>(
+    `update desktop.local_setting as t
+       set value = case
+             when coalesce((t.value::jsonb->>'lastUsedAt')::bigint, 0) = 0
+               or $3::bigint - coalesce((t.value::jsonb->>'lastUsedAt')::bigint, 0) > 60000
+             then jsonb_set(t.value::jsonb, '{lastUsedAt}', to_jsonb($3::bigint), true)::text
+             else t.value
+           end,
+           updated_at = case
+             when coalesce((t.value::jsonb->>'lastUsedAt')::bigint, 0) = 0
+               or $3::bigint - coalesce((t.value::jsonb->>'lastUsedAt')::bigint, 0) > 60000
+             then now() else t.updated_at end
+     where t.key = $1
+       and t.value::jsonb->>'hash' = $2
+       and t.value::jsonb->>'revokedAt' is null
+       and (t.value::jsonb->>'expiresAt')::bigint > $3::bigint
+       and exists (
+         select 1 from desktop.local_setting e
+          where e.key = $4 and e.value = '1'
+       )
+     returning t.value`,
+    [PREFIX + p.id, tokenHash, now, ENABLED_KEY],
+  )).rows[0]);
+  if (!current) return null;
+  let row: Row;
+  try { row = JSON.parse(current.value) as Row; } catch { return null; }
   return { tokenId: row.id, name: row.name, grant: { id: row.id, userId: row.userId, workspaceId: row.workspaceId, scopes: SCOPES, expiresAt: row.expiresAt, revokedAt: row.revokedAt ?? null } };
 }

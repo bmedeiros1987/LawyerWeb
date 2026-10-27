@@ -55,6 +55,33 @@ export async function runPdfTool(input: { userId: string; member: DocumentsMembe
   for (const v of versions) sources.push(await readWorkingCopy(v.id, workspaceId));
   const first = versions[0];
 
+  if (request.tool === "merge") {
+    // A derived LegalDocument can carry only one clientId and one direct matterId and does not
+    // inherit Contract links. Fail closed unless every source has the same representable access
+    // context; otherwise content from a restricted matter could become visible through a less
+    // restricted first document.
+    const documentIds = versions.map(v => v.documentId);
+    const contracts = await prisma.contract.findMany({
+      where: { documentId: { in: documentIds }, matterId: { not: null } },
+      select: { documentId: true, matterId: true },
+    });
+    const linkedMatters = new Map<string, Set<string>>();
+    for (const c of contracts) {
+      const set = linkedMatters.get(c.documentId!) ?? new Set<string>();
+      if (c.matterId) set.add(c.matterId);
+      linkedMatters.set(c.documentId!, set);
+    }
+    const matterId = first.document.matterId ?? null;
+    const clientId = first.document.clientId ?? null;
+    for (const v of versions) {
+      const inherited = linkedMatters.get(v.documentId) ?? new Set<string>();
+      const contractAddsUnrepresentableRestriction = [...inherited].some(id => id !== matterId);
+      if ((v.document.matterId ?? null) !== matterId || (v.document.clientId ?? null) !== clientId || contractAddsUnrepresentableRestriction) {
+        throw new DesktopError("Para preservar sigilo e vínculos, junte apenas documentos do mesmo cliente e processo, sem restrições adicionais por contrato.", 409, "access-context");
+      }
+    }
+  }
+
   type Out = { bytes: Uint8Array; fileName: string; newDocument: boolean; name?: string };
   const outs: Out[] = [];
   try {

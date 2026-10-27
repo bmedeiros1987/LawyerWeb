@@ -155,6 +155,29 @@ describe.skipIf(!RUN)("MCP somente leitura", () => {
     expect(JSON.stringify(list)).not.toContain(t.token.split(".")[1]);
   });
 
+  it("revogação concorrente vence verifyToken e nunca é desfeita por um snapshot antigo", async () => {
+    const t = await m.createToken({ userId: viewer.userId, workspaceId: ws.id, name: "Corrida" });
+    const locker = await m.pool().connect();
+    try {
+      await locker.query("begin");
+      await locker.query("select value from desktop.local_setting where key = $1 for update", ["mcp_token:" + t.id]);
+      // Queue revoke first, then verification, while both wait for the same row lock.
+      const revoke = m.revokeToken(t.id, viewer.userId, false, Date.now());
+      await new Promise(r => setTimeout(r, 40));
+      const verify = m.verifyToken(t.token, Date.now() + 120_000);
+      await new Promise(r => setTimeout(r, 40));
+      await locker.query("commit");
+      expect(await revoke).toBe(true);
+      expect(await verify).toBeNull();
+    } finally {
+      try { await locker.query("rollback"); } catch { /* already committed */ }
+      locker.release();
+    }
+    expect(await m.verifyToken(t.token)).toBeNull();
+    const raw = (await m.withClient((c: any) => c.query("select value from desktop.local_setting where key = $1", ["mcp_token:" + t.id]))).rows[0].value;
+    expect(JSON.parse(raw).revokedAt).not.toBeNull();
+  });
+
   it("limite de acessos ativos por usuário", async () => {
     let last: any;
     for (let i = 0; i < 12; i++) { try { await m.createToken({ userId: noDocs.userId, workspaceId: ws.id, name: `n${i}` }); } catch (e) { last = e; break; } }
