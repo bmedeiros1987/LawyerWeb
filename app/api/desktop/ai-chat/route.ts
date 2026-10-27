@@ -5,12 +5,12 @@ import { desktopJson, failure, ok, noStore } from "@/lib/desktop/http";
 import { DesktopError, isDesktop } from "@/lib/desktop/env";
 import { authorizedVersionText } from "@/lib/ai/document-text";
 import { ChatInputError, MAX_EXCERPT, askAboutExcerpt } from "@/lib/ai/chat";
-import { resolveProvider } from "@/lib/ai/provider";
+import { currentProvider } from "@/lib/ai/config";
 import { NextResponse } from "next/server";
 
-// MBLZ_AI_PROVIDER names a registered adapter (not a credential). None is registered today, so this
-// route answers "unavailable" and never sends a document anywhere.
-const provider = () => resolveProvider(process.env.MBLZ_AI_PROVIDER);
+// The provider is the owner's own key (Configurações) or an adapter a maintainer registered; with
+// neither, this route answers "unavailable" and never sends a document anywhere. Every send needs
+// `consent: true` for that request.
 const input = z.object({
   versionId: z.string().min(1).max(64), start: z.number().int().nonnegative(), end: z.number().int().positive(),
   question: z.string().min(1).max(2000), consent: z.literal(true),
@@ -21,10 +21,10 @@ export async function GET(request: Request) {
     if (!isDesktop()) throw new DesktopError("Not found", 404);
     const { userId, member } = await documentsMember(false);
     const url = new URL(request.url), versionId = url.searchParams.get("versionId");
-    if (!versionId) return ok({ provider: provider().status() });
+    if (!versionId) return ok({ provider: (await currentProvider()).status() });
     const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) | 0);
     const doc = await authorizedVersionText(userId, member, versionId);
-    return ok({ provider: provider().status(), window: { offset, length: doc.text.length, text: doc.text.slice(offset, offset + MAX_EXCERPT), max: MAX_EXCERPT } });
+    return ok({ provider: (await currentProvider()).status(), window: { offset, length: doc.text.length, text: doc.text.slice(offset, offset + MAX_EXCERPT), max: MAX_EXCERPT } });
   } catch (error) { return failure(error); }
 }
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const { userId, member } = await documentsMember(false);
     const doc = await authorizedVersionText(userId, member, body.versionId);
     const result = await askAboutExcerpt({
-      provider: provider(), text: doc.text, ref: { documentId: doc.documentId, versionId: doc.versionId }, start: body.start, end: body.end, question: body.question,
+      provider: await currentProvider(), text: doc.text, ref: { documentId: doc.documentId, versionId: doc.versionId }, start: body.start, end: body.end, question: body.question,
       // Metadata only: never the question, the excerpt or the answer.
       audit: async e => { await prisma.activityLog.create({ data: { workspaceId: member.workspaceId, userId, type: "AI_CHAT_ASKED", entityType: "LegalDocument", entityId: doc.documentId, source: "DESKTOP", summary: `Pergunta à IA sobre trecho (${e.outcome})`, metadata: e } }); },
     });

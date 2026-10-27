@@ -6,6 +6,8 @@ vi.mock("@/lib/ai/document-text", () => ({ authorizedVersionText: m.authorizedVe
 vi.mock("@/lib/prisma", () => ({ prisma: { activityLog: { create: m.activityCreate }, documentVersion: { findMany: m.versionFind } } }));
 vi.mock("@/lib/authz/permissions", () => ({ canAccessMatter: m.canAccessMatter, P: { MATTERS_VIEW: "matters.view" } }));
 vi.mock("@/lib/authz/visibility", () => ({ documentScope: () => ({}) }));
+// No stored provider settings: the provider lookup reads desktop.local_setting.
+vi.mock("@/lib/desktop/db", () => ({ withClient: async (fn: (c: { query: () => Promise<{ rows: never[] }> }) => unknown) => fn({ query: async () => ({ rows: [] }) }) }));
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/workspace/context", () => ({ getActiveMembership: vi.fn() }));
 import { GET, POST } from "@/app/api/desktop/compare/route";

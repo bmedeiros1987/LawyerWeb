@@ -8,7 +8,7 @@ import { DesktopError, isDesktop } from "@/lib/desktop/env";
 import { SOURCE } from "@/lib/desktop/documents";
 import { authorizedVersionText } from "@/lib/ai/document-text";
 import { compareTexts } from "@/lib/compare/compare";
-import { resolveProvider } from "@/lib/ai/provider";
+import { currentProvider } from "@/lib/ai/config";
 
 // Local, deterministic comparison of two document versions the member may view (documents.view, workspace,
 // document scope and matter confidentiality are checked for EACH version). Read-only: nothing is written to a
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         metadata: { leftVersionId: left.versionId, rightVersionId: right.versionId, leftSha256: result.left.sha256, rightSha256: result.right.sha256, stats: result.stats, observations: result.observations.length },
       } });
     }
-    const ai = resolveProvider(process.env.MBLZ_AI_PROVIDER).status();
+    const ai = (await currentProvider()).status();
     return ok({ left: meta(left), right: meta(right), result, ai: { state: ai.state, label: ai.label, reason: ai.reason }, sent: "nada foi enviado a nenhum serviço" });
   } catch (e) { return failure(e); }
 }

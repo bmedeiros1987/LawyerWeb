@@ -47,3 +47,18 @@ Não conheço API do dot nem o nome do agente e não inventei nenhum. As docs of
 ## Testes
 `npx vitest run tests/ai-chat.test.ts tests/ai-chat-route.test.ts tests/document-assistant.test.tsx tests/mcp-policy.test.ts`
 (trechos de contrato fictícios; os adaptadores dos testes são dublês, o produto não tem nenhum).
+
+
+## Conectar um provedor (chave própria do titular)
+
+Configurações → **Inteligência artificial** (só a conta proprietária do computador). A IA continua **desligada** até alguém informar uma chave de API de uma conta própria. O LawyerMind não cria contas, não tem chave embutida e não paga pelo uso.
+
+- Tipos: **Claude (Anthropic)** e **API compatível com OpenAI** (inclui um modelo local, com endereço `http://localhost…`, caso em que o trecho não sai do computador).
+- Endereço: somente `https`, ou `http` para o próprio computador; sem usuário, senha, parâmetros ou fragmento; redirecionamentos não são seguidos.
+- A chave é cifrada (AES-256-GCM) com um segredo da instalação, que fica na pasta de dados e não no banco, e é **vinculada** ao tipo, ao modelo e ao endereço: alterar o endereço no banco torna a chave ilegível em vez de enviá-la a outro lugar. A tela mostra só os 4 últimos caracteres. A chave nunca vai para o registro de auditoria, para backups do banco nem para o navegador. Isso não protege contra quem já consegue ler todo o perfil do usuário deste computador.
+- **Consentimento a cada envio**: a pergunta só é enviada com o consentimento marcado naquele envio; vai somente o trecho selecionado (até 6000 caracteres) e a pergunta. O registro de auditoria guarda metadados (hash do trecho, tamanhos, resultado), nunca o texto.
+- A resposta é validada: citação que não está literalmente no trecho é descartada e reduz a confiança; nada é aplicado ao documento.
+- Os termos de retenção, treino e uso comercial do provedor **não** são verificados pelo LawyerMind; a tela avisa para o titular conferi-los.
+- Código: `lib/ai/byok.ts` (requisição), `lib/ai/secret-store.ts` (cofre), `lib/ai/config.ts` (configuração), `app/api/desktop/ai-settings/route.ts` (somente titular).
+
+Não verificado: chamadas reais a qualquer provedor (nenhuma chave foi usada; os testes usam respostas simuladas) e o formato exato de cada provedor com contas reais.
