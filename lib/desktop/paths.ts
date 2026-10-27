@@ -135,3 +135,10 @@ export function fsyncDir(dir: string) {
   const fd = fs.openSync(dir, "r");
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 }
+
+/** Names both folders so a root that points somewhere unexpected (e.g. a parent of Downloads) is visible to the user. */
+export function alreadyWorkingCopyMessage(root: string, source: string) {
+  return `Este arquivo está dentro da pasta de cópias de trabalho do LawyerMind (${root}), então não foi importado. `
+    + `Arquivo: ${source}. Se você escolheu um arquivo fora dessa pasta, a pasta de cópias deve estar apontando para o lugar errado: `
+    + `abra Computador, confira a localização das cópias de trabalho e relocalize-a para uma pasta própria (por exemplo, Documentos\\LawyerMind).`;
+}
