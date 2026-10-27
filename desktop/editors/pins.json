@@ -1,0 +1,18 @@
+{
+  "_comment": "Upstream sources, pinned by full commit SHA. Changing a pin requires re-reading the diff, regenerating the patches and updating LICENSES/ and docs/EDITORS.md.",
+  "pdf": {
+    "repo": "https://github.com/storytold/pdfcraft.git",
+    "sha": "1dd2737b47a9c1c9562f0af563053d1bf510e4bf",
+    "package": "pdfcraft",
+    "binary": "pdfcraft",
+    "output": "lawyermind-pdf"
+  },
+  "word": {
+    "repo": "https://github.com/storytold/wordcraft.git",
+    "sha": "2cf1d6c7ae94723a45bd6e7e8c884fe375148750",
+    "package": "wordcraft",
+    "binary": "wordcraft",
+    "output": "lawyermind-word"
+  },
+  "rust": "1.95.0"
+}

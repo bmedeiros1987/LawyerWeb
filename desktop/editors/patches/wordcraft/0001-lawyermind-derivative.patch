@@ -1,0 +1,175 @@
+diff --git a/apps/wordcraft/src/main.rs b/apps/wordcraft/src/main.rs
+index bc66c94..cb814a3 100644
+--- a/apps/wordcraft/src/main.rs
++++ b/apps/wordcraft/src/main.rs
+@@ -348,11 +348,6 @@ fn open_non_unicode(app: &mut WordApp, path: &std::path::Path) {
+ /// geometry, opens requested documents or the Start screen, starts the control server when
+ /// asked, and runs the eframe event loop.
+ fn main() -> eframe::Result {
+-    // Windows: the update helper is a copy of this program started with `--finish-update`.
+-    #[cfg(windows)]
+-    if let Some(result) = craft_update::self_update::finish(&craft_update::suite::WORDCRAFT, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
+-        std::process::exit(i32::from(result.is_err()));
+-    }
+     // First, so the panic hook and every start-up warning are recorded (`logging`).
+     let logger = logging::install();
+     logging::install_panic_hook();
+@@ -407,7 +402,7 @@ fn main() -> eframe::Result {
+     }
+     let mut options = eframe::NativeOptions {
+         viewport: egui::ViewportBuilder::default()
+-            .with_title("WordCraft")
++            .with_title("LawyerMind Word")
+             .with_app_id("ai.storyteller.wordcraft")
+             .with_inner_size([1440.0, 920.0])
+             .with_min_inner_size([760.0, 480.0])
+@@ -463,7 +458,7 @@ fn main() -> eframe::Result {
+             let mut session = Session::new(doc);
+             session.system_region = region;
+             let mut app = WordApp::new(session, services(file_dialog, &cc.egui_ctx));
+-            app.set_startup_update_check(true);
++            app.set_startup_update_check(false);
+             load_prefs(&mut app);
+             load_user_dictionary(&mut app);
+             // A region chosen in File › Options replaces the system's for the first blank
+diff --git a/crates/engine/src/sample.rs b/crates/engine/src/sample.rs
+index fd5ac64..15271e6 100644
+--- a/crates/engine/src/sample.rs
++++ b/crates/engine/src/sample.rs
+@@ -112,7 +112,7 @@ pub fn sample_document() -> Document {
+     add(
+         &mut h,
+         "Visit the community board",
+-        CharProps { style: Some("Hyperlink".into()), link: Some("https://getartcraft.com/".into()), ..Default::default() },
++        CharProps { style: Some("Hyperlink".into()), link: Some("https://example.org/".into()), ..Default::default() },
+     );
+     add(&mut h, " for events.", CharProps::default());
+     b.push(Block::Para(h));
+diff --git a/crates/formats/src/latex/export.rs b/crates/formats/src/latex/export.rs
+index 7b62ce0..8f495de 100644
+--- a/crates/formats/src/latex/export.rs
++++ b/crates/formats/src/latex/export.rs
+@@ -25,7 +25,7 @@ pub fn export(doc: &Document) -> String {
+ 
+     let meta = &flow.meta;
+     let mut o = String::new();
+-    o.push_str("% Written by WordCraft (https://getartcraft.com/apps/wordcraft).\n");
++    o.push_str("% Written by LawyerMind Word (derived from WordCraft).\n");
+     o.push_str("\\documentclass{article}\n");
+     o.push_str("\\usepackage[T1]{fontenc}\n");
+     if w.uses.ulem {
+diff --git a/crates/ui-egui/src/app/commands.rs b/crates/ui-egui/src/app/commands.rs
+index d3446f9..6f468e2 100644
+--- a/crates/ui-egui/src/app/commands.rs
++++ b/crates/ui-egui/src/app/commands.rs
+@@ -738,7 +738,7 @@ impl WordApp {
+                 ));
+             }
+             "ui.discord" => {
+-                self.canvas.open_url = Some("https://discord.gg/artcraft".into());
++                // LawyerMind build: no community links.
+                 json!({})
+             }
+             "ui.caretAnimation" => {
+diff --git a/crates/ui-egui/src/backstage.rs b/crates/ui-egui/src/backstage.rs
+index eb41eda..1ca3c6a 100644
+--- a/crates/ui-egui/src/backstage.rs
++++ b/crates/ui-egui/src/backstage.rs
+@@ -124,7 +124,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
+                 }
+             }
+             ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+-                for (label, id) in [("About", "about"), ("Discord community", "discord")] {
++                for (label, id) in [("About", "about")] {
+                     let (r, resp) = ui.allocate_exact_size(vec2(200.0, 32.0), Sense::click());
+                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), tl!(label)));
+                     if resp.hovered() {
+diff --git a/crates/ui-egui/src/chrome.rs b/crates/ui-egui/src/chrome.rs
+index 2f0801f..a163f5f 100644
+--- a/crates/ui-egui/src/chrome.rs
++++ b/crates/ui-egui/src/chrome.rs
+@@ -356,7 +356,7 @@ pub fn title_bar(app: &mut WordApp, ui: &mut Ui) {
+                         let _ = app.run("ui.backstage", json!({"value": true, "page": "options", "pane": "general"}));
+                     }
+                     ui.add_space(8.0);
+-                    if app.ui.show_discord {
++                    if false && app.ui.show_discord {
+                         let (r, resp) = ui.allocate_exact_size(vec2(84.0, 22.0), Sense::click());
+                         ui.painter().rect_filled(r, 11.0, if resp.hovered() { t.accent_text } else { t.accent });
+                         icons::paint(
+diff --git a/crates/ui-egui/src/dialogs/dispatch.rs b/crates/ui-egui/src/dialogs/dispatch.rs
+index 59eb453..d01543a 100644
+--- a/crates/ui-egui/src/dialogs/dispatch.rs
++++ b/crates/ui-egui/src/dialogs/dispatch.rs
+@@ -965,16 +965,10 @@ pub(super) fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
+                 1 => crate::credits::contributors_ui(ui),
+                 2 => crate::credits::models_ui(ui),
+                 _ => {
+-                    ui.label(egui::RichText::new(tl!("WordCraft")).font(semibold(22.0)));
++                    ui.label(egui::RichText::new("LawyerMind Word").font(semibold(22.0)));
+                     let build = option_env!("WORDCRAFT_BUILD_SHA").map(|s| s.get(..8).unwrap_or(s)).unwrap_or(tl!("development build"));
+                     ui.label(crate::i18n::fmt(tl!("Version {version} ({build})"), &[("version", env!("CARGO_PKG_VERSION")), ("build", build)]));
+-                    ui.label(tl!(
+-                        "A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team."
+-                    ));
+-                    ui.add_space(6.0);
+-                    ui.hyperlink_to(tl!("getartcraft.com/apps/wordcraft"), "https://getartcraft.com/apps/wordcraft");
+-                    ui.hyperlink_to(tl!("Join us on Discord: discord.gg/artcraft"), "https://discord.gg/artcraft");
+-                    ui.hyperlink_to(tl!("Source code: github.com/storytold/wordcraft"), "https://github.com/storytold/wordcraft");
++                    ui.label("Derivado do WordCraft (MIT OR Apache-2.0), incluído no LawyerMind. Licenças e avisos: pasta LICENSES do aplicativo.");
+                     ui.add_space(6.0);
+                     ui.label(
+                         egui::RichText::new(tl!("MIT OR Apache-2.0. Copyright (c) 2026 ArtCraft Team and the WordCraft contributors."))
+diff --git a/crates/ui-egui/src/keytips.rs b/crates/ui-egui/src/keytips.rs
+index 9ed3627..ae728d6 100644
+--- a/crates/ui-egui/src/keytips.rs
++++ b/crates/ui-egui/src/keytips.rs
+@@ -390,7 +390,7 @@ fn controls(tab: &str) -> Vec<Control> {
+             c("Full Screen", "view.fullScreen"),
+             c("Macros", "tools.macros"),
+         ],
+-        "Help" => vec![d("Help", "about"), c("Community Discord", "ui.discord"), d("Commands", "commands")],
++        "Help" => vec![d("Help", "about"), d("Commands", "commands")],
+         "Table Design" => {
+             vec![m("Shading", "table.shading"), m("Borders", "table.borders"), c("Border Painter", "table.borderPainter")]
+         }
+diff --git a/crates/ui-egui/src/ribbon/review.rs b/crates/ui-egui/src/ribbon/review.rs
+index 3ae9257..55bf45c 100644
+--- a/crates/ui-egui/src/ribbon/review.rs
++++ b/crates/ui-egui/src/ribbon/review.rs
+@@ -123,8 +123,6 @@ pub(super) fn developer(app: &mut WordApp, ui: &mut Ui) {
+ pub(super) fn help(app: &mut WordApp, ui: &mut Ui) {
+     group(ui, "Help", None, app, |ui, app| {
+         big(ui, app, "help", "Help", "ui.dialog", json!({"name": "about"}), false);
+-        big(ui, app, "checkForUpdates", "Check for\nUpdates…", "ui.checkForUpdates", json!({}), false);
+-        big(ui, app, "discord", "Community\nDiscord", "ui.discord", json!({}), false);
+     });
+     group(ui, "Agents", None, app, |ui, app| {
+         big(ui, app, "macros", "Commands", "ui.dialog", json!({"name": "commands"}), false);
+diff --git a/crates/ui-egui/src/updates_ui.rs b/crates/ui-egui/src/updates_ui.rs
+index c8aece1..7d5f03c 100644
+--- a/crates/ui-egui/src/updates_ui.rs
++++ b/crates/ui-egui/src/updates_ui.rs
+@@ -46,7 +46,8 @@ impl WordApp {
+ }
+ 
+ pub(crate) fn check(app: &mut WordApp) {
+-    #[cfg(not(target_arch = "wasm32"))]
++    // LawyerMind build: this app never contacts a release server.
++    #[cfg(any())]
+     {
+         app.updates_rt.check_requested = true;
+         if let Some(ctx) = &app.updates_rt.repaint {
+@@ -65,11 +66,7 @@ pub(crate) fn tick(app: &mut WordApp, ctx: &egui::Context) {
+     {
+         let rt = &mut app.updates_rt;
+         rt.repaint = Some(ctx.clone());
+-        if std::mem::take(&mut rt.check_requested) {
+-            rt.updater.check_now(ctx);
+-        } else if rt.startup_check {
+-            rt.updater.check_at_start(ctx);
+-        }
++        // LawyerMind build: no update checks, even if an old preference asks for them.
+         rt.updater.tick(ctx);
+     }
+     #[cfg(target_arch = "wasm32")]

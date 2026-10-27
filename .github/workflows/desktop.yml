@@ -14,6 +14,7 @@ on:
   pull_request:
     paths:
       - "desktop/**"
+      - "lib/pdf-tools/**"
       - "lib/desktop/**"
       - "app/**"
       - "components/**"
@@ -38,7 +39,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +84,36 @@ jobs:
           mkdir -p "$EV"
           { echo "commit=$CODE_SHA"; echo "ci_merge_commit=$GITHUB_SHA"; echo "ref=$GITHUB_REF"; echo "runner=${{ matrix.os }}"; echo "node=$(node -v)"; rustc -V; } | tee "$EV/build-info.txt"
 
+      # Embedded PDF/Word editors: derived from upstream commits pinned in desktop/editors/pins.json,
+      # with our patches (brand removed, updater and community links disabled). Built natively here;
+      # the compiled cache is keyed on the pins and patches.
+      - name: Cache editors build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ runner.temp }}/editors-work/target-pdfcraft
+            ${{ runner.temp }}/editors-work/target-wordcraft
+          key: editors-${{ matrix.name }}-${{ hashFiles('desktop/editors/pins.json', 'desktop/editors/patches/**', 'desktop/editors/build.mjs') }}
+
+      - name: Embedded editors (build from pinned upstream)
+        timeout-minutes: 75
+        run: |
+          node desktop/editors/build.mjs --out "$RUNNER_TEMP/editors-out" --work "$RUNNER_TEMP/editors-work" 2>&1 | tail -40 | tee "$EV/editors-build.txt"
+          ls -la "$RUNNER_TEMP/editors-out" | tee -a "$EV/editors-build.txt"
+
+      - name: Embedded editors start (--version) and carry no brand or update server
+        run: |
+          set -e
+          EXE=""; [ "${{ runner.os }}" = "Windows" ] && EXE=".exe"
+          for e in lawyermind-pdf lawyermind-word; do
+            f="$RUNNER_TEMP/editors-out/$e$EXE"
+            test -f "$f"
+            "$f" --version | tee -a "$EV/editors-version.txt"
+          done
+          node desktop/editors/check-brand.mjs "$RUNNER_TEMP/editors-out/lawyermind-pdf$EXE" "$RUNNER_TEMP/editors-out/lawyermind-word$EXE" | tee -a "$EV/editors-brand.txt"
+
       - name: Bundled PostgreSQL
         working-directory: desktop
         run: npm run prepare:postgres
@@ -98,6 +129,10 @@ jobs:
       - name: Court store on an exclusive disposable PostgreSQL cluster
         timeout-minutes: 10
         run: npm run test:desktop-courts:db 2>&1 | tee "$EV/court-store-db.txt"
+
+      - name: Lay out embedded editors and licenses for the installer
+        working-directory: desktop
+        run: LAWYERMIND_EDITORS_FROM="$RUNNER_TEMP/editors-out" npm run prepare:editors 2>&1 | tee "$EV/prepare-editors.txt"
 
       - name: Build installer
         working-directory: desktop
