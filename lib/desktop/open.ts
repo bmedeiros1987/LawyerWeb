@@ -20,7 +20,10 @@ export async function openVersion(input: { userId: string; member: DocumentsMemb
   const useEditor = input.mode === "editor" && !input.reveal;
   if (useEditor) {
     const kind = editorKindFor(version.originalName ?? file);
-    if (!kind || !openWithEditor(kind, file)) throw new DesktopError("O editor embutido não está disponível nesta instalação para este tipo de arquivo. Use \"Abrir cópia para editar\".", 409, "editor-unavailable");
+    if (!kind) throw new DesktopError("O editor embutido não abre este tipo de arquivo. Use \"Abrir cópia para editar\".", 409, "editor-unavailable");
+    const r = await openWithEditor(kind, file);
+    if (!r.ok && r.reason === "not-installed") throw new DesktopError("O editor embutido não está disponível nesta instalação. Use \"Abrir cópia para editar\".", 409, "editor-unavailable");
+    if (!r.ok) throw new DesktopError(`O editor ${r.message}. Nada foi alterado no documento.${r.log ? ` Detalhes: ${r.log}` : ""} Use \"Abrir cópia para editar\" enquanto isso.`, 502, "editor-failed");
   } else openWithSystem(file, Boolean(input.reveal));
   await prisma.activityLog.create({ data: {
     workspaceId: input.member.workspaceId, userId: input.userId, type: editable ? "DOCUMENT_OPENED_EDIT" : "DOCUMENT_OPENED_READ",

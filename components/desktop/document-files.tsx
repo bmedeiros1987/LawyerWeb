@@ -51,7 +51,7 @@ export function DesktopDocumentFiles({ documentId, versions, canEdit, editors }:
   <article className="panel panel-wide">
     <div className="panel-heading"><div><span className="eyebrow">Computador</span><h2>Cópias de trabalho</h2></div>{canEdit && <button className="desktop-secondary" onClick={newVersion} disabled={busy}><Upload size={15}/>Importar nova versão</button>}</div>
     {versions.length === 0 ? <div className="mini-empty">Nenhum arquivo importado neste computador.</div> :
-      <div className="desktop-rows">{versions.map(v => <div key={v.id}>
+      <div className="desktop-rows stack">{versions.map(v => <div key={v.id}>
         <div><strong><FileText size={13}/> Versão {v.version} · {v.originalName}</strong>
           <small>{v.provenance.derived ? "Gerado no LawyerMind" : "Original (somente leitura)"}: <span className="desktop-path">{v.provenance.originalPath ?? "—"}</span>{v.provenance.originalInSyncFolder ? " · pasta sincronizada" : ""}</small>
           <small>SHA-256 na importação: <span className="desktop-path">{v.sha256?.slice(0, 16)}…</span> · {new Date(v.createdAt).toLocaleString("pt-BR")}</small></div>

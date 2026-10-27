@@ -226,6 +226,22 @@ jobs:
           "instalado em $($exe.FullName)" | Tee-Object "$ev/install.txt"
           Get-AuthenticodeSignature $exe.FullName | Format-List Status,StatusMessage | Out-String | Tee-Object "$ev/install.txt" -Append
 
+          # Diagnostic (does NOT fail the job): do the INSTALLED editors start and stay open on this runner?
+          # Evidence for a real-machine report that "Editar no LawyerMind" opened nothing. A runner has no
+          # physical GPU, so "dead" here is a hint, not proof; "alive" is real evidence the binary launches.
+          foreach ($ed in @(@{ n = 'lawyermind-pdf.exe'; f = 'editor-smoke.pdf'; c = "%PDF-1.4`n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj`n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj`n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj`ntrailer<</Root 1 0 R>>`n%%EOF" })) {
+            try {
+              $bin = Join-Path $inst "editors\$($ed.n)"
+              if (-not (Test-Path $bin)) { "$($ed.n): AUSENTE no instalado ($bin)" | Tee-Object "$ev/editor-start.txt" -Append; continue }
+              $doc = Join-Path $env:RUNNER_TEMP $ed.f
+              [IO.File]::WriteAllText($doc, $ed.c)
+              $p = Start-Process -PassThru -FilePath $bin -ArgumentList "`"$doc`""
+              Start-Sleep -Seconds 8
+              "$($ed.n): vivo apos 8s = $(-not $p.HasExited) (exit=$(if ($p.HasExited) { $p.ExitCode } else { '-' }))" | Tee-Object "$ev/editor-start.txt" -Append
+              if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+            } catch { "$($ed.n): erro ao iniciar: $($_.Exception.Message)" | Tee-Object "$ev/editor-start.txt" -Append }
+          }
+
           # Offline: block outbound traffic of every installed executable (loopback stays allowed).
           Get-ChildItem $inst -Recurse -Filter *.exe | ForEach-Object { New-NetFirewallRule -DisplayName "LM-offline-$($_.Name)-$([guid]::NewGuid())" -Direction Outbound -Action Block -Program $_.FullName | Out-Null }
           $node = Join-Path $inst 'node\node.exe'

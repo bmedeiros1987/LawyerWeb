@@ -28,6 +28,10 @@ pub struct Server {
 const PASS_ENV: &[&str] = &[
     "PATH", "SystemRoot", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
     "LOCALAPPDATA", "APPDATA", "LANG", "LC_ALL", "TZ", "OneDrive", "OneDriveCommercial", "OneDriveConsumer",
+    // System variables a graphical program started from here (the bundled editors) needs on Windows.
+    // No credentials or tokens: the server hands the editors only an allow-list of these (lib/desktop/editors.ts).
+    "SystemDrive", "ProgramData", "ALLUSERSPROFILE", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "COMSPEC", "PATHEXT",
+    "HOMEDRIVE", "HOMEPATH", "USERNAME", "USERDOMAIN", "COMPUTERNAME", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
     "XDG_RUNTIME_DIR", "DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS",
     // Set only by `--self-test`: documents are not opened in desktop programs.
     "MBLZ_DESKTOP_NO_LAUNCH",

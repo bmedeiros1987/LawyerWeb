@@ -50,6 +50,9 @@
 .desktop-rows{display:grid}
 .desktop-rows>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:calc(15px * var(--fs,1))}
 .desktop-rows>div:first-child{border-top:0}
+/* Rows with many buttons: text on top at full width, buttons wrapping below (the two-column layout squeezed the text). */
+.desktop-rows.stack>div{grid-template-columns:minmax(0,1fr)}
+.desktop-path{overflow-wrap:anywhere}
 .desktop-rows small{display:block;color:var(--secondary);font-size:calc(14.5px * var(--fs,1));margin-top:2px}
 @media(max-width:1100px){.desktop-grid{grid-template-columns:1fr}}
 .lawyermind-login-symbol{height:64px;width:auto;margin-right:6px}
