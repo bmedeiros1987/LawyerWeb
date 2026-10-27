@@ -4,7 +4,7 @@
 // installer resources:
 //   src-tauri/resources/server/   server.js + traced node_modules + .next + public + prisma/migrations
 //   src-tauri/resources/node/     the Node.js 22 runtime of this build machine (same OS/arch as the installer)
-//   src-tauri/resources/runtime/  selftest.mjs (packaged acceptance test)
+//   src-tauri/resources/runtime/  selftest.mjs (packaged acceptance test), mcp-bridge.mjs (optional MCP stdio bridge)
 // Usage: node scripts/prepare-server.mjs [--skip-build]
 import { execSync } from "node:child_process";
 import fs from "node:fs";
@@ -72,6 +72,7 @@ const runtime = path.join(res, "runtime");
 fs.rmSync(runtime, { recursive: true, force: true });
 fs.mkdirSync(runtime, { recursive: true });
 fs.copyFileSync(path.join(desktop, "runtime", "selftest.mjs"), path.join(runtime, "selftest.mjs"));
+fs.copyFileSync(path.join(desktop, "runtime", "mcp-bridge.mjs"), path.join(runtime, "mcp-bridge.mjs"));
 
 let commit = "unknown";
 try { commit = execSync("git rev-parse HEAD", { cwd: repo, encoding: "utf8" }).trim(); } catch { /* not a git checkout */ }

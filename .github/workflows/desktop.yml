@@ -125,6 +125,8 @@ jobs:
       - name: Production server (Next.js standalone) + Node runtime
         working-directory: desktop
         run: npm run prepare:server 2>&1 | tail -20 | tee "$EV/prepare-server.txt"
+      - name: MCP bridge is part of the installer resources
+        run: test -f desktop/src-tauri/resources/runtime/mcp-bridge.mjs && echo "mcp-bridge.mjs presente" | tee "$EV/mcp-bridge.txt"
 
       - name: Court store on an exclusive disposable PostgreSQL cluster
         timeout-minutes: 10

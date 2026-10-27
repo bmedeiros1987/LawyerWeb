@@ -15,6 +15,7 @@ pub struct ServerPaths {
     pub server_dir: PathBuf,
     pub state_dir: PathBuf,
     pub editors_dir: PathBuf,
+    pub runtime_dir: PathBuf,
 }
 
 pub struct Server {
@@ -116,6 +117,8 @@ impl Server {
             // Public key (minisign) that downloaded update packages must be signed with. It is public by design;
             // the private key is never in the repository. Without it the app refuses to download any package.
             .env("MBLZ_EDITORS_DIR", &paths.editors_dir)
+            .env("MBLZ_NODE_PATH", &paths.node)
+            .env("MBLZ_RUNTIME_DIR", &paths.runtime_dir)
             .env("MBLZ_UPDATER_PUBLIC_KEY", include_str!("../updater.pub").trim())
             .env("MBLZ_DESKTOP_MIGRATIONS_DIR", paths.server_dir.join("prisma").join("migrations"))
             .env("DATABASE_URL", database_url)
