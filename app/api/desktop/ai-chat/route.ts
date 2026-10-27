@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 // `consent: true` for that request.
 const input = z.object({
   versionId: z.string().min(1).max(64), start: z.number().int().nonnegative(), end: z.number().int().positive(),
-  question: z.string().min(1).max(2000), consent: z.literal(true),
+  question: z.string().min(1).max(2000), consent: z.literal(true), freeTierAck: z.boolean().optional(),
 }).strict();
 
 export async function GET(request: Request) {
@@ -32,9 +32,12 @@ export async function POST(request: Request) {
   try {
     const body = await desktopJson(request, input);
     const { userId, member } = await documentsMember(false);
+    const provider = await currentProvider();
+    // Free plans: the user must also confirm the excerpt holds no client/confidential data.
+    if (provider.status().freeTier && body.freeTierAck !== true) throw new DesktopError("Plano gratuito: confirme que o trecho não contém dados de clientes ou sigilosos.", 428, "free-tier-ack");
     const doc = await authorizedVersionText(userId, member, body.versionId);
     const result = await askAboutExcerpt({
-      provider: await currentProvider(), text: doc.text, ref: { documentId: doc.documentId, versionId: doc.versionId }, start: body.start, end: body.end, question: body.question,
+      provider, text: doc.text, ref: { documentId: doc.documentId, versionId: doc.versionId }, start: body.start, end: body.end, question: body.question,
       // Metadata only: never the question, the excerpt or the answer.
       audit: async e => { await prisma.activityLog.create({ data: { workspaceId: member.workspaceId, userId, type: "AI_CHAT_ASKED", entityType: "LegalDocument", entityId: doc.documentId, source: "DESKTOP", summary: `Pergunta à IA sobre trecho (${e.outcome})`, metadata: e } }); },
     });

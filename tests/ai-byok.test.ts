@@ -54,6 +54,17 @@ describe("provedor Anthropic", () => {
   });
 });
 
+describe("plano gratuito", () => {
+  it("a marca de plano gratuito entra no status e no aviso, e só quando informada", () => {
+    expect(validateConfig({ kind: "openai-compatible", model: "m", baseUrl: "https://api.groq.com/openai/v1", freeTier: true })).toMatchObject({ freeTier: true });
+    expect(validateConfig({ kind: "anthropic", model: "m" })).not.toHaveProperty("freeTier");
+    const free = createByokProvider({ kind: "openai-compatible", model: "m", baseUrl: "https://api.groq.com/openai/v1", freeTier: true }, KEY).status();
+    expect(free.freeTier).toBe(true);
+    expect(free.reason).toMatch(/GRATUITO/);
+    expect(createByokProvider({ kind: "anthropic", model: "m" }, KEY).status().freeTier).toBeUndefined();
+  });
+});
+
 describe("provedor compatível com OpenAI", () => {
   it("usa Bearer e o endereço configurado; servidor local não conta como 'fora do computador'", async () => {
     const calls: Call[] = [];

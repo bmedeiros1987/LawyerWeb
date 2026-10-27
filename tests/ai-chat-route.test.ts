@@ -77,4 +77,16 @@ describe("/api/desktop/ai-chat", () => {
     expect((await post({ ...body, end: 9999 })).status).toBe(400);
     expect(complete).not.toHaveBeenCalled();
   });
+  it("free plan: needs the extra acknowledgement (428) and never calls the provider without it", async () => {
+    const complete = vi.fn().mockResolvedValue({ answer: "ok", citations: [{ quote: "A rescisão" }], suggestions: [], uncertainty: { level: "low", notes: [] } });
+    registerProvider("dbl", () => ({ status: () => ({ id: "dbl", label: "d", state: "available", reason: "ok", sendsDataOutsideDevice: true, freeTier: true }), complete }));
+    vi.stubEnv("MBLZ_AI_PROVIDER", "dbl");
+    const denied = await post(body);
+    expect(denied.status).toBe(428);
+    expect((await denied.json()).code).toBe("free-tier-ack");
+    expect(complete).not.toHaveBeenCalled();
+    expect(m.authorizedVersionText).not.toHaveBeenCalled(); // not even the document text is read
+    expect((await post({ ...body, freeTierAck: true })).status).toBe(200);
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
 });

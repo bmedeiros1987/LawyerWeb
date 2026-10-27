@@ -62,3 +62,14 @@ Configurações → **Inteligência artificial** (só a conta proprietária do c
 - Código: `lib/ai/byok.ts` (requisição), `lib/ai/secret-store.ts` (cofre), `lib/ai/config.ts` (configuração), `app/api/desktop/ai-settings/route.ts` (somente titular).
 
 Não verificado: chamadas reais a qualquer provedor (nenhuma chave foi usada; os testes usam respostas simuladas) e o formato exato de cada provedor com contas reais.
+
+
+### Opções gratuitas na nuvem (e o que você precisa saber)
+
+O painel traz predefinições de endereço para **Groq** e **Google Gemini** (ambos com API compatível com OpenAI) e para **modelo local (Ollama)**. O LawyerMind não cria conta nem chave: você cria na sua conta do provedor. Nomes de modelo não vêm preenchidos, porque mudam; use o que o console do provedor mostrar.
+
+- **Privacidade é o ponto crítico.** Planos gratuitos costumam permitir que o provedor use, e até pessoas revisem, o conteúdo enviado para melhorar produtos. Fontes secundárias consultadas indicam isso para o plano gratuito do Gemini (e que o plano pago o exclui); para o Groq **não verifiquei** a política de dados. As páginas oficiais não puderam ser abertas neste ambiente, então **confira os termos na fonte antes de usar**. Para documentos de clientes ou sigilosos, prefira um plano pago com termos que você aceite, ou o modelo local.
+- Por isso, quando o plano é marcado como gratuito: a tela e a resposta do provedor avisam, e **cada envio exige uma confirmação extra** de que o trecho não contém dados de clientes ou sigilosos. O servidor recusa (HTTP 428) o envio sem essa confirmação, antes mesmo de ler o texto do documento.
+- Limites: planos gratuitos têm cotas por minuto e por dia; ao exceder, o provedor responde erro 429 e o assistente informa que a consulta falhou, sem alterar nada.
+- O endereço do Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`) e o do Groq (`https://api.groq.com/openai/v1`) vêm da minha pesquisa secundária e do meu conhecimento; se der erro 404, confira na documentação do provedor.
+- **Não testado com provedor real.**

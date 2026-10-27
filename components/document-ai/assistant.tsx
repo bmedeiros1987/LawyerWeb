@@ -10,7 +10,7 @@ type Answer = Extract<ChatResult, { status: "answer" }>;
 // Chat about ONE selected excerpt. There is no simulated answer: with no provider the form stays disabled.
 export function DocumentAssistant({ documentId, versionId, label }: { documentId: string; versionId: string; label: string }) {
   const [provider, setProvider] = useState<ProviderStatus | null>(null), [win, setWin] = useState<Window | null>(null);
-  const [sel, setSel] = useState<{ start: number; end: number } | null>(null), [question, setQuestion] = useState(""), [consent, setConsent] = useState(false);
+  const [sel, setSel] = useState<{ start: number; end: number } | null>(null), [question, setQuestion] = useState(""), [consent, setConsent] = useState(false), [freeAck, setFreeAck] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [answer, setAnswer] = useState<Answer | null>(null);
   const area = useRef<HTMLTextAreaElement>(null), generation = useRef(0);
 
@@ -27,10 +27,10 @@ export function DocumentAssistant({ documentId, versionId, label }: { documentId
   const available = provider?.state === "available";
   const onSelect = () => { const a = area.current; if (!a || !win) return; setSel(a.selectionEnd > a.selectionStart ? { start: win.offset + a.selectionStart, end: win.offset + a.selectionEnd } : null); };
   const ask = async () => {
-    if (!sel || !available || !consent || busy) return;
+    if (!sel || !available || !consent || busy || (provider?.freeTier && !freeAck)) return;
     const id = ++generation.current; setBusy(true); setError(""); setAnswer(null);
     try {
-      const r = await fetch("/api/desktop/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionId, start: sel.start, end: sel.end, question, consent: true }) });
+      const r = await fetch("/api/desktop/ai-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionId, start: sel.start, end: sel.end, question, consent: true, ...(provider?.freeTier ? { freeTierAck: true } : {}) }) });
       const body = await r.json(); if (!r.ok) throw Error(body.error ?? "Falha na consulta.");
       if (id === generation.current) setAnswer(body);
     } catch (e) { if (id === generation.current) setError(e instanceof Error ? e.message : "Falha na consulta."); }
@@ -54,7 +54,9 @@ export function DocumentAssistant({ documentId, versionId, label }: { documentId
       <label>Pergunta sobre o trecho<textarea value={question} maxLength={2000} disabled={!available} onChange={e => setQuestion(e.target.value)} rows={3} /></label>
       <label className="doc-ai-consent"><input type="checkbox" checked={consent} disabled={!available} onChange={e => setConsent(e.target.checked)} />
         {provider?.sendsDataOutsideDevice ? "Autorizo enviar SOMENTE o trecho selecionado e a pergunta ao provedor acima, fora deste computador." : "Autorizo usar o trecho selecionado e a pergunta com o provedor acima."}</label>
-      <button type="button" disabled={!available || !sel || sel.end - sel.start > win.max || !question.trim() || !consent || busy} onClick={ask}>{busy ? "Consultando…" : "Perguntar"}</button>
+      {provider?.freeTier && <label className="doc-ai-consent"><input type="checkbox" checked={freeAck} disabled={!available} onChange={e => setFreeAck(e.target.checked)} />
+        Plano gratuito: entendo que o provedor pode usar e revisar este trecho, e confirmo que ele NÃO contém dados de clientes nem informação sigilosa.</label>}
+      <button type="button" disabled={!available || !sel || sel.end - sel.start > win.max || !question.trim() || !consent || (Boolean(provider?.freeTier) && !freeAck) || busy} onClick={ask}>{busy ? "Consultando…" : "Perguntar"}</button>
       {!available && <p className="hint">Indisponível de verdade: sem provedor conectado não há resposta, nem simulada.</p>}
     </>}
     {answer && <AnswerView answer={answer} />}

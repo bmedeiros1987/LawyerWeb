@@ -6,7 +6,7 @@ import { renderPrompt } from "./chat";
 import type { AiProvider, AiRequest, ProviderStatus } from "./provider";
 
 export type ByokKind = "anthropic" | "openai-compatible";
-export type ByokConfig = { kind: ByokKind; model: string; baseUrl?: string };
+export type ByokConfig = { kind: ByokKind; model: string; baseUrl?: string; freeTier?: boolean };
 
 export const ANTHROPIC_URL = "https://api.anthropic.com";
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
@@ -26,13 +26,14 @@ export function normalizeBaseUrl(raw: string): string {
   return url.origin + url.pathname.replace(/\/+$/, "");
 }
 
-export function validateConfig(input: { kind: string; model: string; baseUrl?: string | null }): ByokConfig {
+export function validateConfig(input: { kind: string; model: string; baseUrl?: string | null; freeTier?: boolean }): ByokConfig {
   if (input.kind !== "anthropic" && input.kind !== "openai-compatible") throw new ByokConfigError("Tipo de provedor desconhecido.");
   const model = input.model.trim();
   if (!MODEL_RE.test(model)) throw new ByokConfigError("Nome do modelo inválido.");
-  if (input.kind === "anthropic") return { kind: "anthropic", model };
+  const freeTier = input.freeTier === true ? { freeTier: true } : {};
+  if (input.kind === "anthropic") return { kind: "anthropic", model, ...freeTier };
   if (!input.baseUrl?.trim()) throw new ByokConfigError("Informe o endereço da API compatível com OpenAI.");
-  return { kind: "openai-compatible", model, baseUrl: normalizeBaseUrl(input.baseUrl) };
+  return { kind: "openai-compatible", model, baseUrl: normalizeBaseUrl(input.baseUrl), ...freeTier };
 }
 
 export const validateApiKey = (key: string) => {
@@ -57,8 +58,11 @@ export function createByokProvider(config: ByokConfig, apiKey: string, fetchImpl
     id: `byok-${config.kind}`,
     label: `${config.kind === "anthropic" ? "Claude (Anthropic)" : "API compatível com OpenAI"} · ${config.model} · ${host}`,
     state: "available",
-    reason: "Provedor configurado com a chave do titular desta instalação.",
+    reason: config.freeTier
+      ? "Plano GRATUITO informado pelo titular. Planos gratuitos costumam permitir que o provedor use e até revise o conteúdo enviado para melhorar seus produtos: não envie dados de clientes ou sigilosos."
+      : "Provedor configurado com a chave do titular desta instalação.",
     sendsDataOutsideDevice: external,
+    ...(config.freeTier ? { freeTier: true } : {}),
     // No terms are claimed: retention/training/commercial-use have not been verified by a person for this account.
   });
 

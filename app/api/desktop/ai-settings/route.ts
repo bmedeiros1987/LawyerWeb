@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 // (only its last 4 characters) and never written to the audit log.
 const body = z.object({
   kind: z.enum(["anthropic", "openai-compatible"]), model: z.string().min(1).max(100),
-  baseUrl: z.string().max(300).nullish(), apiKey: z.string().min(8).max(400),
+  baseUrl: z.string().max(300).nullish(), freeTier: z.boolean().optional(), apiKey: z.string().min(8).max(400),
 }).strict();
 
 async function audit(userId: string, workspaceId: string | undefined, summary: string, metadata: object) {
@@ -31,7 +31,7 @@ export async function PUT(request: Request) {
     const input = await desktopJson(request, body);
     const { userId, member } = await sessionMember();
     await requireOwner(userId);
-    try { const s = await saveAiProvider(input); await audit(userId, member?.workspaceId, "Provedor de IA configurado", { kind: s.kind, model: s.model, baseUrl: s.baseUrl }); return ok({ settings: s }); }
+    try { const s = await saveAiProvider(input); await audit(userId, member?.workspaceId, "Provedor de IA configurado", { kind: s.kind, model: s.model, baseUrl: s.baseUrl, freeTier: s.freeTier }); return ok({ settings: s }); }
     catch (e) { if (e instanceof ByokConfigError) throw new DesktopError(e.message, 400); throw e; }
   } catch (e) { return failure(e); }
 }

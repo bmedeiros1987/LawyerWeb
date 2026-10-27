@@ -11,7 +11,7 @@ const KEY = "ai_provider";
 type Stored = { config: ByokConfig; sealed: string; savedAt: string };
 
 const secret = () => process.env.AUTH_SECRET ?? "";
-const aad = (c: ByokConfig) => JSON.stringify([c.kind, c.model, c.baseUrl ?? ""]);
+const aad = (c: ByokConfig) => JSON.stringify([c.kind, c.model, c.baseUrl ?? "", c.freeTier === true]);
 
 async function read(): Promise<Stored | null> {
   const row = await withClient(async c => (await c.query<{ value: string }>("select value from desktop.local_setting where key = $1", [KEY])).rows[0]);
@@ -19,7 +19,7 @@ async function read(): Promise<Stored | null> {
   try { const s = JSON.parse(row.value) as Stored; return s?.config && typeof s.sealed === "string" ? s : null; } catch { return null; }
 }
 
-export async function saveAiProvider(input: { kind: string; model: string; baseUrl?: string | null; apiKey: string }) {
+export async function saveAiProvider(input: { kind: string; model: string; baseUrl?: string | null; freeTier?: boolean; apiKey: string }) {
   const config = validateConfig(input);
   const apiKey = validateApiKey(input.apiKey);
   const value: Stored = { config, sealed: sealKey(apiKey, secret(), aad(config)), savedAt: new Date().toISOString() };
@@ -35,7 +35,7 @@ export async function clearAiProvider() {
 
 const last4 = (k: string) => k.slice(-4);
 function summary(s: Stored, plain: string | null) {
-  return { configured: true as const, kind: s.config.kind, model: s.config.model, baseUrl: s.config.baseUrl ?? null, keyHint: plain ? `…${last4(plain)}` : null, readable: plain !== null, savedAt: s.savedAt };
+  return { configured: true as const, kind: s.config.kind, model: s.config.model, baseUrl: s.config.baseUrl ?? null, freeTier: s.config.freeTier === true, keyHint: plain ? `…${last4(plain)}` : null, readable: plain !== null, savedAt: s.savedAt };
 }
 
 /** What the settings screen may show: never the key, only its last 4 characters. */
