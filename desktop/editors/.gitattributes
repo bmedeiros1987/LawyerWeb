@@ -1,0 +1,4 @@
+# Patches and pins must keep LF line endings on every OS (git apply is exact).
+*.patch -text
+*.json text eol=lf
+*.mjs text eol=lf
