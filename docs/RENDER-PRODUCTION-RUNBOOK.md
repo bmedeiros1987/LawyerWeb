@@ -4,6 +4,17 @@
 
 **Referências de governança:** [Roadmap #38](https://github.com/bmedeiros1987/LawyerWeb/issues/38) · [Launch Gate #37](https://github.com/bmedeiros1987/LawyerWeb/issues/37).
 
+## Estado revalidado em 31/10/2026, ~11h40 de Brasília (bloqueio P0)
+
+**Lançamento externo: NO-GO.** A tabela de 23/10 abaixo é **histórica**, não descreve disponibilidade presente. A leitura atual dos serviços Render e do repositório indica:
+
+- **Produção e preview suspensos por faturamento:** `mblz-legal-os` e `mblz-preview` retornam `suspended`, `suspenders=["billing"]`. Os eventos `suspender_added` e `service_suspended` são de **29/10/2026, 03h31 BRT**; não há evento posterior de retomada. O último deploy `live` da produção (02/10, `73220db6`) é registro **histórico**, não prova disponibilidade. Auto-deploy continua ativo; **não disparar deploy manual**.
+- **Banco expirado e suspenso:** `vcl-postgres` PostgreSQL 18, plano `free`, mantém `expiresAt=2026-10-29T19:20:21Z` (**29/10 às 16h20 BRT, já ultrapassado**) e `status=suspended`, com bloqueio `billing`. **Não há prova de exclusão dos dados nem de recuperabilidade, integridade ou backup/restore testado.** A [política do Free Postgres](https://render.com/docs/free#free-postgres) descreve carência de **14 dias após a expiração**, para recuperação mediante upgrade autorizado, antes da exclusão; referência **nominal** do término: **12/11/2026 ~16h20 BRT**, sujeita a confirmação/condições do provedor. A carência não garante continuidade, acesso nem remove a suspensão administrativa.
+- **Verificação limitada:** consulta SQL exclusivamente de leitura bloqueada pela `ipAllowList=[]`, preservada. Logs posteriores à suspensão e métricas HTTP, instâncias, CPU e conexões consultadas não trouxeram séries utilizáveis. Não inferir saúde, causa de 503 atual ou restauração a partir de `LIVE` ou CI.
+- **GitHub:** `main=73220db6` sem proteção efetiva (`protected=false`, nenhum ruleset na leitura), Quality Gates [#122](https://github.com/bmedeiros1987/LawyerWeb/actions/runs/36994830419) verdes apenas em 02/10. Não tratar CI como validação real de login, isolamento entre tenants, operações jurídicas ou gates humanos.
+
+**Sequência obrigatória:** (1) responsável humano verificar e resolver o bloqueio de faturamento no [painel Render](https://dashboard.render.com/billing); (2) com autorização expressa, confirmar com o Render a situação, condições e janela efetiva de preservação/recuperação do [PostgreSQL](https://dashboard.render.com/d/dpg-dau0utflk1mc73d92bkg-a); (3) documentar backup íntegro e restauração **isolada** em ambiente permitido; (4) somente após reativação, medir HTTP, logs, disponibilidade sustentada, smoke autenticado e isolamento real. **Não contratar, alterar permissões/secrets/rede, executar migrations, alterar dados reais, realizar deploy manual ou marcar gates por inferência.** Deadline Safety e OpenClaw `fail-closed` sem Cross-System ACTION permanecem obrigatórios.
+
 ## Estado observado em 23/10/2026 (não é monitoramento contínuo)
 
 | Item | Evidência | Limitação |
@@ -26,9 +37,9 @@
 
 ## Relógio crítico do PostgreSQL
 
-**Expiração técnica informada pelo provedor: 29/10/2026 às 19:20:21 UTC (16h20 Brasília).** **Este não é um limite operacional seguro para iniciar a preservação dos dados.** Não contar com recuperação após a expiração.
+**Expiração técnica informada pelo provedor: 29/10/2026 às 19:20:21 UTC (16h20 Brasília), já ultrapassada.** O risco é de **recuperação pós-expiração sujeita às condições do Render**, não de exclusão comprovada neste momento. A janela nominal de 14 dias **não** equivale a garantia de restauração, backup ou reativação. A suspensão administrativa por `billing` deve ser resolvida de forma independente, mediante decisão humana.
 
-**Marco interno conservador de contingência: 27/10/2026, às 12h00 de Brasília (15h00 UTC)** — até esse momento, o responsável humano deve ter definido a continuidade e, **com autorização e acesso legítimos**, concluído a exportação/backup, verificado a integridade e ensaiado a restauração em ambiente isolado, com evidências datadas. Essa antecedência é uma **meta operacional sugerida**, não um prazo do Render nem garantia de tempo suficiente; iniciar imediatamente e antecipar o marco se volume, acesso ou RPO/RTO exigirem. **Não deixar a execução para o dia 29/10.** Se o marco não puder ser cumprido, escalar o risco P0 ao responsável imediatamente, preservar o estado de **NO-GO** e não declarar recuperação garantida. O autopiloto não exporta dados reais, altera permissões ou contrata infraestrutura.
+**Marco histórico já ultrapassado (não reprogramar retroativamente):** Marco interno conservador de contingência: 27/10/2026, às 12h00 de Brasília (15h00 UTC)** — até esse momento, o responsável humano deve ter definido a continuidade e, **com autorização e acesso legítimos**, concluído a exportação/backup, verificado a integridade e ensaiado a restauração em ambiente isolado, com evidências datadas. Essa antecedência é uma **meta operacional sugerida**, não um prazo do Render nem garantia de tempo suficiente; iniciar imediatamente e antecipar o marco se volume, acesso ou RPO/RTO exigirem. **Não deixar a execução para o dia 29/10.** Se o marco não puder ser cumprido, escalar o risco P0 ao responsável imediatamente, preservar o estado de **NO-GO** e não declarar recuperação garantida. O autopiloto não exporta dados reais, altera permissões ou contrata infraestrutura.
 
 - [ ] Responsável identificou e escolheu a estratégia de continuidade: armazenamento persistente autorizado expressamente **ou** outra solução comprovada e lícita. Não contratar/alterar plano automaticamente.
 - [ ] Responsável confirmou quais dados precisam de retenção e qual RPO/RTO é aceitável.
