@@ -4,6 +4,12 @@
 
 **Referências de governança:** [Roadmap #38](https://github.com/bmedeiros1987/LawyerWeb/issues/38) · [Launch Gate #37](https://github.com/bmedeiros1987/LawyerWeb/issues/37).
 
+## Estado revalidado em 12/11/2026, ~17h53 de Brasília (pós-carência nominal; P0)
+
+**NO-GO externo.** A referência nominal da carência do Free Postgres (~**12/11/2026 às 16h20 BRT**) **já passou**. Nesta consulta read-only ao workspace Render `Bruno's workspace`, `list_postgres_instances` retornou **"No Postgres instances found"** duas vezes, e `get_postgres(dpg-dau0utflk1mc73d92bkg-a)` retornou **404/not found**. O banco estava listado como `suspended` por `billing` antes desse marco. O novo estado é **compatível com remoção do recurso** conforme a [política do Render](https://render.com/docs/free#free-postgres), que prevê exclusão do banco *e dos dados* depois de 14 dias e não fornece backups para Free. **O 404 isolado não confirma impossibilidade de recuperação excepcional pelo provedor nem inexistência de cópia externa prévia.** Não presumir integridade, acessibilidade, recuperação, ou backup.
+
+**Ação humana P0:** verificar a ausência no [painel do banco antigo](https://dashboard.render.com/d/dpg-dau0utflk1mc73d92bkg-a), consultar suporte Render com o ID e datas, inventariar cópias externas anteriores e obter evidências de integridade; qualquer restauração/recriação deve ser autorizada, isolada e sem sobrescrever produção. **Não contratar upgrade, alterar secrets, permissões ou dados, iniciar migrations, disparar deploy manual nem marcar checklists.** Produção e preview permanecem suspensos por `billing`, sem eventos posteriores a 29/10; último deploy de produção `live` é apenas histórico (02/10). `main=73220db6`, Quality Gates antigos não comprovam saúde, login ou isolamento real. [Evidência datada na issue #37](https://github.com/bmedeiros1987/LawyerWeb/issues/37#issuecomment-6835687878). Deadline Safety e OpenClaw fail-closed sem Cross-System ACTION.
+
 ## Estado revalidado em 31/10/2026, ~11h40 de Brasília (bloqueio P0)
 
 **Lançamento externo: NO-GO.** A tabela de 23/10 abaixo é **histórica**, não descreve disponibilidade presente. A leitura atual dos serviços Render e do repositório indica:
