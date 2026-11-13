@@ -44,7 +44,7 @@
 
 ## Relógio crítico do PostgreSQL
 
-**Expiração técnica informada pelo provedor: 29/10/2026 às 19:20:21 UTC (16h20 Brasília), já ultrapassada.** O risco é de **recuperação pós-expiração sujeita às condições do Render**, não de exclusão comprovada neste momento. A janela nominal de 14 dias **não** equivale a garantia de restauração, backup ou reativação. A suspensão administrativa por `billing` deve ser resolvida de forma independente, mediante decisão humana.
+**Expiração técnica informada pelo provedor: 29/10/2026 às 19:20:21 UTC (16h20 Brasília), já ultrapassada.** A carência nominal de 14 dias terminou em **12/11/2026, ~16h20 BRT**. Na consulta de **13/11/2026**, a listagem do workspace não mostrou instâncias PostgreSQL e a consulta pelo ID antigo retornou **404**: evidências compatíveis com remoção do recurso, **sem comprovar irreversibilidade da perda ou inexistência de cópia externa**. Confirmar as possibilidades de recuperação com o suporte Render, por decisão humana; **não presumir acesso, backup ou restauração**. A suspensão administrativa por `billing` dos serviços web continua sendo bloqueio independente.
 
 **Marco interno preventivo histórico (27/10/2026, 12h00 BRT, já ultrapassado):** o plano anterior sugeria definir continuidade, efetuar exportação autorizada, verificar integridade e ensaiar restauração isolada **antes** da expiração de 29/10. Era uma meta de contingência, não um prazo do Render. **Não há evidência nesta auditoria de que esses passos tenham sido concluídos.** O procedimento agora é o de recuperação pós-expiração descrito acima, sob decisão humana e preservando o **NO-GO**. O autopiloto não exporta dados reais, altera permissões nem contrata infraestrutura.
 
