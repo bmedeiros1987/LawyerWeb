@@ -22,6 +22,23 @@ describe("deadline timeline presentation", () => {
     expect(deadlineTimelineDetail("CANCELLED", new Date("2026-10-10T12:00:00Z"), format))
       .toBe("Prazo cancelado");
   });
+
+  it.each(["", "UNKNOWN", "confirmed", "SUSPENDED"])(
+    "não apresenta status desconhecido %j como prazo confirmado",
+    (status) => {
+      const detail = deadlineTimelineDetail(status, new Date("2026-10-10T12:00:00Z"), format);
+      expect(detail).toBe("Situação do prazo não reconhecida — revisão humana necessária");
+      expect(detail).not.toContain("Prazo confirmado");
+    },
+  );
+
+  it.each(["CONFIRMED", "IN_PROGRESS", "COMPLETED"])(
+    "preserva a apresentação de status canônico %s",
+    (status) => {
+      expect(deadlineTimelineDetail(status, new Date("2026-10-10T12:00:00Z"), format))
+        .toBe("Prazo confirmado: 2026-10-10");
+    },
+  );
 });
 
 
