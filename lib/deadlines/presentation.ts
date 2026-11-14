@@ -1,4 +1,5 @@
 const CANDIDATE_STATUSES = new Set(["CANDIDATE", "PENDING_CONFIRMATION"]);
+const CONFIRMED_RECORD_STATUSES = new Set(["CONFIRMED", "IN_PROGRESS", "COMPLETED"]);
 
 export function deadlineTimelineDetail(
   status: string,
@@ -9,6 +10,9 @@ export function deadlineTimelineDetail(
     return dueAt ? `Data candidata: ${formatDate(dueAt)}` : "Data candidata — revisão humana pendente";
   }
   if (status === "CANCELLED") return "Prazo cancelado";
+  if (!CONFIRMED_RECORD_STATUSES.has(status)) {
+    return "Situação do prazo não reconhecida — revisão humana necessária";
+  }
   return dueAt ? `Prazo confirmado: ${formatDate(dueAt)}` : "Prazo confirmado sem data definida";
 }
 
@@ -26,8 +30,6 @@ export function isOverdueConfirmedDeadline(
 ): boolean {
   return OPERATIONAL_STATUSES.has(status) && Boolean(dueAt && dueAt < now);
 }
-
-const CONFIRMED_RECORD_STATUSES = new Set(["CONFIRMED", "IN_PROGRESS", "COMPLETED"]);
 
 export function countsAsConfirmedDeadlineRecord(status: string): boolean {
   return CONFIRMED_RECORD_STATUSES.has(status);
